@@ -1,4 +1,4 @@
-/* RR Quiz Platform — 前端（M3 草稿校對、M4 發佈與作答、M5 批改與成績） */
+/* RR Quiz Platform — 前端（M3 草稿校對、M4 發佈與作答、M5 批改、M6 成績與補考） */
 (() => {
   'use strict';
   const CFG = window.RRQP_CONFIG || {};
@@ -159,7 +159,7 @@
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
         <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
-        <span title="${esc(t('soon'))}">${esc(t('navResults'))}</span></nav>` : '';
+        <a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a></nav>` : '';
     app().innerHTML = `<header class="top">
         <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR Quiz Platform</span>${teacher ? `<span>${esc(t('teacherPortal'))}</span>` : ''}</div>
         ${nav}
@@ -235,6 +235,9 @@
     if (me.isTeacher && page === 'mine') return viewMyQuizzes();
     if (me.isTeacher && page === 'grading' && arg) return viewGrading(decodeURIComponent(arg));
     if (me.isTeacher && page === 'grading') return viewGradingList();
+    if (me.isTeacher && page === 'results' && arg) return viewSessionResults(decodeURIComponent(arg));
+    if (me.isTeacher && page === 'results') return viewResults();
+    if (me.isTeacher && page === 'agent' && arg) return viewAgentHistory(decodeURIComponent(arg));
     if (me.isTeacher && (page === 'drafts' || page === '')) return viewDrafts();
     return viewMyQuizzes();
   }
@@ -738,6 +741,7 @@
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}<span class="spacer"></span>
           <button class="btn" id="reload">${esc(t('refresh'))}</button><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
+          ${s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
           ${s.state === 'open' || s.state === 'scheduled' ? `<button class="btn danger" id="endNow">${esc(t('endNow'))}</button>` : `<a class="btn brand" style="display:inline-grid;place-items:center;text-decoration:none" href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))}</a>`}</div>
         <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button></div>
         <div class="stats">
@@ -746,10 +750,13 @@
           <div class="card pad"><div class="small soft">${esc(t('timeLimit'))}</div><div class="big">${esc(t('minUnit', { n: s.minutes }))}</div><div class="small soft">${esc(t('qUnit', { n: s.questionCount }))}</div></div>
           <div class="card pad"><div class="small soft">${esc(t('colSubmitted'))}</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div><div class="small soft">${esc(t('a_in_progress'))} ${inp} · ${esc(t('a_not_started'))} ${nst}</div></div>
         </div>
-        <div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th></tr></thead><tbody>${
-          d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${attChip(r)}</td><td class="small muted">${esc(fmtDT(r.startedAt))}</td><td class="small muted">${esc(fmtDT(r.submittedAt))}</td></tr>`).join('')}</tbody></table></div>`;
+        <div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
+          d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${attChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td><td class="small muted">${esc(fmtDT(r.startedAt))}</td><td class="small muted">${esc(fmtDT(r.submittedAt))}</td>
+            <td style="text-align:right">${r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
       $('#cpl').onclick = () => copyText(link);
       $('#reload').onclick = load;
+      const ex = $('#extend'); if (ex) ex.onclick = () => extendModal(s, load);
+      $$('[data-ret]').forEach((b) => b.addEventListener('click', () => returnModal(s, b.dataset.ret, load)));
       const en = $('#endNow'); if (en) en.onclick = async () => {
         if (!(await confirmBox(t('endConfirm', { id: s.sessionId }), t('endNow'), t('cancel'), true))) return;
         try { await api('t_endSession', { sessionId: s.sessionId }); toast(t('ended')); load(); } catch (e) { toast(e.message, 4000); }
@@ -1113,6 +1120,186 @@
           ${x.comment ? `<span>${esc(t('trainerNote'))}</span><span class="note">${esc(x.comment)}</span>` : ''}
           <span>${esc(t('explanation2'))}</span><span>${bi(x.explanation)}</span></div></div>`).join('')}
       <div><a href="#/">← ${esc(t('backHome'))}</a></div></div>`;
+  }
+
+  // ═════════════════════════ M6：成績、退回、補考 ═════════════════════════
+  Object.assign(I18N.zh, {
+    results: '成績', bySession: '依測驗場次', byAgent: '依專員', avgScore: '平均分數', median: '中位數', highLow: '最高 / 最低', belowLine: '低於門檻 {n} 分',
+    autoN: '自動交卷', peopleN: '{n} 人', qRates: '各題得分率', qRatesNote: 'A 題以答對率、B / C 題以得分率計算；低於 60% 以紅色標示。',
+    colScore: '分數', colWrong: '錯題', needCoach: '需輔導', detail: '明細', exportCsv: '匯出 CSV', makeupForChecked: '為勾選者建立補考',
+    showingN: '共 {n} 人 · 依分數由低到高', noResults: '還沒有已結束的測驗。', partial: '部分', makeupOf: '補考自 {id}',
+    colTaken: '測驗次數', colAvg: '平均', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
+    wrongPoints: '錯誤重點', notReleasedChip: '成績未公布',
+    makeupTitle: '建立補考', makeupNote: '補考沿用原測驗的題目與配分，會建立一個新的測驗場次與連結。', create2: '建立補考', makeupDone: '補考 {id} 已建立',
+    returnBtn: '退回', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會保留在 Sheet 但不再計分，專員可以在測驗開放期間重新作答。', returnReason: '原因（選填，例如網路中斷）', returnDone: '已退回',
+    extend: '延長結束時間', extendTitle: '延長 {id} 的結束時間', newEnd: '新的結束時間', extendDone: '已延長', noneSel: '請先勾選專員',
+    attemptDetail: '作答明細', choiceLabel: '選擇', textLabel: '文字', aiLabel: 'AI', teacherLabel: '講師', notAnswered: '未作答',
+  });
+  Object.assign(I18N.en, {
+    results: 'Results', bySession: 'By quiz', byAgent: 'By agent', avgScore: 'Average', median: 'Median', highLow: 'High / Low', belowLine: 'Below {n}',
+    autoN: 'Auto-submitted', peopleN: '{n}', qRates: 'Score rate by question', qRatesNote: 'A: correct rate. B / C: share of points earned. Below 60% is shown in red.',
+    colScore: 'Score', colWrong: 'Missed', needCoach: 'Needs coaching', detail: 'Details', exportCsv: 'Export CSV', makeupForChecked: 'Makeup for selected',
+    showingN: '{n} people · lowest score first', noResults: 'No closed quizzes yet.', partial: 'partial', makeupOf: 'Makeup of {id}',
+    colTaken: 'Quizzes', colAvg: 'Average', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
+    wrongPoints: 'Missed points', notReleasedChip: 'Not released',
+    makeupTitle: 'Create a makeup quiz', makeupNote: 'The makeup reuses the original questions and points, with a new session and link.', create2: 'Create makeup', makeupDone: 'Makeup {id} created',
+    returnBtn: 'Return', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers stay in the Sheet but no longer count. The agent can answer again while the quiz is open.', returnReason: 'Reason (optional, e.g. connection lost)', returnDone: 'Returned',
+    extend: 'Extend end time', extendTitle: 'Extend {id}', newEnd: 'New end time', extendDone: 'Extended', noneSel: 'Select agents first',
+    attemptDetail: 'Answer details', choiceLabel: 'Choice', textLabel: 'Written', aiLabel: 'AI', teacherLabel: 'Trainer', notAnswered: 'Not answered',
+  });
+  const rateColor = (r) => (r === null ? 'var(--line2)' : r < 0.6 ? 'var(--err)' : r < 0.8 ? '#D97706' : 'var(--ok)');
+  const wrongText = (w) => w.map((x) => 'Q' + String(x.seq).padStart(2, '0') + (x.partial ? `（${t('partial')}）` : '')).join('、');
+  function downloadCsv(name, rows) {
+    const csv = '﻿' + rows.map((r) => r.map((v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  async function viewResults() {
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const tab = params.get('tab') === 'agent' ? 'agent' : 'session';
+    const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1></div>
+      <div class="tabs"><a class="tab ${tab === 'session' ? 'on' : ''}" href="#/results">${esc(t('bySession'))}</a><a class="tab ${tab === 'agent' ? 'on' : ''}" href="#/results?tab=agent">${esc(t('byAgent'))}</a></div>
+      <div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div>`);
+    let d;
+    try { d = await api('t_resultsIndex'); } catch (e) { showError(e, $('#rl')); return; }
+    if (tab === 'session') {
+      if (!d.sessions.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noResults'))}</div>`; return; }
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th><th>${esc(t('belowLine', { n: d.coachLine }))}</th><th></th></tr></thead><tbody>${
+        d.sessions.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}${s.parentSession ? `<div class="small soft">${esc(t('makeupOf', { id: s.parentSession }))}</div>` : ''}<div class="small soft">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</div></td>
+          <td>${sessChip(s.state)}</td><td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td><b>${s.avg === null ? t('none') : r2(s.avg)}</b></td>
+          <td>${s.coaching ? `<span class="chip warn">${s.coaching}</span>` : '0'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
+      $$('[data-open]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/results/' + r.dataset.open; }));
+    } else {
+      if (!d.agents.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noAgents'))}</div>`; return; }
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colAgent'))}</th><th>${esc(t('colTaken'))}</th><th>${esc(t('colAvg'))}</th><th>${esc(t('colCoach'))}</th><th>${esc(t('colLast'))}</th><th></th></tr></thead><tbody>${
+        d.agents.map((a) => `<tr class="click" data-email="${esc(a.email)}"><td>${esc(a.email)}</td><td>${a.taken}</td><td><b>${r2(a.avg)}</b>${a.avg < d.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}</td>
+          <td>${a.coaching || 0}</td><td class="small">${a.last ? `${esc(L(a.last.title))} · <b>${r2(a.last.score)}</b>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('history'))}</button></td></tr>`).join('')}</tbody></table>`;
+      $$('[data-email]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/agent/' + encodeURIComponent(r.dataset.email); }));
+    }
+  }
+
+  async function viewSessionResults(id) {
+    const main = shell('results', `<div class="empty-state"><span class="spin"></span></div>`);
+    let d;
+    try { d = await api('t_results', { sessionId: id }); } catch (e) { showError(e); return; }
+    const s = d.session, st = d.stats;
+    const rows = d.rows.slice().sort((a, b) => (a.score === null ? -1 : b.score === null ? 1 : a.score - b.score));
+    main.innerHTML = `<div class="row"><a href="#/results">← ${esc(t('results'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}<span class="spacer"></span>
+        <button class="btn" id="csv">${esc(t('exportCsv'))}</button><button class="btn brand" id="mk">${esc(t('makeupForChecked'))}</button></div>
+      ${s.released ? '' : `<div class="banner warn">${esc(t('notReleasedChip'))} · <a href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))} →</a></div>`}
+      <div class="stats five">
+        <div class="card pad"><div class="small soft">${esc(t('avgScore'))}</div><div class="big">${st.avg === null ? t('none') : r2(st.avg)}</div></div>
+        <div class="card pad"><div class="small soft">${esc(t('colSubmitted'))}</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
+        <div class="card pad"><div class="small soft">${esc(t('belowLine', { n: d.coachLine }))}</div><div class="big" style="color:${st.coaching ? 'var(--err)' : 'inherit'}">${esc(t('peopleN', { n: st.coaching }))}</div></div>
+        <div class="card pad"><div class="small soft">${esc(t('autoN'))}</div><div class="big">${esc(t('peopleN', { n: st.auto }))}</div></div>
+        <div class="card pad"><div class="small soft">${esc(t('median'))} · ${esc(t('highLow'))}</div><div class="big">${st.median === null ? t('none') : r2(st.median)}</div><div class="small soft">${st.max === null ? '' : r2(st.max) + ' / ' + r2(st.min)}</div></div>
+      </div>
+      <div class="card pad"><h2>${esc(t('qRates'))}</h2>
+        <div class="rates">${d.questions.map((q) => `<div class="rate" title="${esc(L(q.point))}"><div class="rbar"><i style="height:${q.rate === null ? 0 : Math.round(q.rate * 100)}%;background:${rateColor(q.rate)}"></i></div>
+          <b>${q.rate === null ? t('none') : Math.round(q.rate * 100) + '%'}</b><span>Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}</span></div>`).join('')}</div>
+        <div class="small soft">${esc(t('qRatesNote'))}</div></div>
+      <div class="card scroll-x"><table class="list"><thead><tr><th style="width:36px"><input type="checkbox" id="all" aria-label="select all"></th><th>${esc(t('colAgent'))}</th><th>${esc(t('colScore'))}</th><th>${esc(t('colWrong'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
+        rows.map((r) => `<tr><td><input type="checkbox" class="pick" value="${esc(r.email)}" ${r.status !== 'submitted' ? 'checked' : ''}></td><td>${esc(r.email)}</td>
+          <td>${r.score === null ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : `<b style="font-size:18px">${r2(r.score)}</b>`}</td>
+          <td class="small">${esc(wrongText(r.wrong)) || (r.score !== null ? '—' : '')}</td>
+          <td class="small muted">${esc(fmtDT(r.submittedAt))}${r.autoSubmitted ? ' · ' + esc(t('autoSub')) : ''}</td>
+          <td style="text-align:right;white-space:nowrap">${r.coaching ? `<span class="chip warn">${esc(t('needCoach'))}</span> ` : ''}${r.score !== null ? `<button class="btn sm" data-det="${esc(r.email)}">${esc(t('detail'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        <div class="small soft" style="padding:10px 14px">${esc(t('showingN', { n: rows.length }))}</div></div>`;
+    $('#all').addEventListener('change', (e) => $$('.pick').forEach((c) => { c.checked = e.target.checked; }));
+    $$('[data-det]').forEach((b) => b.addEventListener('click', () => attemptModal(s.sessionId, b.dataset.det)));
+    $('#csv').onclick = () => downloadCsv(`${s.sessionId}_results.csv`, [
+      ['Email', 'Status', 'Score', 'Needs coaching', 'Missed', 'Started', 'Submitted', 'Auto-submitted'],
+      ...rows.map((r) => [r.email, r.status, r.score ?? '', r.coaching ? 'Y' : '', wrongText(r.wrong), fmtDT(r.startedAt), fmtDT(r.submittedAt), r.autoSubmitted ? 'Y' : '']),
+    ]);
+    $('#mk').onclick = () => {
+      const emails = $$('.pick:checked').map((c) => c.value);
+      if (!emails.length) { toast(t('noneSel')); return; }
+      makeupModal(s, emails);
+    };
+  }
+
+  async function viewAgentHistory(email) {
+    const main = shell('results', `<div class="empty-state"><span class="spin"></span></div>`);
+    let d;
+    try { d = await api('t_agentHistory', { email }); } catch (e) { showError(e); return; }
+    main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1></div>
+      <div class="timeline">${d.items.map((it) => {
+        const r = it.row, s = it.session;
+        const pts = r && r.wrong ? [...new Set(r.wrong.map((w) => L(w.point)).filter(Boolean))] : [];
+        return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}</div>
+          <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(L(s.title))}</h2><span class="spacer"></span>
+            ${r && r.score !== null ? `<span class="tlscore ${r.coaching ? 'low' : ''}">${r2(r.score)}</span>` : attChip(r && r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : (r || { status: 'not_started' }))}</div>
+          ${pts.length ? `<div class="small" style="margin-top:6px"><span class="soft">${esc(t('wrongPoints'))}：</span>${pts.map((p) => `<span class="chip warn" style="margin:2px">${esc(p)}</span>`).join('')}</div>` : ''}
+          ${r && r.score !== null ? `<div style="margin-top:8px"><button class="btn sm" data-det="${esc(s.sessionId)}">${esc(t('detail'))}</button> <a class="small" href="#/results/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
+      }).join('')}</div>`;
+    $$('[data-det]').forEach((b) => b.addEventListener('click', () => attemptModal(b.dataset.det, d.email)));
+  }
+
+  async function attemptModal(sid, email) {
+    let d;
+    try { d = await api('t_attemptDetail', { sessionId: sid, email }); } catch (e) { toast(e.message, 4000); return; }
+    const body = d.questions.map((q) => {
+      const a = d.answers.find((x) => x.qid === q.qid) || {};
+      const p = q.points || {}, max = r2((p.choice || 0) + (p.text || 0));
+      const ts = a.teacherScore != null ? a.teacherScore : a.aiScore;
+      const got = r2((a.autoScore || 0) + (ts || 0));
+      const opt = (id) => { const o = (q.options || []).find((x) => x.id === id); return o ? String(o.id).toUpperCase() + '. ' + L(o.text) : ''; };
+      return `<div class="adq"><div class="row"><b>Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}</b><span class="chip ${got >= max - 1e-9 ? 'ok' : got > 0 ? 'warn' : ''}">${got} / ${max}</span><span class="small soft">${esc(L(q.point))}</span></div>
+        <div class="rvgrid small">
+          ${q.type !== 'C' ? `<span>${esc(t('choiceLabel'))}</span><span class="${a.choice === q.answer ? 'okc' : 'errc'}">${esc(opt(a.choice) || t('notAnswered'))}${a.choice !== q.answer ? ` → ${esc(opt(q.answer))}` : ''}</span>` : ''}
+          ${q.type !== 'A' ? `<span>${esc(t('textLabel'))}</span><span>${esc(a.text || t('notAnswered'))}</span>` : ''}
+          ${q.type !== 'A' && a.aiScore != null ? `<span>${esc(t('aiLabel'))}</span><span>${r2(a.aiScore)} · ${esc(a.aiReason || '')}</span>` : ''}
+          ${a.teacherScore != null || a.teacherComment ? `<span>${esc(t('teacherLabel'))}</span><span>${a.teacherScore != null ? r2(a.teacherScore) : ''} ${a.teacherComment ? '· ' + esc(a.teacherComment) : ''}</span>` : ''}
+        </div></div>`;
+    }).join('');
+    await modal(`<div class="row"><h2>${esc(t('attemptDetail'))}</h2><span class="soft small">${esc(d.email)} · ${esc(L(d.session.title))}</span><span class="spacer"></span><button class="btn sm" data-close="">✕</button></div>${body}`, { wide: true });
+  }
+
+  function makeupModal(s, emails, done) {
+    const start = new Date(); start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
+    const end = new Date(start.getTime() + 2 * 86400000); end.setHours(18, 0, 0, 0);
+    return modal(`<h2>${esc(t('makeupTitle'))} · ${esc(s.sessionId)}</h2><div class="small muted">${esc(t('makeupNote'))}</div>
+      <div class="form" style="grid-template-columns:120px 1fr">
+        <label class="k">${esc(t('startAt'))}</label><input type="datetime-local" id="mk_s" value="${toLocalInput(start)}">
+        <label class="k">${esc(t('endAt'))}</label><input type="datetime-local" id="mk_e" value="${toLocalInput(end)}">
+        <label class="k">${esc(t('minutes'))}</label><input type="number" id="mk_m" min="1" max="300" value="${esc(s.minutes)}">
+        <label class="k">${esc(t('assignees'))}</label><textarea id="mk_list" rows="5" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px">${esc(emails.join('\n'))}</textarea>
+      </div><div id="mk_err" class="banner err" hidden></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="mk_go">${esc(t('create2'))}</button></div>`,
+    { onMount: (el, close) => {
+      $('#mk_go', el).onclick = async () => {
+        $('#mk_go', el).disabled = true;
+        try {
+          const r = await api('t_createMakeup', { sessionId: s.sessionId, assignees: parseEmails($('#mk_list', el).value).ok,
+            startAt: new Date($('#mk_s', el).value).getTime(), endAt: new Date($('#mk_e', el).value).getTime(), minutes: +$('#mk_m', el).value });
+          close('ok'); toast(t('makeupDone', { id: r.sessionId })); location.hash = '#/session/' + r.sessionId;
+        } catch (e) { const er = $('#mk_err', el); er.textContent = e.message; er.hidden = false; $('#mk_go', el).disabled = false; }
+      };
+    } });
+  }
+  function extendModal(s, done) {
+    const def = new Date(Math.max(Date.now(), s.endAt) + 86400000);
+    return modal(`<h2>${esc(t('extendTitle', { id: s.sessionId }))}</h2>
+      <div class="form" style="grid-template-columns:140px 1fr"><label class="k">${esc(t('newEnd'))}</label><input type="datetime-local" id="ex_e" value="${toLocalInput(def)}"></div>
+      <div id="ex_err" class="banner err" hidden></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="ex_go">${esc(t('extend'))}</button></div>`,
+    { onMount: (el, close) => {
+      $('#ex_go', el).onclick = async () => {
+        try { await api('t_extendSession', { sessionId: s.sessionId, endAt: new Date($('#ex_e', el).value).getTime() }); close('ok'); toast(t('extendDone')); done && done(); }
+        catch (e) { const er = $('#ex_err', el); er.textContent = e.message; er.hidden = false; }
+      };
+    } });
+  }
+  function returnModal(s, email, done) {
+    return modal(`<h2>${esc(t('returnTitle', { email }))}</h2><div class="small muted">${esc(t('returnNote'))}</div>
+      <input type="text" id="rt_r" placeholder="${esc(t('returnReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rt_go">${esc(t('returnBtn'))}</button></div>`,
+    { onMount: (el, close) => {
+      $('#rt_go', el).onclick = async () => {
+        try { const r = await api('t_returnAttempt', { sessionId: s.sessionId, email, reason: $('#rt_r', el).value }); close('ok'); toast(t('returnDone') + (r.hint ? '：' + r.hint : ''), r.hint ? 7000 : 2600); done && done(); }
+        catch (e) { toast(e.message, 4000); }
+      };
+    } });
   }
 
   // ───────── start ─────────
