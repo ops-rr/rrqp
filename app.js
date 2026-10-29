@@ -157,6 +157,7 @@
     const nav = teacher ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}">
         <span title="${esc(t('soon'))}">${esc(t('navLibrary'))}</span>
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
+        <a href="#/bank" class="${active === 'bank' ? 'on' : ''}">${esc(t('navBank'))}</a>
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
         <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
         <a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a></nav>` : '';
@@ -233,6 +234,8 @@
     if (me.isTeacher && page === 'session' && arg) return viewSession(decodeURIComponent(arg));
     if (me.isTeacher && page === 'preview' && arg) return viewPreview(decodeURIComponent(arg));
     if (me.isTeacher && page === 'mine') return viewMyQuizzes();
+    if (me.isTeacher && page === 'bank' && arg) return viewBankItem(decodeURIComponent(arg));
+    if (me.isTeacher && page === 'bank') return viewBank();
     if (me.isTeacher && page === 'grading' && arg) return viewGrading(decodeURIComponent(arg));
     if (me.isTeacher && page === 'grading') return viewGradingList();
     if (me.isTeacher && page === 'results' && arg) return viewSessionResults(decodeURIComponent(arg));
@@ -249,7 +252,7 @@
   // ───────── 草稿列表 ─────────
   let topicsCache = null;
   async function getTopics() { if (!topicsCache) topicsCache = await api('t_topics'); return topicsCache; }
-  const statusChip = (s) => `<span class="chip ${s === 'ready' ? 'ok' : s === 'generating' ? 'info' : 'warn'}">${s === 'generating' ? '<span class="spin" style="width:10px;height:10px;border-width:1.5px"></span> ' : ''}${esc(t('st_' + s))}</span>`;
+  const statusChip = (s) => `<span class="chip ${s === 'ready' || s === 'banked' ? 'ok' : s === 'generating' ? 'info' : 'warn'}">${s === 'generating' ? '<span class="spin" style="width:10px;height:10px;border-width:1.5px"></span> ' : ''}${esc(t('st_' + s))}</span>`;
   const fmtTime = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return iso; const p = (n) => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   function progressCell(d) {
     if (d.status === 'generating') {
@@ -402,15 +405,14 @@
 
     function header() {
       const all = questions.length, rev = questions.filter((q) => q.reviewed).length;
-      const canReady = draft.status === 'draft' && all > 0 && rev === all;
+      const toBank = questions.filter((q) => q.reviewed && !q.bankedAs).length;
       return `<div class="row"><a href="#/drafts">${esc(t('back'))}</a>
         <h1>${esc(draft.draftId)} ${esc(draft.name)}</h1>${statusChip(draft.status)}
         <span class="chip">${esc(t('reviewedN', { a: rev, b: all }))}</span>
         <span class="spacer"></span>
         <button class="btn" id="reload">${esc(t('refresh'))}</button>
-        ${draft.status === 'ready'
-          ? `<button class="btn" id="unready">${esc(t('unready'))}</button><a class="btn brand" style="display:inline-grid;place-items:center;text-decoration:none" href="#/sessions?new=${esc(draft.draftId)}">${esc(t('publishDraft'))}</a>`
-          : `<button class="btn ok" id="ready" ${canReady ? '' : 'disabled'} title="${canReady ? '' : esc(t('readyNeed', { n: all - rev }))}">${esc(t('markReady'))}</button>`}
+        ${draft.status === 'banked' ? `<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/bank">${esc(t('goBank'))} →</a>` : ''}
+        ${draft.status !== 'generating' && draft.status !== 'banked' ? `<button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: all - rev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
       </div>
       ${draft.status === 'generating' ? `<div class="banner info row"><span>${esc(t('genBanner', { a: draft.imported, b: draft.target }))}</span>
         <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" id="cpy2">${esc(t('copy'))}</button></span><span class="small">${esc(t('genAuto'))}</span></div>` : ''}`;
@@ -421,7 +423,7 @@
         return `<div class="qitem ${i === idx ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
           <span class="dot ${q.reviewed ? 'on' : ''}" title="${esc(q.reviewed ? t('reviewedTag') : t('notReviewed'))}">${q.reviewed ? '✓' : ''}</span>
           <span class="id">${esc(q.id.split('-').pop())}</span><span class="chip" style="padding:0 7px">${esc(q.type)}</span>
-          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
+          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
     function biField(key, label, short) {
@@ -434,7 +436,7 @@
       if (!questions.length) return `<div class="card empty-state">${draft.status === 'generating' ? '<span class="spin"></span> ' : ''}${esc(t('generated', { a: draft.imported, b: draft.target }))}</div>`;
       const q = work, src = questions[idx];
       const { left, req } = caseHtml(q);
-      const editable = draft.status !== 'generating';
+      const editable = draft.status !== 'generating' && !src.bankedAs;
       const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}" ${editable ? '' : 'disabled'}>
           <b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
       return `<div class="card detail">
@@ -445,6 +447,7 @@
           <span class="spacer"></span>
           <button class="btn sm" id="prev" ${idx === 0 ? 'disabled' : ''}>${esc(t('prev'))}</button>
           <button class="btn sm" id="next" ${idx === questions.length - 1 ? 'disabled' : ''}>${esc(t('next'))}</button></div>
+        ${src.bankedAs ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('bankedNote', { id: src.bankedAs }))} <a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a></div>` : ''}
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
@@ -500,11 +503,15 @@
         dirty = false; clearInterval(pollTimer); viewDraft(draft.draftId);
       };
       const cp = $('#cpy2'); if (cp) cp.onclick = () => copyText(cmd);
-      const rd = $('#ready'); if (rd) rd.onclick = async () => {
-        try { const r = await api('t_markReady', { draftId: draft.draftId }); draft = r.draft; toast(t('readyDone')); draw(); } catch (e) { toast(e.message, 4000); }
-      };
-      const ur = $('#unready'); if (ur) ur.onclick = async () => {
-        try { const r = await api('t_markReady', { draftId: draft.draftId, ready: false }); draft = r.draft; draw(); } catch (e) { toast(e.message, 4000); }
+      const ba = $('#bankAdd'); if (ba) ba.onclick = async () => {
+        if (dirty && !(await confirmBox(t('unsaved'), t('discard'), t('keep'), true))) return;
+        ba.disabled = true;
+        try {
+          const r = await api('t_bankAdd', { draftId: draft.draftId });
+          draft = r.draft; r.added.forEach((a) => { const q = questions.find((x) => x.id === a.sourceQid); if (q) q.bankedAs = a.qid; });
+          dirty = false; work = clone(questions[idx]);
+          toast(t('bankAdded', { ids: r.added.map((a) => a.qid).join('、') }), 4000); draw();
+        } catch (e) { toast(e.message, 4000); ba.disabled = false; }
       };
       $$('#qlist [data-i]').forEach((el) => {
         el.addEventListener('click', () => select(+el.dataset.i));
@@ -666,7 +673,7 @@
         box.innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th class="hide-sm">${esc(t('colMinutes'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
           sessions.map((s) => {
             const pct = s.assigned ? Math.round((s.submitted / s.assigned) * 100) : 0;
-            return `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}<div class="small soft">${esc(s.draftId)} · ${esc(t('qUnit', { n: s.questionCount }))}</div></td>
+            return `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}<div class="small soft">${s.draftId && s.draftId !== 'BANK' ? esc(s.draftId) + ' · ' : ''}${esc(t('qUnit', { n: s.questionCount }))}</div></td>
               <td class="small">${esc(fmtDT(s.startAt))}<br>– ${esc(fmtDT(s.endAt))}</td><td class="hide-sm small">${esc(t('minUnit', { n: s.minutes }))}</td>
               <td><div class="bar ok"><i style="width:${pct}%"></i></div><div class="small muted">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</div></td>
               <td>${sessChip(s.state)}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`;
@@ -674,61 +681,22 @@
         $$('[data-open]', box).forEach((r) => r.addEventListener('click', () => { location.hash = '#/session/' + r.dataset.open; }));
       } catch (e) { showError(e, $('#listBox')); }
     }
-    async function openCreate(preset) {
+    async function openCreate() {
       const box = $('#createBox');
-      if (box.innerHTML && !preset) { box.innerHTML = ''; return; }
-      box.innerHTML = `<div class="card pad"><span class="spin"></span></div>`;
-      let drafts;
-      try { drafts = (await api('t_listDrafts')).drafts.filter((d) => d.status === 'ready'); } catch (e) { showError(e, box); return; }
-      if (!drafts.length) { box.innerHTML = `<div class="banner warn">${esc(t('noReady'))}</div>`; return; }
-      const start = new Date(); start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
-      const end = new Date(start.getTime() + 2 * 86400000); end.setHours(18, 0, 0, 0);
-      box.innerHTML = `<form class="card pad" id="sform" style="display:flex;flex-direction:column;gap:16px"><h2>${esc(t('newSession'))}</h2>
-        <div class="form">
-          <label class="k" for="s_draft">${esc(t('pickDraft'))}</label><select id="s_draft">${drafts.map((d) => `<option value="${esc(d.draftId)}" data-name="${esc(d.name)}">${esc(d.draftId)} ${esc(d.name)}（${esc(t('qUnit', { n: d.imported }))}）</option>`).join('')}</select>
-          <label class="k" for="s_tzh">${esc(t('titleZh'))}</label><input type="text" id="s_tzh" maxlength="80" required>
-          <label class="k" for="s_ten">${esc(t('titleEn'))}</label><input type="text" id="s_ten" maxlength="80" required placeholder="e.g. Agreement Check — Wrong Item Sent">
-          <label class="k" for="s_start">${esc(t('startAt'))}</label><div><input type="datetime-local" id="s_start" value="${toLocalInput(start)}" required></div>
-          <label class="k" for="s_end">${esc(t('endAt'))}</label><div><input type="datetime-local" id="s_end" value="${toLocalInput(end)}" required><div class="small soft">${esc(t('tz'))}</div></div>
-          <label class="k" for="s_min">${esc(t('minutes'))}</label><div><input type="number" id="s_min" min="1" max="300" value="30" required></div>
-          <label class="k" for="s_emails">${esc(t('assignees'))}</label><div><textarea id="s_emails" rows="6" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px 10px" placeholder="maria.santos@shopeemobile-external.com&#10;juan.reyes@shopeemobile-external.com"></textarea><div class="small" id="s_cnt"></div></div>
-        </div>
-        <div id="s_err" class="banner err" hidden></div>
-        <div class="row"><button type="submit" class="btn brand" id="s_go">${esc(t('publish'))}</button><button type="button" class="btn" id="s_cancel">${esc(t('cancel'))}</button></div></form>`;
-      const sel = $('#s_draft');
-      if (preset && drafts.some((d) => d.draftId === preset)) sel.value = preset;
-      const fillTitle = () => { const o = sel.selectedOptions[0]; $('#s_tzh').value = o ? o.dataset.name : ''; };
-      sel.addEventListener('change', fillTitle); fillTitle();
-      const cnt = () => {
-        const r = parseEmails($('#s_emails').value);
-        $('#s_cnt').innerHTML = `<span class="chip ${r.bad.length ? 'warn' : r.ok.length ? 'ok' : ''}">${esc(t('validN', { a: r.ok.length, b: r.bad.length }))}</span>${r.bad.length ? ' <span class="small" style="color:var(--err)">' + r.bad.slice(0, 5).map(esc).join(', ') + '</span>' : ''}`;
-        $('#s_go').disabled = !r.ok.length || r.bad.length > 0;
-      };
-      $('#s_emails').addEventListener('input', cnt); cnt();
-      $('#s_cancel').onclick = () => { box.innerHTML = ''; };
-      $('#sform').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = $('#s_go'); btn.disabled = true; $('#s_err').hidden = true;
-        try {
-          const r = await api('t_createSession', {
-            draftId: sel.value, titleZh: $('#s_tzh').value.trim(), titleEn: $('#s_ten').value.trim(),
-            startAt: new Date($('#s_start').value).getTime(), endAt: new Date($('#s_end').value).getTime(), minutes: +$('#s_min').value,
-            assignees: parseEmails($('#s_emails').value).ok,
-          });
-          box.innerHTML = '';
-          const link = quizLink(r.sessionId);
-          $('#doneBox').innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:10px"><div><b>${esc(t('published', { id: r.sessionId }))}</b> <span class="muted">${esc(t('linkHint'))}</span></div>
-            <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button><a class="btn sm" style="display:inline-grid;place-items:center;text-decoration:none" href="#/session/${esc(r.sessionId)}">${esc(t('goSession'))}</a></div></div>`;
-          $('#cpl').onclick = () => copyText(link);
-          history.replaceState(null, '', '#/sessions');
-          loadList();
-        } catch (err) { $('#s_err').textContent = err.message; $('#s_err').hidden = false; btn.disabled = false; }
+      if (box.innerHTML) { box.innerHTML = ''; return; }
+      composeForm(box, (r) => {
+        box.innerHTML = '';
+        const link = quizLink(r.sessionId);
+        $('#doneBox').innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:10px"><div><b>${esc(t('published', { id: r.sessionId }))}</b> <span class="muted">${esc(t('linkHint'))}</span></div>
+          <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button><a class="btn sm" style="display:inline-grid;place-items:center;text-decoration:none" href="#/session/${esc(r.sessionId)}">${esc(t('goSession'))}</a></div></div>`;
+        $('#cpl').onclick = () => copyText(link);
+        loadList();
       });
     }
     $('#refresh').onclick = loadList;
     $('#newBtn').onclick = () => openCreate();
     loadList();
-    if (params.get('new')) openCreate(params.get('new'));
+    if (params.get('new')) openCreate();
   }
 
   async function viewSession(id) {
@@ -1300,6 +1268,221 @@
         catch (e) { toast(e.message, 4000); }
       };
     } });
+  }
+
+  // ═════════════════════════ 題庫 ═════════════════════════
+  Object.assign(I18N.zh, {
+    navBank: '題庫', bank: '題庫', st_banked: '已入庫', addToBank: '加入題庫（{n} 題）', bankedAs: '已入庫為 {id}', bankAdded: '已加入題庫：{ids}',
+    bankedNote: '這題已入庫為 {id}，之後請到題庫修改（草稿不再影響題庫）。', goBank: '前往題庫',
+    bankEmpty: '題庫還沒有題目。到草稿頁校對完成後按「加入題庫」。', allTypes: '全部題型', allTags: '全部標籤', allStatus: '全部狀態', active: '啟用中', retired: '已停用',
+    onlyOutdated: '只看需重新確認', searchPh: '搜尋題號、判斷重點…', colQid: '題號', colType: '題型', colPoint: '判斷重點', colTags: '標籤', colCriteria: '標準', colUsed: '使用', colRate: '平均得分率', colSource: '來源',
+    usedN: '{n} 次', outdated: '需重新確認', bankTotal: '啟用中 {n} 題 · A {a} · B {b} · C {c}', retire: '停用', activate: '重新啟用', retiredDone: '已停用', activatedDone: '已啟用',
+    bankStats: '使用 {u} 次 · 作答 {n} 筆 · 平均得分率 {r} · {s} 人做過', usedIn: '用過的測驗', version: '版本 v{n}', outdatedNote: '判斷標準已更新為 {v}，請確認這題是否仍正確；儲存後會標記為符合 {v}。',
+    // 組卷
+    compose: '組卷', composeHint: '先填受測者，再依題型配比自動抽題，可以換題、移除或手動加題。', prefTags: '偏好標籤', avoidSeen: '避開受測者做過的題目',
+    autoPick: '自動抽題', manualAdd: '從題庫手動加題', pickedN: '已選 {n} 題 · A {a} · B {b} · C {c}', swap: '換一題', remove: '移除', seenByN: '{n} 人做過',
+    shortageMsg: '題庫中符合條件的 {type} 題不夠，少 {n} 題（可用 {fresh} 題，含做過的共 {total} 題）。可以取消「避開做過的題目」，或建立新草稿補題。',
+    noPick: '請先抽題或手動加題', addSelected: '加入選取的題目', noMore: '沒有可替換的題目', recheckSeen: '名單已變更，已重新計算做過的人數。',
+  });
+  Object.assign(I18N.en, {
+    navBank: 'Bank', bank: 'Question bank', st_banked: 'In bank', addToBank: 'Add to bank ({n})', bankedAs: 'In bank as {id}', bankAdded: 'Added to bank: {ids}',
+    bankedNote: 'This question is in the bank as {id}. Edit it in the bank from now on (the draft no longer affects it).', goBank: 'Open in bank',
+    bankEmpty: 'The bank is empty. Review a draft and click "Add to bank".', allTypes: 'All types', allTags: 'All tags', allStatus: 'All statuses', active: 'Active', retired: 'Retired',
+    onlyOutdated: 'Needs re-check only', searchPh: 'Search ID or key point…', colQid: 'ID', colType: 'Type', colPoint: 'Key point', colTags: 'Tags', colCriteria: 'Criteria', colUsed: 'Used', colRate: 'Avg rate', colSource: 'Source',
+    usedN: '{n}×', outdated: 'Re-check', bankTotal: '{n} active · A {a} · B {b} · C {c}', retire: 'Retire', activate: 'Activate', retiredDone: 'Retired', activatedDone: 'Activated',
+    bankStats: 'Used {u}× · {n} answers · avg rate {r} · taken by {s}', usedIn: 'Used in', version: 'v{n}', outdatedNote: 'The criteria are now {v}. Check this question still holds; saving marks it as {v}.',
+    compose: 'Build the quiz', composeHint: 'Enter the assignees, then auto-pick by type mix. Swap, remove or add questions by hand.', prefTags: 'Preferred tags', avoidSeen: 'Avoid questions assignees have taken',
+    autoPick: 'Auto-pick', manualAdd: 'Add from bank', pickedN: '{n} picked · A {a} · B {b} · C {c}', swap: 'Swap', remove: 'Remove', seenByN: 'taken by {n}',
+    shortageMsg: 'Not enough type {type} questions: {n} short ({fresh} available, {total} including taken). Turn off "avoid taken" or create a new draft.',
+    noPick: 'Pick or add questions first', addSelected: 'Add selected', noMore: 'No other question available', recheckSeen: 'Assignees changed; recalculated who has taken each question.',
+  });
+  const rateTxt = (r) => (r === null || r === undefined ? '—' : Math.round(r * 100) + '%');
+  const rateChip = (r) => (r === null || r === undefined ? '<span class="soft">—</span>' : `<span style="color:${rateColor(r)};font-weight:700">${rateTxt(r)}</span>`);
+
+  async function viewBank() {
+    const main = shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1><span class="spacer"></span><span class="small muted" id="bt"></span></div>
+      <div class="card pad filters" id="bf"></div><div class="card scroll-x" id="bl"><div class="empty-state"><span class="spin"></span></div></div>`);
+    let d;
+    try { d = await api('t_bankList', {}); } catch (e) { showError(e, $('#bl')); return; }
+    const act = d.questions.filter((q) => q.status === 'active');
+    $('#bt').textContent = t('bankTotal', { n: act.length, a: act.filter((q) => q.type === 'A').length, b: act.filter((q) => q.type === 'B').length, c: act.filter((q) => q.type === 'C').length });
+    const f = { type: '', tag: '', status: 'active', outdated: false, q: '' };
+    $('#bf').innerHTML = `<select id="f_type"><option value="">${esc(t('allTypes'))}</option><option>A</option><option>B</option><option>C</option></select>
+      <select id="f_tag"><option value="">${esc(t('allTags'))}</option>${d.tags.map((x) => `<option value="${esc(x.tagId)}">${esc(L(x.name))}</option>`).join('')}</select>
+      <select id="f_status"><option value="active">${esc(t('active'))}</option><option value="retired">${esc(t('retired'))}</option><option value="">${esc(t('allStatus'))}</option></select>
+      <label class="small"><input type="checkbox" id="f_out"> ${esc(t('onlyOutdated'))}</label>
+      <input type="search" id="f_q" placeholder="${esc(t('searchPh'))}">`;
+    const tagName = (id) => L((d.tags.find((x) => x.tagId === id) || {}).name) || id;
+    function draw() {
+      const q = f.q.toLowerCase();
+      const list = d.questions.filter((x) => (!f.type || x.type === f.type) && (!f.tag || x.tags.includes(f.tag)) && (!f.status || x.status === f.status) && (!f.outdated || x.outdated)
+        && (!q || x.qid.toLowerCase().includes(q) || (L(x.point) || '').toLowerCase().includes(q) || (x.point && (x.point.zh || '').includes(f.q))));
+      if (!d.questions.length) { $('#bl').innerHTML = `<div class="empty-state">${esc(t('bankEmpty'))}</div>`; return; }
+      $('#bl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colQid'))}</th><th>${esc(t('colType'))}</th><th>${esc(t('correctAns'))}</th><th>${esc(t('colPoint'))}</th><th class="hide-sm">${esc(t('colTags'))}</th><th>${esc(t('colCriteria'))}</th><th>${esc(t('colUsed'))}</th><th>${esc(t('colRate'))}</th><th class="hide-sm">${esc(t('colSource'))}</th></tr></thead><tbody>${
+        list.map((x) => `<tr class="click ${x.status === 'retired' ? 'dim' : ''}" data-q="${esc(x.qid)}"><td><b>${esc(x.qid)}</b>${x.status === 'retired' ? ` <span class="chip">${esc(t('retired'))}</span>` : ''}</td><td><span class="chip">${esc(x.type)}</span></td>
+          <td class="small">${x.answer ? esc(L(x.answer)) : '<span class="soft">—</span>'}</td><td>${esc(L(x.point))}</td>
+          <td class="hide-sm small soft">${x.tags.map((g) => esc(tagName(g))).join('、')}</td>
+          <td class="small">${esc(x.criteriaVersion)}${x.outdated ? ` <span class="chip warn">${esc(t('outdated'))}</span>` : ''}</td>
+          <td class="small">${esc(t('usedN', { n: x.used }))}</td><td>${rateChip(x.avgRate)}</td><td class="hide-sm small soft">${esc(x.sourceQid || '')}</td></tr>`).join('')}</tbody></table>`;
+      $$('[data-q]', $('#bl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/bank/' + r.dataset.q; }));
+    }
+    $('#f_type').onchange = (e) => { f.type = e.target.value; draw(); };
+    $('#f_tag').onchange = (e) => { f.tag = e.target.value; draw(); };
+    $('#f_status').onchange = (e) => { f.status = e.target.value; draw(); };
+    $('#f_out').onchange = (e) => { f.outdated = e.target.checked; draw(); };
+    $('#f_q').oninput = (e) => { f.q = e.target.value.trim(); draw(); };
+    draw();
+  }
+
+  async function viewBankItem(qid) {
+    const main = shell('bank', `<div class="empty-state"><span class="spin"></span></div>`);
+    let d;
+    try { d = await api('t_bankGet', { qid }); } catch (e) { showError(e); return; }
+    let work = clone(d.question), dirty = false;
+    leaveGuard = () => !dirty || window.confirm(t('unsaved'));
+    function bi(key, label, short) {
+      const v = work[key] || {};
+      return `<h4>${esc(label)}</h4><div class="bi"><div><div class="lab">中文</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="zh">${esc(v.zh || '')}</textarea></div>
+        <div><div class="lab">English</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="en">${esc(v.en || '')}</textarea></div></div>`;
+    }
+    function draw() {
+      const i = d.info, q = work, { left, req } = caseHtml(q);
+      const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
+      main.innerHTML = `<div class="row"><a href="#/bank">← ${esc(t('bank'))}</a><h1>${esc(i.qid)}</h1><span class="chip">Type ${esc(i.type)}</span>
+          ${i.status === 'retired' ? `<span class="chip">${esc(t('retired'))}</span>` : `<span class="chip ok">${esc(t('active'))}</span>`}<span class="chip">${esc(t('version', { n: i.version }))} · ${esc(i.criteriaVersion)}</span>
+          <span class="spacer"></span><button class="btn" id="st">${esc(i.status === 'retired' ? t('activate') : t('retire'))}</button></div>
+        <div class="small muted">${esc(t('bankStats', { u: i.used, n: i.answered, r: rateTxt(i.avgRate), s: i.seenTotal }))}${i.sourceQid ? ` · ${esc(t('colSource'))} <a href="#/draft/${esc(i.sourceDraft)}?q=${esc(i.sourceQid)}">${esc(i.sourceQid)}</a>` : ''}
+          ${d.sessions.length ? ` · ${esc(t('usedIn'))}：${d.sessions.map((s) => `<a href="#/results/${esc(s.sessionId)}">${esc(s.sessionId)}</a>`).join('、')}` : ''}</div>
+        ${i.outdated ? `<div class="banner warn">${esc(t('outdatedNote', { v: (d.currentVersion || '') }))}</div>` : ''}
+        <div class="card detail">
+          <div class="qbody"><div>${left}</div><div>${req}
+            ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
+            ${bi('point', t('point'), true)}${q.type !== 'A' ? bi('modelAnswer', t('modelAnswer')) + bi('rubric', t('rubric')) : ''}${bi('explanation', t('explanation'))}
+          </div></div>
+          <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
+          <div class="dfoot"><button class="btn sm" id="json">${esc(t('editJson'))}</button><span class="spacer"></span><span class="small soft" id="dm">${dirty ? '●' : ''}</span>
+            <button class="btn primary" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button></div></div>`;
+      bind();
+    }
+    function setDirty() { dirty = true; $('#save').disabled = false; $('#dm').textContent = '●'; }
+    function bind() {
+      $$('[data-ans]').forEach((b) => b.addEventListener('click', () => { work.answer = b.dataset.ans; dirty = true; draw(); }));
+      $$('textarea[data-f]').forEach((ta) => ta.addEventListener('input', () => { work[ta.dataset.f] = Object.assign({}, work[ta.dataset.f], { [ta.dataset.l]: ta.value }); setDirty(); }));
+      $('#save').onclick = async () => {
+        $('#save').disabled = true; $('#saveErr').hidden = true;
+        try { d = await api('t_bankUpdate', { qid: d.info.qid, question: work }); work = clone(d.question); dirty = false; toast(t('saved')); draw(); }
+        catch (e) { $('#saveErr').textContent = e.message; $('#saveErr').hidden = false; $('#save').disabled = false; }
+      };
+      $('#st').onclick = async () => {
+        const to = d.info.status === 'retired' ? 'active' : 'retired';
+        try { await api('t_bankSetStatus', { qid: d.info.qid, status: to }); d.info.status = to; toast(to === 'retired' ? t('retiredDone') : t('activatedDone')); draw(); } catch (e) { toast(e.message, 4000); }
+      };
+      $('#json').onclick = () => {
+        const raw = clone(work); delete raw.id;
+        modal(`<h2>${esc(t('editJson'))} · ${esc(d.info.qid)}</h2><textarea class="json" spellcheck="false">${esc(JSON.stringify(raw, null, 2))}</textarea><div id="jerr" class="banner err" hidden></div>
+          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
+        { wide: true, onMount: (el, close) => { $('#japply', el).onclick = () => { try { work = JSON.parse($('textarea', el).value); dirty = true; close('ok'); draw(); } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; } }; } });
+      };
+    }
+    draw();
+  }
+
+  /** 發佈測驗：從題庫組卷 */
+  async function composeForm(box, onDone) {
+    box.innerHTML = `<div class="card pad"><span class="spin"></span></div>`;
+    let meta;
+    try { meta = await api('t_bankList', {}); } catch (e) { showError(e, box); return; }
+    if (!meta.questions.some((q) => q.status === 'active')) { box.innerHTML = `<div class="banner warn">${esc(t('bankEmpty'))}</div>`; return; }
+    let picked = [], lastPick = null;
+    const start = new Date(); start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
+    const end = new Date(start.getTime() + 2 * 86400000); end.setHours(18, 0, 0, 0);
+    box.innerHTML = `<form class="card pad" id="sform" style="display:flex;flex-direction:column;gap:16px"><h2>${esc(t('newSession'))}</h2>
+      <div class="form">
+        <label class="k" for="s_emails">${esc(t('assignees'))}</label><div><textarea id="s_emails" rows="5" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px 10px" placeholder="maria.santos@shopeemobile-external.com&#10;juan.reyes@shopeemobile-external.com"></textarea><div class="small" id="s_cnt"></div></div>
+      </div>
+      <div class="compose"><div class="row"><h2>${esc(t('compose'))}</h2><span class="small muted">${esc(t('composeHint'))}</span></div>
+        <div class="form">
+          <label class="k">${esc(t('topic'))}</label><select id="c_topic">${meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
+          <span class="k">${esc(t('prefTags'))}</span><div class="tags" id="c_tags"></div>
+          <span class="k">${esc(t('mix'))}</span><div class="row">
+            <label class="small">${esc(t('typeA'))} <input type="number" id="c_A" min="0" max="50" value="3"></label>
+            <label class="small">${esc(t('typeB'))} <input type="number" id="c_B" min="0" max="50" value="5"></label>
+            <label class="small">${esc(t('typeC'))} <input type="number" id="c_C" min="0" max="50" value="2"></label></div>
+          <span class="k"></span><label class="small"><input type="checkbox" id="c_avoid" checked> ${esc(t('avoidSeen'))}</label>
+        </div>
+        <div class="row"><button type="button" class="btn primary" id="c_pick">${esc(t('autoPick'))}</button><button type="button" class="btn" id="c_add">${esc(t('manualAdd'))}</button><span class="small" id="c_sum"></span></div>
+        <div id="c_short"></div><div id="c_list"></div></div>
+      <div class="form">
+        <label class="k" for="s_tzh">${esc(t('titleZh'))}</label><input type="text" id="s_tzh" maxlength="80" required>
+        <label class="k" for="s_ten">${esc(t('titleEn'))}</label><input type="text" id="s_ten" maxlength="80" required placeholder="e.g. Agreement Check — Wrong Item Sent">
+        <label class="k" for="s_start">${esc(t('startAt'))}</label><div><input type="datetime-local" id="s_start" value="${toLocalInput(start)}" required></div>
+        <label class="k" for="s_end">${esc(t('endAt'))}</label><div><input type="datetime-local" id="s_end" value="${toLocalInput(end)}" required><div class="small soft">${esc(t('tz'))}</div></div>
+        <label class="k" for="s_min">${esc(t('minutes'))}</label><div><input type="number" id="s_min" min="1" max="300" value="30" required></div>
+      </div>
+      <div id="s_err" class="banner err" hidden></div>
+      <div class="row"><button type="submit" class="btn brand" id="s_go">${esc(t('publish'))}</button><button type="button" class="btn" id="s_cancel">${esc(t('cancel'))}</button></div></form>`;
+    const tagName = (id) => L((meta.tags.find((x) => x.tagId === id) || {}).name) || id;
+    const drawTags = () => { const tid = $('#c_topic').value; $('#c_tags').innerHTML = meta.tags.filter((x) => x.topicId === tid).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
+      $$('#c_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
+    drawTags(); $('#c_topic').onchange = drawTags;
+    const emails = () => parseEmails($('#s_emails').value);
+    const opts = (extra) => Object.assign({ topicId: $('#c_topic').value, tags: $$('#c_tags input:checked').map((c) => c.value), assignees: emails().ok, avoidSeen: $('#c_avoid').checked }, extra);
+    function drawList() {
+      const cnt = { A: 0, B: 0, C: 0 }; picked.forEach((q) => { cnt[q.type]++; });
+      $('#c_sum').innerHTML = picked.length ? `<span class="chip ok">${esc(t('pickedN', { n: picked.length, a: cnt.A, b: cnt.B, c: cnt.C }))}</span>` : '';
+      $('#c_list').innerHTML = picked.length ? `<div class="scroll-x"><table class="list"><thead><tr><th>#</th><th>${esc(t('colQid'))}</th><th>${esc(t('colType'))}</th><th>${esc(t('colPoint'))}</th><th class="hide-sm">${esc(t('colTags'))}</th><th>${esc(t('colUsed'))}</th><th>${esc(t('colRate'))}</th><th></th></tr></thead><tbody>${
+        picked.map((q, i) => `<tr><td class="soft">${i + 1}</td><td><a href="#/bank/${esc(q.qid)}" target="_blank" rel="noopener"><b>${esc(q.qid)}</b></a></td><td><span class="chip">${esc(q.type)}</span></td><td>${esc(L(q.point))}${q.seenBy ? ` <span class="chip warn">${esc(t('seenByN', { n: q.seenBy }))}</span>` : ''}</td>
+          <td class="hide-sm small soft">${q.tags.map((g) => esc(tagName(g))).join('、')}</td><td class="small">${esc(t('usedN', { n: q.used }))}</td><td>${rateChip(q.avgRate)}</td>
+          <td style="text-align:right;white-space:nowrap"><button type="button" class="btn sm" data-swap="${i}">${esc(t('swap'))}</button> <button type="button" class="btn sm ghost danger" data-rm="${i}">${esc(t('remove'))}</button></td></tr>`).join('')}</tbody></table></div>` : '';
+      $$('[data-rm]').forEach((b) => b.addEventListener('click', () => { picked.splice(+b.dataset.rm, 1); drawList(); }));
+      $$('[data-swap]').forEach((b) => b.addEventListener('click', async () => {
+        const i = +b.dataset.swap, q = picked[i];
+        try {
+          const r = await api('t_bankPick', opts({ mix: { [q.type]: 1 }, exclude: picked.map((x) => x.qid) }));
+          if (!r.picked.length) { toast(t('noMore')); return; }
+          picked[i] = r.picked[0]; drawList();
+        } catch (e) { toast(e.message, 4000); }
+      }));
+    }
+    function shortageHtml(r) {
+      return Object.keys(r.shortage || {}).map((k) => `<div class="banner warn">${esc(t('shortageMsg', { type: k, n: r.shortage[k], fresh: r.available[k].fresh, total: r.available[k].total }))}</div>`).join('');
+    }
+    $('#c_pick').onclick = async () => {
+      const mix = { A: +$('#c_A').value || 0, B: +$('#c_B').value || 0, C: +$('#c_C').value || 0 };
+      try { const r = await api('t_bankPick', opts({ mix })); lastPick = r; picked = r.picked; $('#c_short').innerHTML = shortageHtml(r); drawList(); } catch (e) { toast(e.message, 4000); }
+    };
+    $('#c_add').onclick = async () => {
+      let all;
+      try { all = (await api('t_bankList', { assignees: emails().ok })).questions.filter((q) => q.status === 'active' && q.topicId === $('#c_topic').value && !picked.some((p) => p.qid === q.qid)); } catch (e) { toast(e.message, 4000); return; }
+      modal(`<h2>${esc(t('manualAdd'))}</h2><div class="scroll-x" style="max-height:60vh;overflow:auto"><table class="list"><thead><tr><th></th><th>${esc(t('colQid'))}</th><th>${esc(t('colType'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colUsed'))}</th><th>${esc(t('colRate'))}</th></tr></thead><tbody>${
+        all.map((q) => `<tr><td><input type="checkbox" value="${esc(q.qid)}"></td><td><b>${esc(q.qid)}</b></td><td><span class="chip">${esc(q.type)}</span></td><td>${esc(L(q.point))}${q.outdated ? ` <span class="chip warn">${esc(t('outdated'))}</span>` : ''}${q.seenBy ? ` <span class="chip warn">${esc(t('seenByN', { n: q.seenBy }))}</span>` : ''}</td><td class="small">${esc(t('usedN', { n: q.used }))}</td><td>${rateChip(q.avgRate)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="m_add">${esc(t('addSelected'))}</button></div>`,
+      { wide: true, onMount: (el, close) => { $('#m_add', el).onclick = () => { const ids = $$('input:checked', el).map((c) => c.value); picked = picked.concat(all.filter((q) => ids.includes(q.qid))); close('ok'); drawList(); }; } });
+    };
+    let recheck;
+    const cnt = () => {
+      const r = emails();
+      $('#s_cnt').innerHTML = `<span class="chip ${r.bad.length ? 'warn' : r.ok.length ? 'ok' : ''}">${esc(t('validN', { a: r.ok.length, b: r.bad.length }))}</span>${r.bad.length ? ' <span class="small" style="color:var(--err)">' + r.bad.slice(0, 5).map(esc).join(', ') + '</span>' : ''}`;
+      clearTimeout(recheck);
+      if (picked.length) recheck = setTimeout(async () => {
+        try { const L2 = (await api('t_bankList', { assignees: r.ok })).questions; picked = picked.map((p) => L2.find((x) => x.qid === p.qid) || p); drawList(); toast(t('recheckSeen')); } catch (_) { /* */ }
+      }, 900);
+    };
+    $('#s_emails').addEventListener('input', cnt); cnt();
+    $('#s_cancel').onclick = () => { box.innerHTML = ''; };
+    $('#sform').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const er = $('#s_err'); er.hidden = true;
+      const r = emails();
+      if (!picked.length) { er.textContent = t('noPick'); er.hidden = false; return; }
+      if (!r.ok.length || r.bad.length) { er.textContent = t('validN', { a: r.ok.length, b: r.bad.length }); er.hidden = false; return; }
+      const btn = $('#s_go'); btn.disabled = true;
+      try {
+        const res = await api('t_createSession', { qids: picked.map((q) => q.qid), titleZh: $('#s_tzh').value.trim(), titleEn: $('#s_ten').value.trim(),
+          startAt: new Date($('#s_start').value).getTime(), endAt: new Date($('#s_end').value).getTime(), minutes: +$('#s_min').value, assignees: r.ok });
+        onDone(res);
+      } catch (err) { er.textContent = err.message; er.hidden = false; btn.disabled = false; }
+    });
   }
 
   // ───────── start ─────────
