@@ -284,10 +284,12 @@
             <td><b>${esc(d.draftId)}</b> ${esc(d.name)}<div class="small soft">${d.tags.map(esc).join(' · ')}</div></td>
             <td>${esc(topicName(d.topicId))}</td><td>${progressCell(d)}</td><td>${statusChip(d.status)}</td>
             <td class="hide-sm small muted">${esc(d.createdBy)}</td><td class="hide-sm small muted">${esc(fmtTime(d.updatedAt))}</td>
-            <td style="text-align:right">${d.status === 'generating' ? `<button class="btn sm" data-copy="生成考題 ${esc(d.draftId)}">${esc(t('copyCmd'))}</button>` : `<button class="btn sm">${esc(t('open'))}</button>`}</td></tr>`).join('')
+            <td style="text-align:right;white-space:nowrap">${d.status === 'generating' ? `<button class="btn sm" data-copy="生成考題 ${esc(d.draftId)}">${esc(t('copyCmd'))}</button>` : `<button class="btn sm">${esc(t('open'))}</button>`}
+              <button class="btn sm ghost danger" data-del="${esc(d.draftId)}" data-banked="${d.status === 'banked' ? 1 : 0}" title="${esc(t('delDraft'))}">${esc(t('del'))}</button></td></tr>`).join('')
         }</tbody></table>`;
         $$('[data-copy]', box).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); copyText(b.dataset.copy); }));
         $$('[data-open]', box).forEach((r) => r.addEventListener('click', () => { location.hash = '#/draft/' + r.dataset.open; }));
+        $$('[data-del]', box).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); deleteDraft(b.dataset.del, b.dataset.banked === '1' ? 0 : null, loadList); }));
         clearInterval(pollTimer); pollTimer = null;
         if (drafts.some((d) => d.status === 'generating')) pollTimer = setInterval(() => { if (!document.hidden) loadList(true); }, 15000);
       } catch (e) { if (!silent) showError(e, $('#listBox')); }
@@ -411,9 +413,11 @@
         <span class="chip">${esc(t('reviewedN', { a: rev, b: all }))}</span>
         <span class="spacer"></span>
         <button class="btn" id="reload">${esc(t('refresh'))}</button>
+        ${draft.status !== 'deleted' ? `<button class="btn danger" id="delDraft">${esc(t('delDraft'))}</button>` : ''}
         ${draft.status === 'banked' ? `<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/bank">${esc(t('goBank'))} →</a>` : ''}
         ${draft.status !== 'generating' && draft.status !== 'banked' ? `<button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: all - rev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
       </div>
+      ${draft.status === 'deleted' ? `<div class="banner warn">${esc(t('deletedNote'))}</div>` : ''}
       ${draft.status === 'generating' ? `<div class="banner info row"><span>${esc(t('genBanner', { a: draft.imported, b: draft.target }))}</span>
         <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" id="cpy2">${esc(t('copy'))}</button></span><span class="small">${esc(t('genAuto'))}</span></div>` : ''}`;
     }
@@ -436,7 +440,7 @@
       if (!questions.length) return `<div class="card empty-state">${draft.status === 'generating' ? '<span class="spin"></span> ' : ''}${esc(t('generated', { a: draft.imported, b: draft.target }))}</div>`;
       const q = work, src = questions[idx];
       const { left, req } = caseHtml(q);
-      const editable = draft.status !== 'generating' && !src.bankedAs;
+      const editable = draft.status !== 'generating' && draft.status !== 'deleted' && !src.bankedAs;
       const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}" ${editable ? '' : 'disabled'}>
           <b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
       return `<div class="card detail">
@@ -503,6 +507,7 @@
         dirty = false; clearInterval(pollTimer); viewDraft(draft.draftId);
       };
       const cp = $('#cpy2'); if (cp) cp.onclick = () => copyText(cmd);
+      const dd = $('#delDraft'); if (dd) dd.onclick = () => deleteDraft(draft.draftId, questions.filter((q) => !q.bankedAs).length, () => { dirty = false; location.hash = '#/drafts'; });
       const ba = $('#bankAdd'); if (ba) ba.onclick = async () => {
         if (dirty && !(await confirmBox(t('unsaved'), t('discard'), t('keep'), true))) return;
         ba.disabled = true;
@@ -1272,7 +1277,9 @@
 
   // ═════════════════════════ 題庫 ═════════════════════════
   Object.assign(I18N.zh, {
-    navBank: '題庫', bank: '題庫', st_banked: '已入庫', addToBank: '加入題庫（{n} 題）', bankedAs: '已入庫為 {id}', bankAdded: '已加入題庫：{ids}',
+    navBank: '題庫', bank: '題庫', delDraft: '刪除草稿', st_deleted: '已刪除', delDraftDone: '草稿 {id} 已刪除',
+    delDraftAll: '刪除草稿 {id}？題目都已入庫，題庫與已發佈的測驗不受影響。', delDraftSome: '刪除草稿 {id}？還有 {n} 題尚未入庫，會一併移除（Sheet 仍保留紀錄）。',
+    deletedNote: '這份草稿已刪除，只能檢視。', st_banked: '已入庫', addToBank: '加入題庫（{n} 題）', bankedAs: '已入庫為 {id}', bankAdded: '已加入題庫：{ids}',
     bankedNote: '這題已入庫為 {id}，之後請到題庫修改（草稿不再影響題庫）。', goBank: '前往題庫',
     bankEmpty: '題庫還沒有題目。到草稿頁校對完成後按「加入題庫」。', allTypes: '全部題型', allTags: '全部標籤', allStatus: '全部狀態', active: '啟用中', retired: '已停用',
     onlyOutdated: '只看需重新確認', searchPh: '搜尋題號、判斷重點…', colQid: '題號', colType: '題型', colPoint: '判斷重點', colTags: '標籤', colCriteria: '標準', colUsed: '使用', colRate: '平均得分率', colSource: '來源',
@@ -1285,7 +1292,9 @@
     noPick: '請先抽題或手動加題', addSelected: '加入選取的題目', noMore: '沒有可替換的題目', recheckSeen: '名單已變更，已重新計算做過的人數。',
   });
   Object.assign(I18N.en, {
-    navBank: 'Bank', bank: 'Question bank', st_banked: 'In bank', addToBank: 'Add to bank ({n})', bankedAs: 'In bank as {id}', bankAdded: 'Added to bank: {ids}',
+    navBank: 'Bank', bank: 'Question bank', delDraft: 'Delete draft', st_deleted: 'Deleted', delDraftDone: 'Draft {id} deleted',
+    delDraftAll: 'Delete draft {id}? All questions are in the bank; the bank and published quizzes are not affected.', delDraftSome: 'Delete draft {id}? {n} question(s) are not in the bank and will be removed (the Sheet keeps a record).',
+    deletedNote: 'This draft was deleted and is read-only.', st_banked: 'In bank', addToBank: 'Add to bank ({n})', bankedAs: 'In bank as {id}', bankAdded: 'Added to bank: {ids}',
     bankedNote: 'This question is in the bank as {id}. Edit it in the bank from now on (the draft no longer affects it).', goBank: 'Open in bank',
     bankEmpty: 'The bank is empty. Review a draft and click "Add to bank".', allTypes: 'All types', allTags: 'All tags', allStatus: 'All statuses', active: 'Active', retired: 'Retired',
     onlyOutdated: 'Needs re-check only', searchPh: 'Search ID or key point…', colQid: 'ID', colType: 'Type', colPoint: 'Key point', colTags: 'Tags', colCriteria: 'Criteria', colUsed: 'Used', colRate: 'Avg rate', colSource: 'Source',
@@ -1483,6 +1492,14 @@
         onDone(res);
       } catch (err) { er.textContent = err.message; er.hidden = false; btn.disabled = false; }
     });
+  }
+
+  /** 刪除草稿；unbanked=null 時先查詢還有幾題未入庫 */
+  async function deleteDraft(id, unbanked, after) {
+    let n = unbanked;
+    if (n === null) { try { n = (await api('t_getDraft', { draftId: id })).questions.filter((q) => !q.bankedAs).length; } catch (e) { toast(e.message, 4000); return; } }
+    if (!(await confirmBox(n ? t('delDraftSome', { id, n }) : t('delDraftAll', { id }), t('delDraft'), t('cancel'), true))) return;
+    try { await api('t_deleteDraft', { draftId: id }); toast(t('delDraftDone', { id })); after && after(); } catch (e) { toast(e.message, 4000); }
   }
 
   // ───────── start ─────────
