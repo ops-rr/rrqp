@@ -1,4 +1,4 @@
-/* RR Quiz Platform — 前端（M3 講師草稿與校對、M4 發佈與作答） */
+/* RR Quiz Platform — 前端（M3 草稿校對、M4 發佈與作答、M5 批改與成績） */
 (() => {
   'use strict';
   const CFG = window.RRQP_CONFIG || {};
@@ -158,7 +158,7 @@
         <span title="${esc(t('soon'))}">${esc(t('navLibrary'))}</span>
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
-        <span title="${esc(t('soon'))}">${esc(t('navGrading'))}</span>
+        <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
         <span title="${esc(t('soon'))}">${esc(t('navResults'))}</span></nav>` : '';
     app().innerHTML = `<header class="top">
         <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR Quiz Platform</span>${teacher ? `<span>${esc(t('teacherPortal'))}</span>` : ''}</div>
@@ -233,6 +233,8 @@
     if (me.isTeacher && page === 'session' && arg) return viewSession(decodeURIComponent(arg));
     if (me.isTeacher && page === 'preview' && arg) return viewPreview(decodeURIComponent(arg));
     if (me.isTeacher && page === 'mine') return viewMyQuizzes();
+    if (me.isTeacher && page === 'grading' && arg) return viewGrading(decodeURIComponent(arg));
+    if (me.isTeacher && page === 'grading') return viewGradingList();
     if (me.isTeacher && (page === 'drafts' || page === '')) return viewDrafts();
     return viewMyQuizzes();
   }
@@ -736,7 +738,7 @@
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}<span class="spacer"></span>
           <button class="btn" id="reload">${esc(t('refresh'))}</button><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
-          ${s.state === 'open' || s.state === 'scheduled' ? `<button class="btn danger" id="endNow">${esc(t('endNow'))}</button>` : ''}</div>
+          ${s.state === 'open' || s.state === 'scheduled' ? `<button class="btn danger" id="endNow">${esc(t('endNow'))}</button>` : `<a class="btn brand" style="display:inline-grid;place-items:center;text-decoration:none" href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))}</a>`}</div>
         <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button></div>
         <div class="stats">
           <div class="card pad"><div class="small soft">${esc(t('colWindow'))}</div><div><b>${esc(fmtDT(s.startAt))}</b><br>– <b>${esc(fmtDT(s.endAt))}</b></div></div>
@@ -768,6 +770,7 @@
       let btn = '';
       if (a.status === 'in_progress') btn = `<a class="btn brand" href="#/s/${esc(s.sessionId)}">${esc(t('continueQuiz'))}</a>`;
       else if (a.status === 'not_started' && s.state === 'open') btn = `<a class="btn brand" href="#/s/${esc(s.sessionId)}">${esc(t('startQuiz'))}</a>`;
+      else if (a.score !== undefined && a.score !== null) btn = `<a class="btn brand" href="#/s/${esc(s.sessionId)}">${esc(t('viewResult'))}</a><span class="score" style="font-size:20px"><b>${r2(a.score)}</b><span> / 100</span></span>`;
       else btn = `<a class="btn" href="#/s/${esc(s.sessionId)}">${esc(t('viewQuiz'))}</a>`;
       return `<div class="card pad quizcard"><div class="row">${sessChip(s.state)}${a.status !== 'not_started' ? attChip(a) : ''}</div>
         <h2 style="margin-top:8px">${esc(L(s.title))}</h2>
@@ -784,7 +787,7 @@
     try { d = await api('s_get', { sessionId: id }); } catch (e) { showError(e); return; }
     const s = d.session, a = d.attempt, offset = d.serverNow - Date.now();
     if (a.status === 'in_progress') return runQuiz({ session: s, questions: d.questions, deadline: a.deadline, offset });
-    if (a.status === 'submitted') return doneScreen(main, s, a);
+    if (a.status === 'submitted') return s.state === 'released' ? resultScreen(main, s.sessionId) : doneScreen(main, s, a, false, s.state === 'closed');
     const box = (inner) => { main.innerHTML = `<div class="card pad intro"><div class="row">${sessChip(s.state)}</div><h1 style="margin-top:8px">${esc(L(s.title))}</h1>${inner}</div>`; };
     if (a.status === 'expired') return box(`<div class="banner warn" style="margin-top:12px">${esc(t('expiredMsg'))}</div><div style="margin-top:12px"><a href="#/">${esc(t('backHome'))}</a></div>`);
     if (s.state === 'scheduled') return box(`<div class="banner info" style="margin-top:12px">${esc(t('notOpenYet', { t: fmtDT(s.startAt) }))}</div><div style="margin-top:12px"><a href="#/">${esc(t('backHome'))}</a></div>`);
@@ -806,11 +809,11 @@
       } catch (e) { $('#goErr').textContent = e.message; $('#goErr').hidden = false; $('#go').disabled = false; }
     };
   }
-  function doneScreen(main, s, a, auto) {
+  function doneScreen(main, s, a, auto, closed) {
     main.innerHTML = `<div class="card pad intro" style="text-align:center;align-items:center">
       <div class="donemark">✓</div><h1>${esc(t('doneTitle'))}</h1><h2 class="muted" style="font-weight:500">${esc(L(s.title))}</h2>
       ${auto || a.autoSubmitted ? `<div class="banner info">${esc(t('autoDone'))}</div>` : ''}
-      <p class="muted">${esc(t('doneMsg', { t: fmtDT(a.submittedAt) }))}</p>
+      <p class="muted">${esc(t('doneMsg', { t: fmtDT(a.submittedAt) }))}</p>${closed ? `<div class="banner info">${esc(t('notReleasedYet'))}</div>` : ''}
       <a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/">${esc(t('backHome'))}</a></div>`;
   }
 
@@ -922,6 +925,194 @@
     drawNav(); drawQ(); updateTimer(); window.scrollTo({ top: 0 });
     tick = setInterval(updateTimer, 1000);
     if (!sandbox) poll = setInterval(checkStatus, 120000);
+  }
+
+  // ═════════════════════════ M5：批改與成績 ═════════════════════════
+  Object.assign(I18N.zh, {
+    grading: '批改', goGrading: '前往批改', gradeList: '選擇要批改的測驗', noGradable: '還沒有已結束的測驗。測驗結束（或提前結束）後就能批改。',
+    gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
+    needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
+    releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
+    released: '成績已公布', unrelease: '取消公布', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
+    overview: '總覽', lowN: '{n} 低信心', correctAns: '正解', ptsSplit: '選擇 {a} 分 + 原因 {b} 分', ptsText: '文字 {b} 分', modelAnswer2: '標準答案',
+    colAgent: '專員', colChoice: '選擇', colReason: '原因', colAnswer: '答案', colAi: 'AI 判分', colTeacher: '講師確認',
+    right: '對', wrong: '錯', noChoice: '未選', conf: '信心度 {n}%', lowConf: '低信心度 {n}%', notGraded: '尚未批改', accept: '接受', confirm: '確認',
+    accepted: '已確認 · {n}', edit: '修改', unconfirm: '取消確認', addComment: '加評語', editComment: '評語', commentPh: '給專員的評語（成績公布後專員看得到）',
+    acceptRest: '本題未標記的全部接受', acceptedN: '已接受 {n} 筆', thresholdNote: '低信心度門檻：{n}%（可在 Settings 分頁調整）。標記不改變排列順序。',
+    colChoicePts: '選擇', colTextPts: '文字', colTotal: '總分', colUnconfirmed: '未確認', notSubmitted: '未交卷',
+    resultsOut: '成績已公布', yourScore: '你的分數', correctOf: '答對（選擇）', textPts: '原因與文字作答', timeUsed: '作答時間', minShort: '{n} 分鐘',
+    toReview: '需要複習的題目（{n}）', allCorrect: '全部答對，做得好！', keyPoint: '判斷重點', yourAns: '你的選擇', yourReason2: '你的原因', yourText: '你的答案',
+    correct2: '正解', trainerNote: '講師評語', explanation2: '解析', modelAnswer3: '參考答案', viewResult: '查看成績', notReleasedYet: '測驗已結束，成績尚未公布。公布後會顯示在這裡。',
+  });
+  Object.assign(I18N.en, {
+    grading: 'Grading', goGrading: 'Go to grading', gradeList: 'Choose a quiz to grade', noGradable: 'No closed quizzes yet. You can grade after a quiz ends (or is ended early).',
+    gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
+    needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
+    releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
+    released: 'Results released', unrelease: 'Withdraw results', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
+    overview: 'Overview', lowN: '{n} low', correctAns: 'Answer', ptsSplit: 'Choice {a} + reason {b} points', ptsText: 'Written {b} points', modelAnswer2: 'Model answer',
+    colAgent: 'Agent', colChoice: 'Choice', colReason: 'Reason', colAnswer: 'Answer', colAi: 'AI score', colTeacher: 'Trainer',
+    right: 'correct', wrong: 'wrong', noChoice: 'none', conf: 'confidence {n}%', lowConf: 'Low confidence {n}%', notGraded: 'Not graded', accept: 'Accept', confirm: 'Confirm',
+    accepted: 'Confirmed · {n}', edit: 'Edit', unconfirm: 'Unconfirm', addComment: 'Add note', editComment: 'Note', commentPh: 'Note for the agent (visible after results are released)',
+    acceptRest: 'Accept all unflagged in this question', acceptedN: 'Accepted {n}', thresholdNote: 'Low-confidence threshold: {n}% (change it in the Settings tab). Flags do not change the order.',
+    colChoicePts: 'Choice', colTextPts: 'Written', colTotal: 'Total', colUnconfirmed: 'Unconfirmed', notSubmitted: 'Not submitted',
+    resultsOut: 'Results released', yourScore: 'Your score', correctOf: 'Correct (choice)', textPts: 'Reasons & written', timeUsed: 'Time used', minShort: '{n} min',
+    toReview: 'Questions to review ({n})', allCorrect: 'You got everything right. Well done!', keyPoint: 'Key point', yourAns: 'Your answer', yourReason2: 'Your reason', yourText: 'Your answer',
+    correct2: 'Correct answer', trainerNote: 'Trainer note', explanation2: 'Explanation', modelAnswer3: 'Model answer', viewResult: 'View results', notReleasedYet: 'This quiz has ended. Results will appear here once your trainer releases them.',
+  });
+  const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const isText = (t) => t === 'B' || t === 'C';
+
+  async function viewGradingList() {
+    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1></div><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div>`);
+    try {
+      const { sessions } = await api('t_listSessions');
+      const list = sessions.filter((s) => s.state === 'closed' || s.state === 'released');
+      if (!list.length) { $('#gl').innerHTML = `<div class="empty-state">${esc(t('noGradable'))}</div>`; return; }
+      $('#gl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
+        list.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}</td><td class="small">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</td>
+          <td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td>${sessChip(s.state)}</td><td style="text-align:right"><button class="btn sm">${esc(t('goGrading'))}</button></td></tr>`).join('')}</tbody></table>`;
+      $$('[data-open]', $('#gl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/grading/' + r.dataset.open; }));
+    } catch (e) { showError(e, $('#gl')); }
+  }
+
+  async function viewGrading(id) {
+    const main = shell('grading', `<div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div>`);
+    let d;
+    try { d = await api('t_grading', { sessionId: id }); } catch (e) { showError(e); return; }
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const textQs = d.questions.filter((q) => isText(q.type));
+    let tab = params.get('q') || (textQs[0] ? textQs[0].qid : 'overview');
+    const th = d.threshold;
+    const isLow = (a) => a.aiConfidence !== null && a.aiConfidence < th;
+    const textAnswers = () => d.answers.filter((a) => { const q = d.questions.find((x) => x.qid === a.qid); return q && isText(q.type); });
+
+    function header() {
+      const all = textAnswers(), conf = all.filter((a) => a.teacherScore !== null).length, graded = all.filter((a) => a.aiScore !== null || a.teacherScore !== null).length;
+      const sub = d.attempts.filter((a) => a.submittedAt).length, missing = all.length - graded, unconf = all.length - conf;
+      const rel = d.session.released;
+      return `<div class="row"><a href="#/grading">← ${esc(t('grading'))}</a><h1>${esc(d.session.sessionId)} ${esc(L(d.session.title))}</h1>${sessChip(d.session.state)}<span class="spacer"></span>
+          <button class="btn" id="reload">${esc(t('refresh'))}</button>
+          ${rel ? `<button class="btn" id="unrel">${esc(t('unrelease'))}</button>` : `<button class="btn ok" id="rel" ${missing ? 'disabled' : ''}>${esc(unconf ? t('releaseLeft', { n: unconf }) : t('releaseBtn'))}</button>`}</div>
+        <div class="row small muted">${esc(t('gradeSummary', { n: sub, t: all.length, g: graded }))}<span class="spacer"></span>
+          <span>${esc(t('confirmedN'))} <b style="font-size:18px;color:var(--ink)">${conf}</b> / ${all.length}</span><div class="bar ok" style="width:160px"><i style="width:${all.length ? Math.round((conf / all.length) * 100) : 0}%"></i></div></div>
+        ${missing ? `<div class="banner info row"><span>${esc(t('needAi', { n: missing }))}</span><span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(d.command)}</code><button class="btn sm" id="cpg">${esc(t('copy'))}</button></span></div>` : ''}
+        <div class="tabs" role="tablist">${textQs.map((q) => {
+          const ans = d.answers.filter((a) => a.qid === q.qid), low = ans.filter(isLow).length;
+          return `<button class="tab ${tab === q.qid ? 'on' : ''}" data-tab="${esc(q.qid)}" role="tab">Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}${low ? ` <span class="chip warn" style="padding:0 6px">${esc(t('lowN', { n: low }))}</span>` : ''}</button>`;
+        }).join('')}<button class="tab ${tab === 'overview' ? 'on' : ''}" data-tab="overview" role="tab">${esc(t('overview'))}</button></div>`;
+    }
+    function qPanel(q) {
+      const opt = (q.options || []).find((o) => o.id === q.answer), p = q.points || {};
+      const rows = d.answers.filter((a) => a.qid === q.qid);
+      return `<div class="card pad gq">
+          <div class="row"><h2>Q${String(q.seq).padStart(2, '0')} ${esc(t('correctAns'))}</h2>${opt ? `<span class="chip ok">${esc(String(opt.id).toUpperCase())} ${esc(L(opt.text))}</span>` : ''}
+          <span class="soft small">· ${esc(q.type === 'B' ? t('ptsSplit', { a: r2(p.choice), b: r2(p.text) }) : t('ptsText', { b: r2(p.text) }))}</span></div>
+          <div class="gref"><div><h4>${esc(t('modelAnswer2'))}</h4><div>${esc(L(q.modelAnswer))}</div></div><div><h4>${esc(t('rubric'))}</h4><div>${esc(L(q.rubric))}</div></div></div></div>
+        <div class="card scroll-x"><table class="list gtable"><thead><tr><th>${esc(t('colAgent'))}</th>${q.type === 'B' ? `<th>${esc(t('colChoice'))}</th>` : ''}<th>${esc(q.type === 'B' ? t('colReason') : t('colAnswer'))}</th><th>${esc(t('colAi'))}</th><th>${esc(t('colTeacher'))}</th></tr></thead>
+        <tbody>${rows.map((a) => rowHtml(q, a)).join('')}</tbody></table></div>
+        <div class="row small muted"><span>${esc(t('thresholdNote', { n: Math.round(th * 100) }))}</span><span class="spacer"></span>${d.session.state !== 'open' ? `<button class="btn" id="accAll" data-q="${esc(q.qid)}">${esc(t('acceptRest'))}</button>` : ''}</div>`;
+    }
+    function rowHtml(q, a) {
+      const max = r2((q.points || {}).text), low = isLow(a);
+      const choiceCell = q.type === 'B' ? `<td class="nowrap">${a.choice ? `<b>${esc(String(a.choice).toUpperCase())}</b> <span class="${a.choice === q.answer ? 'okc' : 'errc'}">${esc(a.choice === q.answer ? t('right') : t('wrong'))}</span>` : `<span class="soft">${esc(t('noChoice'))}</span>`}<div class="small soft">${r2(a.autoScore)} / ${r2((q.points || {}).choice)}</div></td>` : '';
+      const ai = a.aiScore === null ? `<span class="soft">${esc(t('notGraded'))}</span>`
+        : `${low ? `<span class="chip warn">${esc(t('lowConf', { n: Math.round(a.aiConfidence * 100) }))}</span><br>` : ''}<b style="font-size:18px">${r2(a.aiScore)}</b> <span class="soft">/ ${max}${!low ? ' · ' + esc(t('conf', { n: Math.round((a.aiConfidence || 0) * 100) })) : ''}</span><div class="small muted">${esc(a.aiReason || '')}</div>`;
+      const cur = a.teacherScore !== null ? a.teacherScore : a.aiScore;
+      const teacher = a.teacherScore !== null && !editing.has(a.aid)
+        ? `<span class="chip ok">✓ ${esc(t('accepted', { n: r2(a.teacherScore) }))}</span> <button class="btn sm ghost" data-edit="${esc(a.aid)}">${esc(t('edit'))}</button>`
+        : `<div class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" class="sc" data-sc="${esc(a.aid)}" min="0" max="${max}" step="0.5" value="${cur === null ? '' : r2(cur)}" aria-label="score"><span class="soft small">/ ${max}</span>
+            <button class="btn sm ${a.aiScore !== null ? 'ok' : 'primary'}" data-acc="${esc(a.aid)}">${esc(a.teacherScore !== null || a.aiScore === null ? t('confirm') : t('accept'))}</button>
+            ${a.teacherScore !== null ? `<button class="btn sm ghost" data-unc="${esc(a.aid)}">${esc(t('unconfirm'))}</button>` : ''}</div>`;
+      return `<tr class="${low ? 'lowrow' : ''}" data-row="${esc(a.aid)}"><td class="small"><b>${esc(a.email.split('@')[0])}</b><div class="soft">@${esc(a.email.split('@')[1] || '')}</div></td>${choiceCell}
+        <td class="ans">${a.text ? esc(a.text) : `<span class="soft">${esc(t('none'))}</span>`}</td><td style="min-width:200px">${ai}</td>
+        <td style="min-width:220px">${teacher}
+          <div style="margin-top:6px">${a.teacherComment ? `<div class="small note">💬 ${esc(a.teacherComment)}</div>` : ''}<button class="btn sm ghost" data-cm="${esc(a.aid)}">${esc(a.teacherComment ? t('editComment') : t('addComment'))}</button></div>
+          <div class="cmbox" data-cmbox="${esc(a.aid)}" hidden><textarea rows="2" placeholder="${esc(t('commentPh'))}">${esc(a.teacherComment || '')}</textarea><button class="btn sm primary" data-cms="${esc(a.aid)}">${esc(t('save'))}</button></div></td></tr>`;
+    }
+    function overview() {
+      const emails = [...new Set(d.attempts.map((a) => a.email))];
+      return `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colAgent'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colChoicePts'))}</th><th>${esc(t('colTextPts'))}</th><th>${esc(t('colTotal'))}</th><th>${esc(t('colUnconfirmed'))}</th></tr></thead><tbody>${
+        emails.map((e) => {
+          const at = d.attempts.find((a) => a.email === e), mine = d.answers.filter((a) => a.email === e);
+          if (!at.submittedAt) return `<tr><td>${esc(e)}</td><td><span class="chip warn">${esc(t('notSubmitted'))}</span></td><td></td><td></td><td></td><td></td></tr>`;
+          const ch = mine.reduce((s, a) => s + (a.autoScore || 0), 0), tx = mine.reduce((s, a) => s + (a.teacherScore !== null ? a.teacherScore : (a.aiScore || 0)), 0);
+          const un = mine.filter((a) => { const q = d.questions.find((x) => x.qid === a.qid); return q && isText(q.type) && a.teacherScore === null; }).length;
+          return `<tr><td>${esc(e)}</td><td><span class="chip ok">${esc(t('a_submitted'))}${at.autoSubmitted ? ' · ' + esc(t('autoSub')) : ''}</span></td><td>${r2(ch)}</td><td>${r2(tx)}</td><td><b>${r2(ch + tx)}</b> / 100</td><td>${un || ''}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    }
+    const editing = new Set();
+    function draw() {
+      const q = d.questions.find((x) => x.qid === tab);
+      main.innerHTML = header() + (q ? qPanel(q) : overview());
+      bind();
+    }
+    function patchAnswer(ans) { const i = d.answers.findIndex((a) => a.aid === ans.aid); if (i >= 0) d.answers[i] = ans; }
+    async function setScore(aid, score, comment) {
+      try {
+        const payload = { sessionId: d.session.sessionId, aid };
+        if (score !== undefined) payload.score = score;
+        if (comment !== undefined) payload.comment = comment;
+        const r = await api('t_setScore', payload);
+        patchAnswer(r.answer); editing.delete(aid); draw();
+      } catch (e) { toast(e.message, 4000); }
+    }
+    function bind() {
+      $('#reload').onclick = () => viewGrading(d.session.sessionId);
+      const cp = $('#cpg'); if (cp) cp.onclick = () => copyText(d.command);
+      $$('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; history.replaceState(null, '', '#/grading/' + d.session.sessionId + '?q=' + tab); draw(); }));
+      const rel = $('#rel'); if (rel) rel.onclick = async () => {
+        const un = textAnswers().filter((a) => a.teacherScore === null).length;
+        if (!(await confirmBox(un ? t('releaseConfirm', { n: un }) : t('releaseConfirm0'), t('releaseBtn')))) return;
+        try { await api('t_release', { sessionId: d.session.sessionId }); toast(t('released')); viewGrading(d.session.sessionId); } catch (e) { toast(e.message, 5000); }
+      };
+      const ur = $('#unrel'); if (ur) ur.onclick = async () => {
+        if (!(await confirmBox(t('unreleaseConfirm'), t('unrelease'), t('cancel'), true))) return;
+        try { await api('t_release', { sessionId: d.session.sessionId, release: false }); viewGrading(d.session.sessionId); } catch (e) { toast(e.message, 5000); }
+      };
+      $$('[data-acc]').forEach((b) => b.addEventListener('click', () => {
+        const inp = $(`[data-sc="${b.dataset.acc}"]`), v = inp.value.trim();
+        if (v === '' || isNaN(+v)) { inp.focus(); return; }
+        setScore(b.dataset.acc, +v);
+      }));
+      $$('input.sc').forEach((inp) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $(`[data-acc="${inp.dataset.sc}"]`).click(); } }));
+      $$('[data-unc]').forEach((b) => b.addEventListener('click', () => setScore(b.dataset.unc, null)));
+      $$('[data-edit]').forEach((b) => b.addEventListener('click', () => { editing.add(b.dataset.edit); draw(); }));
+      $$('[data-cm]').forEach((b) => b.addEventListener('click', () => { const box = $(`[data-cmbox="${b.dataset.cm}"]`); box.hidden = !box.hidden; if (!box.hidden) $('textarea', box).focus(); }));
+      $$('[data-cms]').forEach((b) => b.addEventListener('click', () => setScore(b.dataset.cms, undefined, $('textarea', b.parentElement).value)));
+      const aa = $('#accAll'); if (aa) aa.onclick = async () => {
+        try { const r = await api('t_acceptAll', { sessionId: d.session.sessionId, qid: aa.dataset.q }); r.answers.forEach(patchAnswer); toast(t('acceptedN', { n: r.accepted })); draw(); } catch (e) { toast(e.message, 4000); }
+      };
+    }
+    draw();
+  }
+
+  // ───────── 專員：成績 ─────────
+  async function resultScreen(main, id) {
+    main.innerHTML = `<div class="empty-state"><span class="spin"></span></div>`;
+    let r;
+    try { r = await api('s_result', { sessionId: id }); } catch (e) { showError(e); return; }
+    const bi = (v) => esc(L(v));
+    main.innerHTML = `<div class="result">
+      <div class="card pad"><div class="row"><span class="chip brand">${esc(t('resultsOut'))}</span></div>
+        <h1 style="margin-top:8px">${esc(L(r.session.title))}</h1>
+        <div class="scorebox"><div><div class="small soft">${esc(t('yourScore'))}</div><div class="score"><b>${r2(r.score)}</b><span> / ${r2(r.total)}</span></div></div>
+          <div><div class="small soft">${esc(t('correctOf'))}</div><div class="big">${r.choiceOk} / ${r.choiceN}</div></div>
+          <div><div class="small soft">${esc(t('textPts'))}</div><div class="big">${r2(r.textGot)} / ${r2(r.textMax)}</div></div>
+          <div><div class="small soft">${esc(t('timeUsed'))}</div><div class="big">${esc(t('minShort', { n: Math.max(1, Math.round(r.timeUsed / 60000)) }))}</div></div></div>
+        <div class="qdots">${r.all.map((x) => `<span class="qd ${x.got >= x.max - 1e-9 ? 'full' : x.got > 0 ? 'part' : 'zero'}" title="Q${x.seq}: ${r2(x.got)} / ${r2(x.max)}">${x.seq}</span>`).join('')}</div></div>
+      <h2>${esc(r.review.length ? t('toReview', { n: r.review.length }) : t('allCorrect'))}</h2>
+      ${r.review.map((x) => `<div class="card pad rv">
+        <div class="row"><h2>${esc(t('question', { n: x.seq }))}</h2><span class="chip ${x.got > 0 ? 'warn' : ''}">${r2(x.got)} / ${r2(x.max)}</span>${x.point ? `<span class="soft small">${esc(t('keyPoint'))}：${bi(x.point)}</span>` : ''}</div>
+        <div class="rvgrid">
+          ${x.type !== 'C' ? `<span>${esc(t('yourAns'))}</span><span class="${x.choiceOk ? 'okc' : 'errc'}">${x.myChoice ? bi(x.myChoice) : esc(t('noChoice'))}</span>` : ''}
+          ${x.type === 'B' ? `<span>${esc(t('yourReason2'))}</span><span>${esc(x.myText) || t('none')}</span>` : ''}
+          ${x.type === 'C' ? `<span>${esc(t('yourText'))}</span><span>${esc(x.myText) || t('none')}</span>` : ''}
+          ${x.correct ? `<span>${esc(t('correct2'))}</span><span class="okc"><b>${bi(x.correct)}</b></span>` : ''}
+          ${x.modelAnswer ? `<span>${esc(t('modelAnswer3'))}</span><span>${bi(x.modelAnswer)}</span>` : ''}
+          ${x.comment ? `<span>${esc(t('trainerNote'))}</span><span class="note">${esc(x.comment)}</span>` : ''}
+          <span>${esc(t('explanation2'))}</span><span>${bi(x.explanation)}</span></div></div>`).join('')}
+      <div><a href="#/">← ${esc(t('backHome'))}</a></div></div>`;
   }
 
   // ───────── start ─────────

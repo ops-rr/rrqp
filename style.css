@@ -192,3 +192,35 @@ table.items th { color: var(--soft); font-weight: 500; font-size: 12px; }
   .quizbar .qtitle { max-width: 100%; order: 5; width: 100%; font-size: 14px; }
   .stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* ───────── M5：批改與成績 ───────── */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.tab { border: 1px solid var(--line2); background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 700; }
+.tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.gq h2 { font-size: 18px; }
+.gref { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; font-size: 14px; }
+.gtable td { vertical-align: top; }
+.gtable td.ans { max-width: 360px; font-size: 14px; white-space: pre-wrap; }
+.gtable tr.lowrow td { background: #FFFCF2; }
+.gtable tr.lowrow td:first-child { box-shadow: inset 4px 0 0 #E8B13B; }
+.gtable input.sc { width: 72px; height: 32px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 8px; }
+.nowrap { white-space: nowrap; }
+.okc { color: var(--ok); font-weight: 700; } .errc { color: var(--err); font-weight: 700; }
+.note { background: var(--warn-bg); border-radius: 6px; padding: 4px 8px; }
+.cmbox { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.cmbox textarea { width: 100%; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.result { display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; width: 100%; }
+.scorebox { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 16px; margin-top: 16px; padding: 16px; background: #FBFAF8; border: 1px solid var(--line); border-radius: 10px; align-items: end; }
+.score b { font-size: 44px; line-height: 1; } .score span { color: var(--soft); font-size: 18px; }
+.scorebox .big { font-size: 22px; font-weight: 700; }
+.qdots { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+.qd { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff; }
+.qd.full { background: var(--ok); } .qd.part { background: #D97706; } .qd.zero { background: var(--err); }
+.rvgrid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; margin-top: 10px; font-size: 15px; }
+.rvgrid > span:nth-child(odd) { color: var(--soft); font-size: 14px; }
+@media (max-width: 640px) {
+  .gref, .scorebox { grid-template-columns: 1fr 1fr; }
+  .rvgrid { grid-template-columns: 1fr; gap: 2px; }
+  .rvgrid > span:nth-child(even) { margin-bottom: 8px; }
+}
+[hidden] { display: none !important; }
