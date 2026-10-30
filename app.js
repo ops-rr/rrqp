@@ -155,7 +155,7 @@
   function shell(active, inner) {
     const teacher = me && me.isTeacher;
     const nav = teacher ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}">
-        <span title="${esc(t('soon'))}">${esc(t('navLibrary'))}</span>
+        ${me.role === 'tw' ? `<a href="#/library" class="${active === 'library' ? 'on' : ''}">${esc(t('navLibrary'))}</a>` : `<span title="${esc(t('reviewOnlyTw'))}">${esc(t('navLibrary'))}</span>`}
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/bank" class="${active === 'bank' ? 'on' : ''}">${esc(t('navBank'))}</a>
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
@@ -234,6 +234,8 @@
     if (me.isTeacher && page === 'session' && arg) return viewSession(decodeURIComponent(arg));
     if (me.isTeacher && page === 'preview' && arg) return viewPreview(decodeURIComponent(arg));
     if (me.isTeacher && page === 'mine') return viewMyQuizzes();
+    if (me.isTeacher && page === 'library' && arg) return viewSample(decodeURIComponent(arg));
+    if (me.isTeacher && page === 'library') return viewLibrary();
     if (me.isTeacher && page === 'bank' && arg) return viewBankItem(decodeURIComponent(arg));
     if (me.isTeacher && page === 'bank') return viewBank();
     if (me.isTeacher && page === 'grading' && arg) return viewGrading(decodeURIComponent(arg));
@@ -1500,6 +1502,169 @@
     if (n === null) { try { n = (await api('t_getDraft', { draftId: id })).questions.filter((q) => !q.bankedAs).length; } catch (e) { toast(e.message, 4000); return; } }
     if (!(await confirmBox(n ? t('delDraftSome', { id, n }) : t('delDraftAll', { id }), t('delDraft'), t('cancel'), true))) return;
     try { await api('t_deleteDraft', { draftId: id }); toast(t('delDraftDone', { id })); after && after(); } catch (e) { toast(e.message, 4000); }
+  }
+
+  // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
+  Object.assign(I18N.zh, {
+    library: '範例庫', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
+    returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已在處理中而略過：{ids}',
+    r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
+    ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
+    sm_pending: '待審', sm_active: '已核准', sm_rejected: '已退回', sm_inactive: '已停用', colSampleId: '範例', colAnswer2: '正解', colStatus2: '狀態',
+    aiSuggest: 'AI 建議', yourExpect: '申請時的預期', diffWarn: 'AI 建議的分類與申請時的預期不同，請特別確認。', applyAi: '套用 AI 建議',
+    answer: '正解', agreedYes: '已達成協議', agreedNo: '未達成協議', changeHint: '變化提示（給 AI 出題時參考）', changeHintPh: '例如：可以換商品與數量，但保留賣家只用貼圖回應的關鍵',
+    approve: '核准', reject: '退回', deactivate: '停用', reactivate: '重新啟用', rejectReason: '原因（選填）', approved: '已核准，AI 出題時會使用這個範例', rejected: '已退回', deactivated: '已停用',
+    tagsNeeded: '請至少選一個標籤', reviewOnlyTw: '範例庫僅開放 TW 講師',
+  });
+  Object.assign(I18N.en, {
+    library: 'Samples', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
+    returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already in progress): {ids}',
+    r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
+    ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
+    sm_pending: 'Pending', sm_active: 'Approved', sm_rejected: 'Rejected', sm_inactive: 'Inactive', colSampleId: 'Sample', colAnswer2: 'Answer', colStatus2: 'Status',
+    aiSuggest: 'AI suggestion', yourExpect: 'Expected at request', diffWarn: 'The AI suggestion differs from what was expected. Please check carefully.', applyAi: 'Apply AI suggestion',
+    answer: 'Answer', agreedYes: 'Agreement reached', agreedNo: 'No agreement', changeHint: 'Variation hint (for AI question generation)', changeHintPh: 'e.g. change the product and quantity, but keep the seller replying only with a sticker',
+    approve: 'Approve', reject: 'Reject', deactivate: 'Deactivate', reactivate: 'Reactivate', rejectReason: 'Reason (optional)', approved: 'Approved; AI generation will use this sample', rejected: 'Rejected', deactivated: 'Deactivated',
+    tagsNeeded: 'Pick at least one tag', reviewOnlyTw: 'Only TW trainers can use the sample library',
+  });
+  const reqChip = (s) => `<span class="chip ${s === 'done' ? 'ok' : s === 'failed' ? 'warn' : s === 'processing' || s === 'queued' ? 'info' : ''}">${esc(t('r_' + s))}</span>`;
+  const smChip = (s) => `<span class="chip ${s === 'active' ? 'ok' : s === 'pending' ? 'info' : 'warn'}">${esc(t('sm_' + s))}</span>`;
+  let libMeta = null;
+  async function getLibMeta() { if (!libMeta) libMeta = await api('t_topics'); return libMeta; }
+
+  async function viewLibrary() {
+    if (me.role !== 'tw') { shell('library', `<div class="banner warn">${esc(t('reviewOnlyTw'))}</div>`); return; }
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const tab = ['pending', 'active', 'requests'].includes(params.get('tab')) ? params.get('tab') : 'pending';
+    const main = shell('library', `<div class="row"><h1>${esc(t('library'))}</h1><span class="spacer"></span><button class="btn" id="reload">${esc(t('refresh'))}</button></div>
+      <div class="tabs"><a class="tab ${tab === 'pending' ? 'on' : ''}" href="#/library">${esc(t('libPending'))} <span id="pn"></span></a><a class="tab ${tab === 'active' ? 'on' : ''}" href="#/library?tab=active">${esc(t('libActive'))}</a><a class="tab ${tab === 'requests' ? 'on' : ''}" href="#/library?tab=requests">${esc(t('libRequests'))}</a></div>
+      <div id="lb"><div class="empty-state"><span class="spin"></span></div></div>`);
+    $('#reload').onclick = () => viewLibrary();
+    let meta, d;
+    try { [meta, d] = await Promise.all([getLibMeta(), tab === 'requests' ? api('tw_listRequests') : api('tw_listSamples')]); } catch (e) { showError(e, $('#lb')); return; }
+    const tagName = (id) => L((meta.tags.find((x) => x.tagId === id) || {}).name) || id;
+    if (tab !== 'requests') {
+      const pend = d.samples.filter((s) => s.status === 'pending');
+      $('#pn').textContent = pend.length ? `(${pend.length})` : '';
+      const list = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
+      if (!list.length) { $('#lb').innerHTML = `<div class="card empty-state">${esc(t(tab === 'pending' ? 'noPending' : 'noActive'))}</div>`; return; }
+      $('#lb').innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colSampleId'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colAnswer2'))}</th><th>${esc(t('colTags'))}</th>${tab === 'pending' ? `<th>${esc(t('yourExpect'))}</th>` : ''}<th>${esc(t('colStatus2'))}</th><th class="hide-sm">${esc(t('colBy'))}</th></tr></thead><tbody>${
+        list.map((s) => {
+          const diff = tab === 'pending' && s.wantedTags && s.wantedTags.length && !s.wantedTags.every((x) => s.tags.includes(x));
+          return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
+            <td class="small">${s.tags.map((x) => `<span class="chip" style="margin:1px">${esc(tagName(x))}</span>`).join('')}</td>
+            ${tab === 'pending' ? `<td class="small">${(s.wantedTags || []).map((x) => esc(tagName(x))).join('、')}${diff ? ' <span class="chip warn">≠</span>' : ''}</td>` : ''}
+            <td>${smChip(s.status)}</td><td class="hide-sm small muted">${esc(s.requestedBy || s.approvedBy || '')}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+      $$('[data-s]').forEach((r) => r.addEventListener('click', () => { location.hash = '#/library/' + r.dataset.s; }));
+      return;
+    }
+    // 申請
+    const topicOpts = meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
+    $('#lb').innerHTML = `<form class="card pad" id="rf" style="display:flex;flex-direction:column;gap:14px"><h2>${esc(t('reqTitle'))}</h2><div class="small muted">${esc(t('reqHint'))}</div>
+        <div class="form">
+          <label class="k" for="r_ids">${esc(t('returnIds'))}</label><textarea id="r_ids" rows="4" class="mono" style="width:min(420px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="2510150001234567"></textarea>
+          <label class="k" for="r_topic">${esc(t('topic'))}</label><select id="r_topic">${topicOpts}</select>
+          <span class="k">${esc(t('wantedTags'))}</span><div class="tags" id="r_tags"></div>
+          <label class="k" for="r_note">${esc(t('reqNote'))}</label><input type="text" id="r_note" maxlength="200" placeholder="${esc(t('reqNotePh'))}">
+        </div><div id="r_err" class="banner err" hidden></div>
+        <div class="row"><button class="btn brand" type="submit" id="r_go">${esc(t('submitReq'))}</button></div></form>
+      <div class="card scroll-x" id="rl"></div>`;
+    const drawTags = () => { $('#r_tags').innerHTML = meta.tags.filter((x) => x.topicId === $('#r_topic').value).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
+      $$('#r_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
+    drawTags(); $('#r_topic').onchange = drawTags;
+    function drawReqs(reqs) {
+      if (!reqs.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noReq'))}</div>`; return; }
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('wantedTags'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
+        reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}</td>
+          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
+          <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
+          <td style="text-align:right;white-space:nowrap">${r.status === 'failed' && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}">${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+      $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_retryRequest', { requestId: b.dataset.retry }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
+      $$('[data-cancel]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_cancelRequest', { requestId: b.dataset.cancel }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
+    }
+    drawReqs(d.requests);
+    $('#rf').addEventListener('submit', async (e) => {
+      e.preventDefault(); $('#r_go').disabled = true; $('#r_err').hidden = true;
+      try {
+        const r = await api('tw_requestSamples', { returnIds: $('#r_ids').value.split(/[\s,;]+/).filter(Boolean), topicId: $('#r_topic').value,
+          wantedTags: $$('#r_tags input:checked').map((c) => c.value), note: $('#r_note').value.trim() });
+        toast(t('reqAdded', { n: r.added }) + (r.duplicates.length ? '；' + t('reqDup', { ids: r.duplicates.join(', ') }) : ''), 5000);
+        $('#r_ids').value = ''; $('#r_note').value = ''; $('#r_go').disabled = false;
+        drawReqs((await api('tw_listRequests')).requests);
+      } catch (err) { $('#r_err').textContent = err.message; $('#r_err').hidden = false; $('#r_go').disabled = false; }
+    });
+  }
+
+  async function viewSample(id) {
+    if (me.role !== 'tw') { shell('library', `<div class="banner warn">${esc(t('reviewOnlyTw'))}</div>`); return; }
+    const main = shell('library', `<div class="empty-state"><span class="spin"></span></div>`);
+    let meta, s;
+    try { [meta, { sample: s }] = await Promise.all([getLibMeta(), api('tw_getSample', { sampleId: id })]); } catch (e) { showError(e); return; }
+    let work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
+    leaveGuard = () => !dirty || window.confirm(t('unsaved'));
+    const tagName = (x) => L((meta.tags.find((y) => y.tagId === x) || {}).name) || x;
+    function draw() {
+      const sg = s.suggest, q = work.question, { left, req } = caseHtml(q);
+      const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
+      const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
+      main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
+          <span class="spacer"></span><button class="btn sm" id="json">${esc(t('editJson'))}</button>
+          ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
+          <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
+          ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
+        ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
+        <div class="libgrid">
+          <div class="card pad"><h4>${esc(t('yourExpect'))}</h4>${(s.wantedTags || []).length ? s.wantedTags.map((x) => `<span class="chip" style="margin:2px">${esc(tagName(x))}</span>`).join('') : '<span class="soft">—</span>'}
+            ${s.note ? `<div class="small" style="margin-top:6px">${esc(s.note)}</div>` : ''}<div class="small soft" style="margin-top:6px">${esc(s.requestedBy || '')}</div></div>
+          <div class="card pad"><h4>${esc(t('aiSuggest'))}</h4>${sg ? `${(sg.tags || []).map((x) => `<span class="chip info" style="margin:2px">${esc(tagName(x))}</span>`).join('')}
+            <div style="margin-top:6px"><b>${esc(sg.answer || '')}</b> · ${esc(sg.pointZh || '')}</div><div class="small muted">${esc(sg.reason || '')}</div>
+            <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button>` : '<span class="soft">—</span>'}</div>
+        </div>
+        ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
+        <div class="card pad libedit">
+          <div class="form">
+            <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
+            <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(work.pointZh)}" maxlength="100">
+            <label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${[t('agreedYes'), t('agreedNo')].map((x, i) => { const v = ['已達成協議', '未達成協議'][i]; return `<option value="${v}" ${work.answer === v ? 'selected' : ''}>${esc(x)}</option>`; }).join('')}</select>
+            <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
+          </div><div id="e_err" class="banner err" hidden></div></div>
+        <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
+          ${q.explanation ? `<h4>${esc(t('explanation'))}</h4><div class="box">${esc(L(q.explanation))}</div>` : ''}</div></div></div>`;
+      bind();
+    }
+    function mark() { dirty = true; const b = $('#save'); if (b) b.disabled = false; }
+    function bind() {
+      $$('#e_tags input').forEach((c) => c.addEventListener('change', () => { c.parentElement.classList.toggle('on', c.checked); work.tags = $$('#e_tags input:checked').map((x) => x.value); mark(); }));
+      $('#e_point').oninput = (e) => { work.pointZh = e.target.value; mark(); };
+      $('#e_ans').onchange = (e) => { work.answer = e.target.value; mark(); };
+      $('#e_hint').oninput = (e) => { work.changeHint = e.target.value; mark(); };
+      const ap = $('#applyAi'); if (ap) ap.onclick = () => { const sg = s.suggest; work.tags = (sg.tags || []).slice(); work.pointZh = sg.pointZh || work.pointZh; work.answer = sg.answer || work.answer; dirty = true; draw(); };
+      $('#save').onclick = () => save();
+      const appr = $('#appr'); if (appr) appr.onclick = async () => {
+        if (!work.tags.length) { toast(t('tagsNeeded')); return; }
+        if (dirty && !(await save())) return;
+        try { await api('tw_approveSample', { sampleId: s.sampleId }); toast(t('approved'), 4000); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
+      };
+      const rj = $('#rej'); if (rj) rj.onclick = () => modal(`<h2>${esc(s.status === 'active' ? t('deactivate') : t('reject'))} ${esc(s.sampleId)}</h2>
+          <input type="text" id="rj_r" placeholder="${esc(t('rejectReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
+          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rj_go">${esc(s.status === 'active' ? t('deactivate') : t('reject'))}</button></div>`,
+        { onMount: (el, close) => { $('#rj_go', el).onclick = async () => { try { await api('tw_rejectSample', { sampleId: s.sampleId, reason: $('#rj_r', el).value }); close('ok'); dirty = false; toast(s.status === 'active' ? t('deactivated') : t('rejected')); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); } }; } });
+      $('#json').onclick = () => modal(`<h2>${esc(t('editJson'))} · ${esc(s.sampleId)}</h2><textarea class="json" spellcheck="false">${esc(JSON.stringify(work.question, null, 2))}</textarea><div id="jerr" class="banner err" hidden></div>
+          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
+        { wide: true, onMount: (el, close) => { $('#japply', el).onclick = () => { try { work.question = JSON.parse($('textarea', el).value); qDirty = true; dirty = true; close('ok'); draw(); } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; } }; } });
+    }
+    async function save() {
+      $('#e_err').hidden = true;
+      try {
+        const payload = { sampleId: s.sampleId, tags: work.tags, pointZh: work.pointZh, answer: work.answer, changeHint: work.changeHint };
+        if (qDirty) payload.question = work.question;
+        const r = await api('tw_updateSample', payload);
+        s = r.sample; work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
+        toast(t('saved')); draw(); return true;
+      } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; return false; }
+    }
+    draw();
   }
 
   // ───────── start ─────────

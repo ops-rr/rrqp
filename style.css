@@ -249,3 +249,8 @@ a.tab.on { color: #fff; }
 tr.dim td { opacity: .55; }
 .compose { border: 1px dashed var(--line2); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #FDFCFA; }
 .compose h2 { font-size: 16px; }
+
+/* ───────── 範例庫 ───────── */
+.libgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.libedit .form input[type=text] { width: min(520px, 100%); }
+@media (max-width: 760px) { .libgrid { grid-template-columns: 1fr; } }
