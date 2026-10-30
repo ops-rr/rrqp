@@ -1518,6 +1518,8 @@
     library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
+    libTopicTags: '主題與標籤', libTag: '標籤', libAll: '全部範例', libAllInTopic: '全部', libUntagged: '未分類', libSearchPh: '搜尋範例代碼、判斷重點、標籤…', libCount: '{n} / {all} 筆', libNoMatch: '沒有符合條件的範例。',
+    addTagTitle: '新增標籤', tagNameZh: '中文名稱', tagNameZhPh: '例如：賣家反悔', tagNameEn: '英文名稱', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: '說明（選填）', tagDescPh: '給 AI 參考的判斷說明，例如：賣家先同意後又改口', tagHint: '新標籤會立即出現在申請、範例審核與草稿的標籤選項中，AI 出題與分類也會參考。', add: '新增', tagNeedNames: '請填寫中文與英文名稱', tagAdded: '已新增標籤「{name}」',
     ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
     sm_pending: '待審', sm_active: '已核准', sm_rejected: '已退回', sm_inactive: '已停用', colSampleId: '範例', colAnswer2: '正解', colStatus2: '狀態',
     aiSuggest: 'AI 建議', yourExpect: '申請時的預期', diffWarn: 'AI 建議的分類與申請時的預期不同，請特別確認。', applyAi: '套用 AI 建議',
@@ -1529,6 +1531,8 @@
     library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
+    libTopicTags: 'Topics & tags', libTag: 'Tag', libAll: 'All samples', libAllInTopic: 'All', libUntagged: 'Untagged', libSearchPh: 'Search sample ID, key point, tag…', libCount: '{n} / {all}', libNoMatch: 'No matching samples.',
+    addTagTitle: 'Add tag', tagNameZh: 'Chinese name', tagNameZhPh: '例如：賣家反悔', tagNameEn: 'English name', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: 'Description (optional)', tagDescPh: 'Guidance for the AI, e.g. the seller agreed and then changed their mind', tagHint: 'The new tag appears right away in requests, sample review and drafts, and the AI uses it when generating and classifying.', add: 'Add', tagNeedNames: 'Enter both the Chinese and English names', tagAdded: 'Tag "{name}" added',
     ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
     sm_pending: 'Pending', sm_active: 'Approved', sm_rejected: 'Rejected', sm_inactive: 'Inactive', colSampleId: 'Sample', colAnswer2: 'Answer', colStatus2: 'Status',
     aiSuggest: 'AI suggestion', yourExpect: 'Expected at request', diffWarn: 'The AI suggestion differs from what was expected. Please check carefully.', applyAi: 'Apply AI suggestion',
@@ -1540,6 +1544,31 @@
   const smChip = (s) => `<span class="chip ${s === 'active' ? 'ok' : s === 'pending' ? 'info' : 'warn'}">${esc(t('sm_' + s))}</span>`;
   let libMeta = null;
   async function getLibMeta() { if (!libMeta) libMeta = await api('t_topics'); return libMeta; }
+  const libFilter = { topic: '', tag: '', q: '' };
+  /** 新增標籤（TW 講師）：回傳新標籤或 null */
+  function addTagDialog(meta, topicId) {
+    return modal(`<h2>${esc(t('addTagTitle'))}</h2>
+      <form id="tf" class="form" style="margin-top:12px">
+        <label class="k" for="tg_topic">${esc(t('topic'))}</label><select id="tg_topic">${meta.topics.map((x) => `<option value="${esc(x.topicId)}" ${x.topicId === topicId ? 'selected' : ''}>${esc(L(x.name))}</option>`).join('')}</select>
+        <label class="k" for="tg_zh">${esc(t('tagNameZh'))}</label><input id="tg_zh" maxlength="20" required placeholder="${esc(t('tagNameZhPh'))}">
+        <label class="k" for="tg_en">${esc(t('tagNameEn'))}</label><input id="tg_en" maxlength="40" required placeholder="${esc(t('tagNameEnPh'))}">
+        <label class="k" for="tg_desc">${esc(t('tagDesc'))}</label><textarea id="tg_desc" rows="2" maxlength="200" placeholder="${esc(t('tagDescPh'))}" style="border:1px solid var(--line2);border-radius:8px;padding:8px"></textarea>
+      </form>
+      <div class="small muted" style="margin-top:8px">${esc(t('tagHint'))}</div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="tg_ok" type="button">${esc(t('add'))}</button></div>`,
+    { onMount: (el, close) => {
+      $('#tg_zh', el).focus();
+      const go = async () => {
+        const zh = $('#tg_zh', el).value.trim(), en = $('#tg_en', el).value.trim();
+        if (!zh || !en) { toast(t('tagNeedNames'), 3000); return; }
+        const btn = $('#tg_ok', el); btn.disabled = true;
+        try { const r = await api('tw_addTag', { topicId: $('#tg_topic', el).value, nameZh: zh, nameEn: en, descZh: $('#tg_desc', el).value.trim() }); toast(t('tagAdded', { name: zh })); close(r.tag); }
+        catch (e) { toast(e.message, 4000); btn.disabled = false; }
+      };
+      $('#tg_ok', el).onclick = go;
+      $('#tf', el).addEventListener('submit', (e) => { e.preventDefault(); go(); });
+    } });
+  }
 
   async function viewLibrary() {
     if (me.role !== 'tw') { shell('library', `<div class="banner warn">${esc(t('reviewOnlyTw'))}</div>`); return; }
@@ -1555,17 +1584,46 @@
     if (tab !== 'requests') {
       const pend = d.samples.filter((s) => s.status === 'pending');
       $('#pn').textContent = pend.length ? `(${pend.length})` : '';
-      const list = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
-      if (!list.length) { $('#lb').innerHTML = `<div class="card empty-state">${esc(t(tab === 'pending' ? 'noPending' : 'noActive'))}</div>`; return; }
-      $('#lb').innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colSampleId'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colAnswer2'))}</th><th>${esc(t('colTags'))}</th>${tab === 'pending' ? `<th>${esc(t('yourExpect'))}</th>` : ''}<th>${esc(t('colStatus2'))}</th><th class="hide-sm">${esc(t('colBy'))}</th></tr></thead><tbody>${
-        list.map((s) => {
-          const diff = tab === 'pending' && s.wantedTags && s.wantedTags.length && !s.wantedTags.every((x) => s.tags.includes(x));
-          return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
-            <td class="small">${s.tags.map((x) => `<span class="chip" style="margin:1px">${esc(tagName(x))}</span>`).join('')}</td>
-            ${tab === 'pending' ? `<td class="small">${(s.wantedTags || []).map((x) => esc(tagName(x))).join('、')}${diff ? ' <span class="chip warn">≠</span>' : ''}</td>` : ''}
-            <td>${smChip(s.status)}</td><td class="hide-sm small muted">${esc(s.requestedBy || s.approvedBy || '')}</td></tr>`;
-        }).join('')}</tbody></table></div>`;
-      $$('[data-s]').forEach((r) => r.addEventListener('click', () => { location.hash = '#/library/' + r.dataset.s; }));
+      const all = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
+      if (!all.length) { $('#lb').innerHTML = `<div class="card empty-state">${esc(t(tab === 'pending' ? 'noPending' : 'noActive'))}</div>`; return; }
+      const f = libFilter;                        // 篩選條件在切換分頁 / 重新整理時保留
+      $('#lb').innerHTML = `<div class="lib-grid"><aside class="card lib-side" id="ls"></aside>
+        <div class="lib-main"><div class="lib-search"><input id="lq" type="search" placeholder="${esc(t('libSearchPh'))}" value="${esc(f.q)}" aria-label="${esc(t('libSearchPh'))}"><span class="small muted" id="lc"></span></div><div id="ll"></div></div></div>`;
+      const inScope = (s) => !f.topic || s.topicId === f.topic;
+      const drawSide = () => {
+        $('#ls').innerHTML = `<div class="lib-side-hd"><b>${esc(t('libTopicTags'))}</b><button class="btn sm" id="addTag" type="button">＋ ${esc(t('libTag'))}</button></div>
+          <button type="button" class="lib-row ${!f.topic ? 'on' : ''}" data-topic="" data-tag=""><span>${esc(t('libAll'))}</span><span class="n">${all.length}</span></button>
+          ${meta.topics.map((tp) => {
+            const mine = all.filter((s) => (s.topicId || 'agreement') === tp.topicId);
+            const tags = meta.tags.filter((x) => x.topicId === tp.topicId);
+            const untagged = mine.filter((s) => !s.tags.length).length;
+            const row = (tag, label, n) => `<button type="button" class="lib-row ${f.topic === tp.topicId && f.tag === tag ? 'on' : ''}" data-topic="${esc(tp.topicId)}" data-tag="${esc(tag)}"><span>${esc(label)}</span><span class="n">${n}</span></button>`;
+            return `<div class="lib-grp">${esc(L(tp.name))}</div>${row('', t('libAllInTopic'), mine.length)}
+              ${tags.map((x) => row(x.tagId, L(x.name), mine.filter((s) => s.tags.includes(x.tagId)).length)).join('')}
+              ${untagged ? row('-', t('libUntagged'), untagged) : ''}`;
+          }).join('')}`;
+        $$('#ls [data-topic]').forEach((b) => b.addEventListener('click', () => { f.topic = b.dataset.topic; f.tag = b.dataset.tag; drawSide(); drawList(); }));
+        $('#addTag').onclick = () => addTagDialog(meta, f.topic || (meta.topics[0] || {}).topicId).then((tg) => { if (tg) { libMeta = null; topicsCache = null; f.topic = tg.topicId; f.tag = tg.tagId; viewLibrary(); } });
+      };
+      const drawList = () => {
+        const q = f.q.trim().toLowerCase();
+        const list = all.filter((s) => inScope(s)
+          && (!f.tag || (f.tag === '-' ? !s.tags.length : s.tags.includes(f.tag)))
+          && (!q || [s.sampleId, s.pointZh, s.answer, s.changeHint, s.requestedBy, s.approvedBy, ...s.tags.map(tagName)].join(' ').toLowerCase().includes(q)));
+        $('#lc').textContent = t('libCount', { n: list.length, all: all.length });
+        if (!list.length) { $('#ll').innerHTML = `<div class="card empty-state">${esc(t('libNoMatch'))}</div>`; return; }
+        $('#ll').innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colSampleId'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colAnswer2'))}</th><th>${esc(t('colTags'))}</th>${tab === 'pending' ? `<th>${esc(t('yourExpect'))}</th>` : ''}<th>${esc(t('colStatus2'))}</th><th class="hide-sm">${esc(t('colBy'))}</th></tr></thead><tbody>${
+          list.map((s) => {
+            const diff = tab === 'pending' && s.wantedTags && s.wantedTags.length && !s.wantedTags.every((x) => s.tags.includes(x));
+            return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
+              <td class="small">${s.tags.map((x) => `<span class="chip" style="margin:1px">${esc(tagName(x))}</span>`).join('')}</td>
+              ${tab === 'pending' ? `<td class="small">${(s.wantedTags || []).map((x) => esc(tagName(x))).join('、')}${diff ? ' <span class="chip warn">≠</span>' : ''}</td>` : ''}
+              <td>${smChip(s.status)}</td><td class="hide-sm small muted">${esc(s.requestedBy || s.approvedBy || '')}</td></tr>`;
+          }).join('')}</tbody></table></div>`;
+        $$('#ll [data-s]').forEach((r) => r.addEventListener('click', () => { location.hash = '#/library/' + r.dataset.s; }));
+      };
+      $('#lq').addEventListener('input', (e) => { f.q = e.target.value; drawList(); });
+      drawSide(); drawList();
       return;
     }
     // 申請

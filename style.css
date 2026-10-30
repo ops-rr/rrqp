@@ -254,3 +254,19 @@ tr.dim td { opacity: .55; }
 .libgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .libedit .form input[type=text] { width: min(520px, 100%); }
 @media (max-width: 760px) { .libgrid { grid-template-columns: 1fr; } }
+
+/* 範例生成：主題與標籤側欄 */
+.lib-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.lib-side { padding: 12px; position: sticky; top: 72px; display: flex; flex-direction: column; gap: 2px; }
+.lib-side-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 8px; }
+.lib-grp { font-size: 12px; color: var(--soft); padding: 10px 8px 4px; border-top: 1px solid var(--line); margin-top: 6px; }
+.lib-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 7px 10px; font-size: 14px; color: var(--ink); }
+.lib-row:hover { background: var(--chip); }
+.lib-row.on { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.lib-row .n { font-size: 13px; color: var(--soft); font-variant-numeric: tabular-nums; }
+.lib-row.on .n { color: var(--brand); }
+.lib-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lib-search { display: flex; align-items: center; gap: 10px; }
+.lib-search input { flex: 1; max-width: 420px; height: 38px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 12px; background: #fff; }
+@media (max-width: 760px) { .lib-grid { grid-template-columns: 1fr; } .lib-side { position: static; } }
+.modal .form input:not([type=checkbox]):not([type=radio]) { height: 38px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 10px; background: #fff; }
