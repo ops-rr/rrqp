@@ -40,7 +40,7 @@
       unsaved: '這題有未儲存的修改，要放棄嗎？', discard: '放棄修改', keep: '繼續編輯',
       answerHint: '點選項可改正解', correct: '正解', setAnswer: '設為正解',
       prompt: '題目', buyer: '買家', seller: '賣家', chat: '聊聊', drc: 'DRC', drcBuyer: '買家 → 蝦皮', drcSeller: '賣家 → 蝦皮',
-      request: '退貨退款申請', solution: '方案', amount: '金額', reason: '原因', remark: '備註', reqItems: '申退商品', orderItems: '訂單商品',
+      request: '退貨退款申請', deduction: '折抵（折價券 / 蝦幣）', solution: '方案', amount: '金額', reason: '原因', remark: '備註', reqItems: '申退商品', orderItems: '訂單商品',
       item: '商品', variation: '規格', qty: '數量', price: '單價', subtotal: '小計', payment: '付款', method: '方式', status: '狀態', logistics: '物流',
       options: '選項', point: '判斷重點', explanation: '解析', modelAnswer: '參考答案', rubric: '評分標準', warnings: '系統提醒',
       agentHome: '目前沒有指派給你的測驗', agentHomeSub: '講師發佈測驗後，你會在這裡看到測驗連結。', none: '—',
@@ -66,7 +66,7 @@
       unsaved: 'This question has unsaved changes. Discard them?', discard: 'Discard', keep: 'Keep editing',
       answerHint: 'Click an option to change the answer', correct: 'Answer', setAnswer: 'Set as answer',
       prompt: 'Question', buyer: 'Buyer', seller: 'Seller', chat: 'Chat', drc: 'DRC', drcBuyer: 'Buyer → Shopee', drcSeller: 'Seller → Shopee',
-      request: 'Return / refund request', solution: 'Solution', amount: 'Amount', reason: 'Reason', remark: 'Remark', reqItems: 'Requested items', orderItems: 'Order items',
+      request: 'Return / refund request', deduction: 'Deduction (voucher / coins)', solution: 'Solution', amount: 'Amount', reason: 'Reason', remark: 'Remark', reqItems: 'Requested items', orderItems: 'Order items',
       item: 'Item', variation: 'Variation', qty: 'Qty', price: 'Price', subtotal: 'Subtotal', payment: 'Payment', method: 'Method', status: 'Status', logistics: 'Logistics',
       options: 'Options', point: 'Key point', explanation: 'Explanation', modelAnswer: 'Model answer', rubric: 'Rubric', warnings: 'System notes',
       agentHome: 'No quiz assigned to you yet', agentHomeSub: 'When your trainer publishes a quiz, the link will appear here.', none: '—',
@@ -378,6 +378,14 @@
     if (!arr || !arr.length) return `<div class="soft small">${t('none')}</div>`;
     return arr.map((d) => `<div class="item"><span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
   }
+  /** DMS 退貨原因：中文介面顯示「中文（English）」 */
+  const REASON_ZH = {
+    'Parcel not delivered': '包裹未送達／無法取件', 'Seller sent wrong item (e.g wrong size, model)': '收到完全不同的商品',
+    'I want to return item in original/ sealed condition': '其它(商品須以原包裝退還)', 'Missing part of the order': '商品缺件／賣家通知缺貨',
+    'Product does not meet expectations': '實品與賣場描述／圖片有落差', 'Counterfeit product': '商品有仿品疑慮', 'Damaged Item': '商品外表瑕疵／毀損',
+    'Product is defective or does not work': '商品功能有問題', 'Empty parcel': '只收到破壞袋、外箱',
+  };
+  const reasonLabel = (r) => (lang === 'zh' && REASON_ZH[r] ? `${REASON_ZH[r]}（${r}）` : r || '');
   /** 題目情境（左欄 + 右欄的申請資訊）；講師與專員共用 */
   function caseHtml(q) {
     const r = q.request || {};
@@ -390,7 +398,8 @@
       <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller)}</div></div>`;
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
-      <span>${esc(t('reason'))}</span><span>${esc(r.reason)}</span><span>${esc(t('remark'))}</span><span>${esc(L(r.remark))}</span></div>
+      ${r.deduction ? `<span>${esc(t('deduction'))}</span><span>−$${esc(r.deduction)}</span>` : ''}
+      <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${esc(t('remark'))}</span><span>${esc(L(r.remark))}</span></div>
       ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items)}` : ''}`;
     return { left, req };
   }
