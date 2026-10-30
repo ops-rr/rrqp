@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RR AI Quiz Platform 講師使用說明</title>
+<style>
+  :root {
+    --bg: #F6F5F2; --card: #fff; --ink: #1F1F1F; --muted: #4A4843; --soft: #7A776F;
+    --line: #E4E2DC; --chip: #F2F0EB; --brand: #D9431E; --brand-soft: #FDEDE7;
+    --ok: #15803D; --ok-bg: #EAF6EE; --info: #1D4ED8; --info-bg: #EAF0FD; --warn: #92400E; --warn-bg: #FFF8E6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.75 'Noto Sans TC', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  .hero { padding-top: 40px; padding-bottom: 32px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--muted); font-size: 15px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; }
+  h1 { font-size: 32px; line-height: 1.3; margin: 16px 0 8px; }
+  h2 { font-size: 22px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; }
+  p { margin: 6px 0; }
+  .lead { color: var(--muted); font-size: 17px; max-width: 720px; }
+  nav.toc { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.95); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 8px; padding-bottom: 8px; }
+  nav.toc a { white-space: nowrap; padding: 6px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 14px; }
+  nav.toc a:hover { background: var(--chip); }
+  main { padding: 28px 0 60px; display: flex; flex-direction: column; gap: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px 26px; }
+  .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 14px; }
+  .flow a { display: block; text-decoration: none; color: var(--ink); background: var(--chip); border-radius: 10px; padding: 12px 10px; text-align: center; position: relative; }
+  .flow a:hover { background: var(--brand-soft); }
+  .flow b { display: block; font-size: 15px; }
+  .flow span { font-size: 12.5px; color: var(--soft); }
+  .flow .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .step { display: inline-grid; place-items: center; min-width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 15px; font-weight: 800; }
+  .sub { color: var(--soft); font-size: 14px; margin-bottom: 10px; }
+  ol, ul { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .chip { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: 2px; }
+  .chip.tw { background: var(--brand-soft); color: var(--brand); }
+  .chip.all { background: var(--info-bg); color: var(--info); }
+  .tip { background: var(--ok-bg); border-radius: 10px; padding: 10px 14px; margin-top: 12px; font-size: 15px; }
+  .note { background: var(--warn-bg); border-radius: 10px; padding: 10px 14px; margin-top: 12px; font-size: 15px; }
+  code, kbd { font-family: ui-monospace, Menlo, Consolas, monospace; background: var(--chip); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  .btnlike { display: inline-block; border: 1px solid #D6D3CC; border-radius: 6px; padding: 0 8px; font-size: 14px; background: #fff; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--chip); font-size: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  footer { color: var(--soft); font-size: 13px; text-align: center; padding: 0 0 40px; }
+  .switch { display: inline-flex; border: 1px solid #D6D3CC; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 18px; }
+  .switch button { border: 0; background: transparent; padding: 8px 18px; font: inherit; font-size: 15px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .switch button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+  [data-view][hidden] { display: none !important; }
+  .chip.agent { background: var(--ok-bg); color: var(--ok); }
+  section.card { scroll-margin-top: 64px; }
+  .foot { color: var(--soft); font-size: 14px; margin-top: 8px; }
+  ul.gap { margin-top: 10px; }
+  .zh { color: var(--soft); font-size: 14px; }
+  @media (max-width: 760px) {
+    h1 { font-size: 26px; }
+    .flow { grid-template-columns: repeat(2, 1fr); }
+    .two { grid-template-columns: 1fr; }
+    .card { padding: 18px; }
+  }
+  @media print { nav.toc { display: none; } body { background: #fff; } .card { break-inside: avoid; } }
+  .switches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+</style>
+
+</head>
+<body>
+<header>
+  <div class="wrap hero">
+    <div class="brand"><span class="logo">S</span>RR AI Quiz Platform</div>
+    <div data-view="trainer" data-lang="zh"><h1>講師使用說明</h1><p class="lead">從真實 DMS 案件產生範例，讓 AI 依範例出題，講師校對入庫後發佈測驗；專員作答後由 AI 先批改、講師確認再發佈成績。</p></div><div data-view="trainer" data-lang="en" hidden><h1>Trainer Guide</h1><p class="lead">Turn real DMS cases into samples, let the AI write questions from them, review and publish quizzes. After agents answer, the AI grades first and trainers confirm before releasing results.</p></div><div data-view="agent" data-lang="zh" hidden><h1>專員作答說明</h1><p class="lead">如何登入、作答與查看成績。講師會提供測驗連結給你。</p></div><div data-view="agent" data-lang="en" hidden><h1>Agent Guide</h1><p class="lead">How to sign in, take a quiz and check your results. Your trainer will send you a quiz link.</p></div>
+    <div class="switches">
+      <div class="switch" role="group" aria-label="說明對象 / Guide for">
+        <button type="button" data-to-view="trainer" aria-pressed="true"><span data-l="zh">講師</span><span data-l="en" hidden>Trainer</span></button>
+        <button type="button" data-to-view="agent" aria-pressed="false"><span data-l="zh">專員</span><span data-l="en" hidden>Agent</span></button>
+      </div>
+      <div class="switch" role="group" aria-label="語言 / Language">
+        <button type="button" data-to-lang="zh" aria-pressed="true">中文</button>
+        <button type="button" data-to-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+  </div>
+</header>
+<nav class="toc"><div class="wrap" data-view="trainer" data-lang="zh"><a href="#t-overview">整體流程</a><a href="#t1">① 範例生成</a><a href="#t2">② 題庫生成</a><a href="#t3">③ 可用題庫</a><a href="#t4">④ 測驗管理</a><a href="#t5">⑤ 閱卷發佈</a><a href="#t6">⑥ 歷史成績</a><a href="#t-faq">注意事項</a></div><div class="wrap" data-view="trainer" data-lang="en" hidden><a href="#t-overview">Workflow</a><a href="#t1">① Samples</a><a href="#t2">② Generate</a><a href="#t3">③ Bank</a><a href="#t4">④ Quizzes</a><a href="#t5">⑤ Grading</a><a href="#t6">⑥ History</a><a href="#t-faq">Good to know</a></div><div class="wrap" data-view="agent" data-lang="zh" hidden><a href="#a-overview">流程總覽</a><a href="#a1">① 登入</a><a href="#a2">② 開始作答</a><a href="#a3">③ 閱讀案件</a><a href="#a4">④ 作答</a><a href="#a5">⑤ 交卷</a><a href="#a6">⑥ 查看成績</a><a href="#a-help">遇到問題</a></div><div class="wrap" data-view="agent" data-lang="en" hidden><a href="#a-overview">Overview</a><a href="#a1">① Sign in</a><a href="#a2">② Start</a><a href="#a3">③ Read the case</a><a href="#a4">④ Answer</a><a href="#a5">⑤ Submit</a><a href="#a6">⑥ Results</a><a href="#a-help">Help</a></div></nav>
+<div class="wrap"><main data-view="trainer" data-lang="zh">
+<section class="card" id="t-overview">
+  <h2>整體流程</h2>
+  <p class="sub">後台選單由左到右就是工作順序。</p>
+  <div class="flow"><a href="#t1"><span class="n">1</span><b>範例生成</b><span>DMS 案件 → 範例</span></a><a href="#t2"><span class="n">2</span><b>題庫生成</b><span>AI 出題 → 校對</span></a><a href="#t3"><span class="n">3</span><b>可用題庫</b><span>已確認的題目</span></a><a href="#t4"><span class="n">4</span><b>測驗管理</b><span>抽題 → 發佈</span></a><a href="#t5"><span class="n">5</span><b>閱卷發佈</b><span>AI 批改 → 確認</span></a><a href="#t6"><span class="n">6</span><b>歷史成績</b><span>成績、補考</span></a></div>
+  <h3>登入與權限</h3>
+  <ul>
+    <li>用公司 Google 帳號登入平台；講師帳號會進入「講師後台」。右上角可以切換中文 / EN。</li>
+    <li><span class="chip tw">TW 講師</span> 可以使用全部功能，包含「範例生成」。</li>
+    <li><span class="chip all">所有講師</span> 可以使用「題庫生成」之後的功能。</li>
+  </ul>
+  <h3>題型與配分</h3>
+  <table>
+    <tr><th>題型</th><th>作答方式</th><th>批改</th></tr>
+    <tr><td><b>A</b>　選擇</td><td>選一個選項</td><td>系統自動計分</td></tr>
+    <tr><td><b>B</b>　選擇 + 原因</td><td>選一個選項並寫原因</td><td>選擇自動計分；原因由 AI 評分、講師確認</td></tr>
+    <tr><td><b>C</b>　文字作答</td><td>寫出答案</td><td>AI 評分、講師確認</td></tr>
+  </table>
+  <p class="foot">每場測驗總分 100 分，系統依題數平均分配。</p>
+</section>
+
+<section class="card" id="t1">
+  <h2><span class="step">1</span>範例生成 <span class="chip tw">TW 講師</span></h2>
+  <p class="sub">把真實 DMS 案件變成去識別化的「範例」，AI 出題時會參考這些範例改編。</p>
+  <h3>申請範例（「範例申請」分頁）</h3>
+  <ol>
+    <li>在 <b>Return ID</b> 欄位貼上 DMS 的 Return ID，每行一個，一次最多 30 筆。</li>
+    <li>選擇 <b>主題</b>；<b>預期分類（選填）</b> 與 <b>說明（選填）</b> 可以不填，填了可以幫助審核時比對。</li>
+    <li>按 <span class="btnlike">送出申請</span>。申請過的 Return ID 會留在列表中；重複送出時系統會自動略過。</li>
+    <li>排程每 30 分鐘處理一次：抓 DMS → 去識別化 → AI 翻譯英文並建議分類。完成後 SeaTalk 群組會收到通知。</li>
+  </ol>
+  <div class="note">狀態為「失敗」時可以按 <span class="btnlike">重試</span>；如果案件本身有問題（例如查無資料），取消後換一筆即可。</div>
+  <h3>審核範例（「待審範例」分頁）</h3>
+  <ol>
+    <li>點開範例，確認案件內容（聊聊、DRC、退貨退款申請、訂單商品）沒有殘留店名、帳號等可辨識資訊。</li>
+    <li>檢查 AI 建議的 <b>標籤</b>、<b>判斷重點</b>、<b>正解</b>，不對就直接修改。</li>
+    <li>確認 <b>變化提示</b>：AI 已預先寫好「哪些地方可以換、哪個判斷關鍵要保留」，講師看過、需要時微調即可。</li>
+    <li>按 <span class="btnlike">核准</span> 進入範例庫；不適合當範例就按 <span class="btnlike">退回</span>。</li>
+  </ol>
+  <div class="tip">AI 的建議只是起點，正解以講師判斷為準。DMS 案件常有灰色地帶，這正是好範例的來源。</div>
+  <h3>範例庫</h3>
+  <ul>
+    <li>左側 <b>主題與標籤</b> 顯示每個標籤有幾筆範例，點一下就能篩選；0 筆的標籤代表這個判斷重點還缺範例。</li>
+    <li>上方搜尋框可以搜範例代碼、判斷重點、標籤、變化提示。</li>
+    <li><span class="btnlike">＋ 標籤</span> 可以新增判斷重點，需要填中英文名稱；說明會給 AI 出題與分類時參考。</li>
+    <li>滑鼠移到標籤上按 <b>✎</b>，可以修改名稱、說明，或 <span class="btnlike">停用標籤</span>。已使用這個標籤的範例與題目不受影響；停用後不會再出現在各處的標籤選項，之後可以 <span class="btnlike">重新啟用</span>。</li>
+  </ul>
+</section>
+
+<section class="card" id="t2">
+  <h2><span class="step">2</span>題庫生成</h2>
+  <p class="sub">建立一份「草稿」，請 AI 依範例產生一批題目，講師逐題校對。</p>
+  <ol>
+    <li>按 <span class="btnlike">建立草稿</span>：填名稱、選主題、題數、<b>題型配比</b>（A / B / C 各幾題），可指定要加強的標籤。</li>
+    <li>建立後按 <span class="btnlike">複製指令</span>，到 SeaTalk 對 <b>@RR AI Quiz Assistant</b> 貼上（例如 <code>生成考題 D003</code>）。AI 生成完會在 SeaTalk 回覆。</li>
+    <li>回到草稿逐題校對：修改題目、選項、正解、解析、評分標準，按 <span class="btnlike">確認並標記已校對</span>；不要的題目可以刪除。</li>
+    <li>校對完成的題目按 <span class="btnlike">加入題庫</span>。</li>
+    <li>題目都入庫後可以 <span class="btnlike">刪除草稿</span>，題庫與已發佈的測驗不受影響。</li>
+  </ol>
+  <div class="tip">B、C 題的「評分標準」會直接影響 AI 批改的準確度，請寫清楚幾分對應什麼答案。</div>
+</section>
+
+<section class="card" id="t3">
+  <h2><span class="step">3</span>可用題庫</h2>
+  <p class="sub">所有已確認、可以拿來出測驗的題目。</p>
+  <ul>
+    <li>可以依主題、標籤、題型篩選，並看到每題被用過幾次、答對率。</li>
+    <li>點開題目可以修改，修改後版本號會增加；已發佈的測驗保留當時的版本，不受影響。</li>
+    <li>題目過時或有爭議時按 <span class="btnlike">停用</span>，之後抽題就不會再選到。</li>
+    <li>判斷標準更新後，舊題目會標示 <b>需重新確認</b>，看過並儲存後就會更新為新標準。</li>
+  </ul>
+</section>
+
+<section class="card" id="t4">
+  <h2><span class="step">4</span>測驗管理</h2>
+  <p class="sub">從可用題庫組卷，指定專員與時間後發佈。</p>
+  <ol>
+    <li>按 <span class="btnlike">發佈新測驗</span>，填測驗名稱、開始 / 結束時間、作答時限（分鐘）。</li>
+    <li>貼上受測者 Email，每行一個，可以直接從 Excel 貼上。</li>
+    <li>按 <span class="btnlike">自動抽題</span>：依題型配比與標籤挑題；勾選 <b>避開受測者做過的題目</b> 可以避免考到重複題。也可以手動增減題目。</li>
+    <li>按 <span class="btnlike">發佈並產生測驗連結</span>，把連結傳給專員。</li>
+  </ol>
+  <h3>測驗進行中</h3>
+  <ul>
+    <li>可以看到交卷人數；<span class="btnlike">以專員畫面預覽</span> 可以看專員實際看到的畫面（不會留下作答紀錄）。</li>
+    <li>需要時可以 <span class="btnlike">延長結束時間</span> 或 <span class="btnlike">提前結束測驗</span>。</li>
+    <li>專員作答時有倒數計時，時間到會自動交卷。</li>
+  </ul>
+</section>
+
+<section class="card" id="t5">
+  <h2><span class="step">5</span>閱卷發佈</h2>
+  <p class="sub">測驗結束後，AI 先批改文字答案，講師確認後發佈成績。</p>
+  <ol>
+    <li>選擇場次，複製畫面上的指令，到 SeaTalk 對 <b>@RR AI Quiz Assistant</b> 貼上（例如 <code>批改 S005</code>）。</li>
+    <li>AI 會為每筆文字答案給分、附上理由與信心度。信心度低於門檻的會標示 <b>低信心度</b>，請優先檢查。</li>
+    <li>逐筆 <span class="btnlike">接受</span> AI 分數或改成講師分數（可加評語）；確認沒問題的可以用 <span class="btnlike">本題未標記的全部接受</span> 一次處理。</li>
+    <li>全部確認後按 <span class="btnlike">發佈成績</span>，專員就能看到自己的分數與解析。</li>
+  </ol>
+  <div class="note">選擇題由系統自動計分，不需要處理。所有文字答案都有分數後才能發佈。發佈後若發現給錯分，仍可修改，專員的成績會自動更新；必要時也可以按 <span class="btnlike">取消公布</span>。</div>
+</section>
+
+<section class="card" id="t6">
+  <h2><span class="step">6</span>歷史成績</h2>
+  <p class="sub">查看每場測驗與每位專員的表現。</p>
+  <div class="two">
+    <div>
+      <h3>依測驗</h3>
+      <ul>
+        <li>每位專員的分數、交卷時間、是否自動交卷。</li>
+        <li>點進去可以看逐題作答與評分。</li>
+        <li><span class="btnlike">退回</span>：讓專員在測驗開放期間重新作答（原作答保留在紀錄中，不再計分）。</li>
+        <li>勾選專員後按 <span class="btnlike">為勾選者建立補考</span>：沿用原題目與配分，建立新的場次與連結。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>依專員</h3>
+      <ul>
+        <li>點專員 Email 查看 <b>歷次成績</b>，掌握進步與弱項。</li>
+        <li>答對率低於輔導門檻的專員會標示 <b>需輔導</b>，方便安排輔導。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="t-faq">
+  <h2>注意事項</h2>
+  <ul>
+    <li><b>資料安全：</b>範例和題目都經過去識別化，帳號、店名、訂單編號、電話、地址等都會被替換或移除；審核時若發現殘留，請直接刪改。Return ID 只保留在申請紀錄，只有 TW 講師看得到，不會出現在題目中。</li>
+    <li><b>SeaTalk 指令：</b>只需要兩個指令：<code>生成考題 Dxxx</code> 與 <code>批改 Sxxx</code>，都可以在後台畫面直接複製。</li>
+    <li><b>速度：</b>後台存取資料需要幾秒鐘，按鈕按下後請稍候，不要重複點擊。專員作答過程不受影響。</li>
+    <li><b>問題回報：</b>使用上有任何問題或建議，請聯絡 Chris。</li>
+  </ul>
+</section>
+</main></div><div class="wrap"><main data-view="trainer" data-lang="en" hidden>
+<section class="card" id="t-overview">
+  <h2>Workflow</h2>
+  <p class="sub">The console menu runs left to right in the order you work.</p>
+  <div class="flow"><a href="#t1"><span class="n">1</span><b>Samples</b><span>DMS case → sample</span></a><a href="#t2"><span class="n">2</span><b>Generate</b><span>AI drafts → review</span></a><a href="#t3"><span class="n">3</span><b>Bank</b><span>Approved questions</span></a><a href="#t4"><span class="n">4</span><b>Quizzes</b><span>Pick → publish</span></a><a href="#t5"><span class="n">5</span><b>Grading</b><span>AI grades → confirm</span></a><a href="#t6"><span class="n">6</span><b>History</b><span>Results, makeups</span></a></div>
+  <h3>Sign-in and access</h3>
+  <ul>
+    <li>Sign in with your company Google account; trainer accounts open the <b>Trainer Console</b>. Use 中文 / EN at the top right to switch the language.</li>
+    <li><span class="chip tw">TW trainers</span> can use every feature, including <b>Samples</b>.</li>
+    <li><span class="chip all">All trainers</span> can use everything from <b>Generate</b> onward.</li>
+  </ul>
+  <h3>Question types and points</h3>
+  <table>
+    <tr><th>Type</th><th>How agents answer</th><th>Grading</th></tr>
+    <tr><td><b>A</b>　Choice</td><td>Pick one option</td><td>Scored automatically</td></tr>
+    <tr><td><b>B</b>　Choice + reason</td><td>Pick an option and explain why</td><td>Choice scored automatically; the reason is scored by AI and confirmed by a trainer</td></tr>
+    <tr><td><b>C</b>　Written</td><td>Type an answer</td><td>Scored by AI and confirmed by a trainer</td></tr>
+  </table>
+  <p class="foot">Every quiz is worth 100 points, split evenly across its questions.</p>
+</section>
+
+<section class="card" id="t1">
+  <h2><span class="step">1</span>Sample Builder <span class="chip tw">TW trainers</span></h2>
+  <p class="sub">Turn real DMS cases into de-identified <b>samples</b>. The AI adapts these samples when it writes questions.</p>
+  <h3>Request samples (<b>Requests</b> tab)</h3>
+  <ol>
+    <li>Paste DMS Return IDs into <b>Return IDs</b>, one per line, up to 30 at a time.</li>
+    <li>Choose the <b>Topic</b>. <b>Expected tags (optional)</b> and <b>Note (optional)</b> help you compare during review.</li>
+    <li>Press <span class="btnlike">Submit</span>. Requested Return IDs stay in the list, and duplicates are skipped automatically.</li>
+    <li>A scheduled job runs every 30 minutes: fetch from DMS → de-identify → AI translates to English and suggests tags. The SeaTalk group gets a notice when it finishes.</li>
+  </ol>
+  <div class="note">If a request shows <b>Failed</b>, press <span class="btnlike">Retry</span>. If the case itself is the problem (for example, not found), cancel it and request another one.</div>
+  <h3>Review samples (<b>Pending review</b> tab)</h3>
+  <ol>
+    <li>Open a sample and check the case (chat, DRC, return / refund request, order items) for any leftover shop names or usernames.</li>
+    <li>Check the AI-suggested <b>tags</b>, <b>key point</b> and <b>answer</b>, and edit anything that is wrong.</li>
+    <li>Check the <b>Variation hint</b>: the AI pre-fills what can be changed and which deciding factor must stay. Adjust it if needed.</li>
+    <li>Press <span class="btnlike">Approve</span> to add it to the library, or <span class="btnlike">Reject</span> if it is not a good sample.</li>
+  </ol>
+  <div class="tip">The AI suggestion is only a starting point; the trainer decides the answer. Grey-area DMS cases make the best samples.</div>
+  <h3>Library</h3>
+  <ul>
+    <li><b>Topics &amp; tags</b> on the left shows how many samples each tag has; click one to filter. A tag with 0 samples still needs examples.</li>
+    <li>The search box finds sample IDs, key points, tags and variation hints.</li>
+    <li><span class="btnlike">＋ Tag</span> adds a new key point. Enter the Chinese and English names; the description guides the AI when it generates and classifies.</li>
+    <li>Hover over a tag and press <b>✎</b> to rename it, change its description, or <span class="btnlike">Disable tag</span>. Samples and questions that use it are not affected; a disabled tag no longer appears in tag options and can be turned back on with <span class="btnlike">Enable again</span>.</li>
+  </ul>
+</section>
+
+<section class="card" id="t2">
+  <h2><span class="step">2</span>Question Builder</h2>
+  <p class="sub">Create a <b>draft</b>, let the AI write a batch of questions from the samples, then review them one by one.</p>
+  <ol>
+    <li>Press <span class="btnlike">New draft</span>: enter a name, choose the topic, the number of questions and the <b>Type mix</b> (how many A / B / C). You can pick tags to focus on.</li>
+    <li>Press <span class="btnlike">Copy command</span> and send it to <b>@RR AI Quiz Assistant</b> in SeaTalk (for example <code>生成考題 D003</code>). The assistant replies when it is done.</li>
+    <li>Review each question: edit the prompt, options, answer, explanation and rubric, then press <span class="btnlike">Confirm &amp; mark reviewed</span>. Delete questions you do not want.</li>
+    <li>Press <span class="btnlike">Add to bank</span> for the reviewed questions.</li>
+    <li>Once everything is in the bank you can <span class="btnlike">Delete draft</span>. The bank and published quizzes are not affected.</li>
+  </ol>
+  <div class="tip">The rubric for B and C questions directly affects how accurately the AI grades. Spell out which answers earn which points.</div>
+</section>
+
+<section class="card" id="t3">
+  <h2><span class="step">3</span>Question Bank</h2>
+  <p class="sub">Every approved question that can be used in a quiz.</p>
+  <ul>
+    <li>Filter by topic, tag and type, and see how many times each question has been used and its correct rate.</li>
+    <li>Open a question to edit it; its version number goes up. Published quizzes keep the version they used.</li>
+    <li>Press <span class="btnlike">Retire</span> for outdated or disputed questions so they are no longer picked.</li>
+    <li>When the judgment criteria change, older questions are marked <b>Re-check</b>. Review and save them to bring them up to date.</li>
+  </ul>
+</section>
+
+<section class="card" id="t4">
+  <h2><span class="step">4</span>Quiz Management</h2>
+  <p class="sub">Build a quiz from the bank, assign agents and a time window, then publish.</p>
+  <ol>
+    <li>Press <span class="btnlike">Publish a quiz</span>. Enter the title, start / end time and time limit (minutes).</li>
+    <li>Paste the assignees’ emails, one per line (you can paste straight from Excel).</li>
+    <li>Press <span class="btnlike">Auto-pick</span> to choose questions by type mix and tags. Tick <b>Avoid questions assignees have taken</b> to prevent repeats. You can also add or remove questions by hand.</li>
+    <li>Press <span class="btnlike">Publish and create link</span> and send the link to the agents.</li>
+  </ol>
+  <h3>While the quiz is running</h3>
+  <ul>
+    <li>See how many agents have submitted. <span class="btnlike">Preview as agent</span> shows exactly what agents see (nothing is recorded).</li>
+    <li>If needed, use <span class="btnlike">Extend end time</span> or <span class="btnlike">End quiz now</span>.</li>
+    <li>Agents see a countdown, and answers are submitted automatically when time runs out.</li>
+  </ul>
+</section>
+
+<section class="card" id="t5">
+  <h2><span class="step">5</span>Grading &amp; Release</h2>
+  <p class="sub">After the quiz ends, the AI grades written answers first; trainers confirm, then release results.</p>
+  <ol>
+    <li>Choose the quiz, copy the command on screen and send it to <b>@RR AI Quiz Assistant</b> in SeaTalk (for example <code>批改 S005</code>).</li>
+    <li>The AI scores each written answer with a reason and a confidence level. Answers below the threshold are flagged <b>Low confidence</b>; check those first.</li>
+    <li><span class="btnlike">Accept</span> the AI score or enter your own (with an optional comment). Use <span class="btnlike">Accept all unflagged in this question</span> for the rest.</li>
+    <li>When everything is confirmed, press <span class="btnlike">Release results</span>. Agents can then see their scores and the explanations.</li>
+  </ol>
+  <div class="note">Choice answers are scored automatically. Results can be released only after every written answer has a score. If you find a mistake after release you can still change the score, and the agent’s result updates automatically; you can also press <span class="btnlike">Withdraw results</span>.</div>
+</section>
+
+<section class="card" id="t6">
+  <h2><span class="step">6</span>Results History</h2>
+  <p class="sub">See how each quiz and each agent performed.</p>
+  <div class="two">
+    <div>
+      <h3>By quiz</h3>
+      <ul>
+        <li>Each agent’s score, submit time, and whether it was auto-submitted.</li>
+        <li>Open an attempt to see every answer and its score.</li>
+        <li><span class="btnlike">Return</span>: let the agent answer again while the quiz is open (the original attempt is kept on record but no longer scored).</li>
+        <li>Tick agents and press <span class="btnlike">Makeup for selected</span> to create a new quiz and link with the same questions and points.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>By agent</h3>
+      <ul>
+        <li>Click an agent’s email to open their <b>History</b> and track progress and weak spots.</li>
+        <li>Agents below the coaching threshold are marked <b>Needs coaching</b>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="t-faq">
+  <h2>Good to know</h2>
+  <ul>
+    <li><b>Data protection:</b> samples and questions are de-identified: usernames, shop names, order numbers, phone numbers and addresses are replaced or removed. If you spot anything left over during review, edit it out. Return IDs stay only in the request list, visible to TW trainers, and never appear in questions.</li>
+    <li><b>SeaTalk commands:</b> there are only two, <code>生成考題 Dxxx</code> and <code>批改 Sxxx</code>, and both can be copied from the console.</li>
+    <li><b>Speed:</b> the console takes a few seconds to load data. Wait after pressing a button instead of clicking again. Agents’ answering is not affected.</li>
+    <li><b>Questions or feedback:</b> contact Chris.</li>
+  </ul>
+</section>
+</main></div><div class="wrap"><main data-view="agent" data-lang="zh" hidden>
+<section class="card" id="a-overview">
+  <h2>流程總覽</h2>
+  <p class="sub">從收到連結到查看成績，共六個步驟。</p>
+  <div class="flow"><a href="#a1"><span class="n">1</span><b>登入</b><span>公司 Google 帳號</span></a><a href="#a2"><span class="n">2</span><b>開始作答</b><span>開始計時</span></a><a href="#a3"><span class="n">3</span><b>閱讀案件</b><span>看清楚案件</span></a><a href="#a4"><span class="n">4</span><b>作答</b><span>選擇 / 文字</span></a><a href="#a5"><span class="n">5</span><b>交卷</b><span>確定交卷</span></a><a href="#a6"><span class="n">6</span><b>查看成績</b><span>分數與解析</span></a></div>
+  <div class="tip">請用電腦作答，不要用手機；使用一般（非無痕）瀏覽器視窗，開始前確認網路穩定。</div>
+</section>
+
+<section class="card" id="a1">
+  <h2><span class="step">1</span>登入</h2>
+  <ol>
+    <li>打開講師提供的測驗連結。</li>
+    <li>用<b>公司 Google 帳號</b>（@shopeemobile-external.com）登入。</li>
+    <li>進入 <b>我的測驗</b>，會列出指派給你的所有測驗，以及測驗期間、作答時限和題數。</li>
+    <li>右上角的 <b>中文 / EN</b> 可以切換語言。</li>
+  </ol>
+  <div class="note">如果畫面顯示 <b>目前沒有指派給你的測驗</b>，請確認登入的帳號是否正確，再聯絡講師。</div>
+</section>
+
+<section class="card" id="a2">
+  <h2><span class="step">2</span>開始作答</h2>
+  <ul>
+    <li>只有在 <b>測驗期間</b> 內才能開始；還沒開放時，畫面會顯示開放時間。</li>
+    <li>閱讀 <b>開始前請注意</b>，再按 <span class="btnlike">開始作答</span>。</li>
+    <li>計時會立即開始，<b>無法暫停</b>；剩餘時間會一直顯示在畫面上方。</li>
+  </ul>
+</section>
+
+<section class="card" id="a3">
+  <h2><span class="step">3</span>閱讀案件</h2>
+  <p class="sub">每一題都是一筆退貨退款案件。</p>
+  <table>
+    <tr><th>區塊</th><th>內容</th></tr>
+    <tr><td><b>買家與賣家</b></td><td>帳號與 ID（虛構，不是真實人物）</td></tr>
+    <tr><td><b>訂單商品</b></td><td>訂購的商品，以及付款和物流時間軸</td></tr>
+    <tr><td><b>聊聊</b></td><td>買家與賣家之間的對話</td></tr>
+    <tr><td><b>DRC</b></td><td>各方與蝦皮之間的溝通，<b>不是</b>買賣雙方的對話。</td></tr>
+    <tr><td><b>退貨退款申請</b></td><td>方案、金額、原因、備註與申退商品。<b>折抵（折價券 / 蝦幣）</b>是從金額中扣掉的折扣。</td></tr>
+  </table>
+  <div class="tip">請把聊聊從頭看到最後再判斷，並依受訓時學到的判斷標準作答。</div>
+</section>
+
+<section class="card" id="a4">
+  <h2><span class="step">4</span>作答</h2>
+  <table>
+    <tr><th>題型</th><th>作答方式</th></tr>
+    <tr><td><b>選擇</b></td><td>選一個選項。</td></tr>
+    <tr><td><b>選擇 + 原因</b></td><td>選一個選項，再寫下你的判斷原因；原因也會計分。</td></tr>
+    <tr><td><b>文字作答</b></td><td>寫出你的答案。</td></tr>
+  </table>
+  <ul class="gap">
+    <li>每題旁邊會顯示配分，整份測驗共 100 分。</li>
+    <li>寫原因或文字答案時，請說明是<b>案件中的哪個內容</b>讓你這樣判斷（例如哪一則聊聊）。可以用英文作答，文法與拼字不扣分。</li>
+    <li>交卷前可以回到任何一題修改答案；畫面上方會顯示 <b>已作答</b> 題數。</li>
+    <li>答案會暫存在這個瀏覽器。作答期間請不要關閉頁面、換電腦或清除瀏覽器資料。</li>
+  </ul>
+</section>
+
+<section class="card" id="a5">
+  <h2><span class="step">5</span>交卷</h2>
+  <ol>
+    <li>按 <span class="btnlike">交卷</span>，確認畫面會顯示還有幾題沒作答。</li>
+    <li>按 <span class="btnlike">確定交卷</span>。交卷後就不能再修改答案。</li>
+  </ol>
+  <ul>
+    <li>剩下 <b>5 分鐘</b> 和 <b>1 分鐘</b> 時會跳出提醒。</li>
+    <li>時間到，或講師提前結束測驗時，系統會<b>自動交卷</b>。</li>
+    <li>如果因為網路問題交卷失敗，頁面會每 15 秒自動重試；請保持頁面開啟，直到看到 <b>已交卷</b>。</li>
+  </ul>
+</section>
+
+<section class="card" id="a6">
+  <h2><span class="step">6</span>查看成績</h2>
+  <ul>
+    <li>講師會先確認文字答案的分數，所以交卷後不會馬上看到成績。</li>
+    <li>成績公布後，到 <b>我的測驗</b> 按 <span class="btnlike">查看</span>，就能看到分數、答錯的題目與解析。</li>
+    <li>講師可能會請你重新作答或參加補考，新的測驗會出現在「我的測驗」。</li>
+  </ul>
+</section>
+
+<section class="card" id="a-help">
+  <h2>遇到問題</h2>
+  <ul>
+    <li><b>頁面打不開或無法登入：</b>重新整理頁面，確認使用的是公司 Google 帳號，仍無法解決請聯絡講師。</li>
+    <li><b>作答中途出狀況</b>（電腦當機、網路斷線）：用同一台電腦重新打開同一個連結，按 <span class="btnlike">繼續作答</span>。計時不會停止，需要更多時間請立刻聯絡講師。</li>
+    <li><b>請勿將題目或答案分享</b>給其他專員。</li>
+  </ul>
+</section>
+</main></div><div class="wrap"><main data-view="agent" data-lang="en" hidden>
+<section class="card" id="a-overview">
+  <h2>Overview</h2>
+  <p class="sub">Six steps from the link to your results.</p>
+  <div class="flow"><a href="#a1"><span class="n">1</span><b>Sign in</b><span>Company Google</span></a><a href="#a2"><span class="n">2</span><b>Start</b><span>Timer begins</span></a><a href="#a3"><span class="n">3</span><b>Read</b><span>Check the case</span></a><a href="#a4"><span class="n">4</span><b>Answer</b><span>Choice / written</span></a><a href="#a5"><span class="n">5</span><b>Submit</b><span>Finish exam</span></a><a href="#a6"><span class="n">6</span><b>Results</b><span>Score &amp; review</span></a></div>
+  <div class="tip">Use a computer, not a phone, and a normal (not incognito) browser window. Make sure your internet connection is stable before you start.</div>
+</section>
+
+<section class="card" id="a1">
+  <h2><span class="step">1</span>Sign in</h2>
+  <ol>
+    <li>Open the quiz link from your trainer.</li>
+    <li>Sign in with your <b>company Google account</b> (@shopeemobile-external.com).</li>
+    <li>You will see <b>My quizzes</b>: every quiz assigned to you, with its exam window, time limit and number of questions.</li>
+    <li>Use <b>中文 / EN</b> at the top right to switch the language.</li>
+  </ol>
+  <div class="note">If you see <b>No quiz assigned to you yet</b>, check that you signed in with the right account, then contact your trainer.</div>
+</section>
+
+<section class="card" id="a2">
+  <h2><span class="step">2</span>Start the exam</h2>
+  <ul>
+    <li>You can only start during the <b>Exam window</b>. Before it opens, the page shows when it opens.</li>
+    <li>Read <b>Before you start</b>, then press <span class="btnlike">Start exam</span>.</li>
+    <li>The timer starts immediately and <b>cannot be paused</b>. The time left is always shown at the top.</li>
+  </ul>
+</section>
+
+<section class="card" id="a3">
+  <h2><span class="step">3</span>Read the case</h2>
+  <p class="sub">Each question is based on a return / refund case.</p>
+  <table>
+    <tr><th>Section</th><th>What it shows</th></tr>
+    <tr><td><b>Buyer &amp; seller</b></td><td>Usernames and IDs (made up, not real people)</td></tr>
+    <tr><td><b>Order items</b></td><td>What was ordered, plus payment and the logistics timeline</td></tr>
+    <tr><td><b>Chat</b></td><td>The conversation between the buyer and the seller</td></tr>
+    <tr><td><b>DRC</b></td><td>Each party’s channel with Shopee. It is <b>not</b> a conversation between buyer and seller.</td></tr>
+    <tr><td><b>Return / refund request</b></td><td>Solution, amount, reason, remark and requested items. <b>Deduction (voucher / coins)</b> is the discount taken off the amount.</td></tr>
+  </table>
+  <div class="tip">Read the whole chat to the end before you decide, and judge by the criteria from your training.</div>
+</section>
+
+<section class="card" id="a4">
+  <h2><span class="step">4</span>Answer</h2>
+  <table>
+    <tr><th>Type</th><th>How to answer</th></tr>
+    <tr><td><b>Choice</b></td><td>Pick one option.</td></tr>
+    <tr><td><b>Choice + reason</b></td><td>Pick one option, then explain how you decided. The reason is scored too.</td></tr>
+    <tr><td><b>Written</b></td><td>Type your answer.</td></tr>
+  </table>
+  <ul class="gap">
+    <li>The points for each question are shown next to it. The whole exam is worth 100 points.</li>
+    <li>For reasons and written answers, say <b>what in the case</b> made you decide (for example, which chat message). English is fine; grammar and spelling are not scored.</li>
+    <li>You can go back to any question and change your answer before you finish. The top bar shows <b>Answered</b> so far.</li>
+    <li>Answers are saved in this browser. Do not close the page, switch computers or clear your browser while answering.</li>
+  </ul>
+</section>
+
+<section class="card" id="a5">
+  <h2><span class="step">5</span>Submit</h2>
+  <ol>
+    <li>Press <span class="btnlike">Finish exam</span>. The confirmation shows how many questions are not answered yet.</li>
+    <li>Press <span class="btnlike">Submit</span>. You cannot change your answers after submitting.</li>
+  </ol>
+  <ul>
+    <li>You get a warning when <b>5 minutes</b> and <b>1 minute</b> are left.</li>
+    <li>When time runs out, or if your trainer ends the quiz early, your answers are <b>submitted automatically</b>.</li>
+    <li>If submitting fails because of the network, the page retries every 15 seconds. Keep the page open until you see <b>Submitted</b>.</li>
+  </ul>
+</section>
+
+<section class="card" id="a6">
+  <h2><span class="step">6</span>Results</h2>
+  <ul>
+    <li>Your trainer reviews written answers first, so results are not shown right away.</li>
+    <li>When results are released, open <b>My quizzes</b> and press <span class="btnlike">View</span> to see your score, the questions you missed and the explanations.</li>
+    <li>Your trainer may ask you to answer again or take a makeup quiz. It will appear in My quizzes.</li>
+  </ul>
+</section>
+
+<section class="card" id="a-help">
+  <h2>Help</h2>
+  <ul>
+    <li><b>The page will not load or sign-in fails:</b> refresh the page, check you are using your company Google account, then contact your trainer.</li>
+    <li><b>Something went wrong during the exam</b> (computer crashed, lost connection): reopen the same link on the same computer and press <span class="btnlike">Continue</span>. The timer keeps running, so tell your trainer right away if you need more time.</li>
+    <li><b>Do not share questions or answers</b> with other agents.</li>
+  </ul>
+</section>
+</main></div>
+<footer>RR AI Quiz Platform</footer>
+<script>
+  // 切換對象（講師 / 專員）與語言（中文 / EN）。
+  // 網址可直接指定，例如 #agent-en（專員英文版）、#trainer-zh；舊連結 #agent 預設為專員英文版。
+  const state = { view: 'trainer', lang: 'zh' };
+  const TITLES = { 'trainer-zh': 'RR AI Quiz Platform 講師使用說明', 'trainer-en': 'RR AI Quiz Platform Trainer Guide', 'agent-zh': 'RR AI Quiz Platform 專員作答說明', 'agent-en': 'RR AI Quiz Platform Agent Guide' };
+  function render(scroll) {
+    document.querySelectorAll('[data-view][data-lang]').forEach((el) => { el.hidden = !(el.dataset.view === state.view && el.dataset.lang === state.lang); });
+    document.querySelectorAll('[data-l]').forEach((el) => { el.hidden = el.dataset.l !== state.lang; });
+    document.querySelectorAll('[data-to-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.toView === state.view)));
+    document.querySelectorAll('[data-to-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.toLang === state.lang)));
+    document.title = TITLES[state.view + '-' + state.lang];
+    document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+    if (scroll) window.scrollTo({ top: 0 });
+  }
+  function go(patch) { Object.assign(state, patch); history.replaceState(null, '', '#' + state.view + '-' + state.lang); render(true); }
+  document.querySelectorAll('[data-to-view]').forEach((b) => b.addEventListener('click', () => go({ view: b.dataset.toView })));
+  document.querySelectorAll('[data-to-lang]').forEach((b) => b.addEventListener('click', () => go({ lang: b.dataset.toLang })));
+  const m = location.hash.match(/^#(trainer|agent)(?:-(zh|en))?$/);
+  if (m) { state.view = m[1]; state.lang = m[2] || (m[1] === 'agent' ? 'en' : 'zh'); }
+  else if (/^#a/.test(location.hash)) { state.view = 'agent'; state.lang = 'en'; }
+  render(false);
+  // 目錄錨點：同一個 id 在四個版本都有，捲動到目前顯示的那一個
+  document.querySelectorAll('nav.toc a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const box = document.querySelector('main[data-view="' + state.view + '"][data-lang="' + state.lang + '"]');
+    const el = box && box.querySelector(a.getAttribute('href'));
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  document.querySelectorAll('main .flow a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault(); const el = a.closest('main').querySelector(a.getAttribute('href')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+</script>
+</body>
+</html>

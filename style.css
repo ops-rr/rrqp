@@ -279,3 +279,4 @@ tr.dim td { opacity: .55; }
 .lib-item.off .lib-row { color: var(--soft); }
 .lib-sub { font-size: 12px; color: var(--soft); padding: 8px 10px 2px; }
 @media (hover: none) { .lib-edit { opacity: 1; } }
+.guide-link { display: inline-flex; align-items: center; text-decoration: none !important; color: var(--ink); }

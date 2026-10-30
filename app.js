@@ -23,7 +23,7 @@
     zh: {
       appSub: 'RR 部門線上測驗平台', signIn: '請使用公司 Google 帳號登入', signOut: '登出', teacherPortal: '講師後台',
       reLogin: '登入已失效，請重新登入', noConfig: '尚未設定 config.js（SCRIPT_URL / CLIENT_ID）', loading: '載入中…',
-      navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
+      guide: '使用說明', navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
       created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
@@ -49,7 +49,7 @@
     en: {
       appSub: 'RR online quiz platform', signIn: 'Sign in with your company Google account', signOut: 'Sign out', teacherPortal: 'Trainer Console',
       reLogin: 'Your session expired. Please sign in again.', noConfig: 'config.js is not set (SCRIPT_URL / CLIENT_ID)', loading: 'Loading…',
-      navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
+      guide: 'Guide', navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
       created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
@@ -164,7 +164,7 @@
     app().innerHTML = `<header class="top">
         <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR AI Quiz Platform</span>${teacher ? `<span>${esc(t('teacherPortal'))}</span>` : ''}</div>
         ${nav}
-        <div class="right">${langSeg()}<span class="muted hide-sm">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout>${esc(t('signOut'))}</button></div>
+        <div class="right">${me ? `<a class="btn sm guide-link" href="guide.html#${teacher ? 'trainer' : 'agent'}-${lang}" target="_blank" rel="noopener">${esc(t('guide'))}</a>` : ''}${langSeg()}<span class="muted hide-sm">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout>${esc(t('signOut'))}</button></div>
       </header><main id="main">${inner}</main>`;
     bindCommon(app());
     return $('#main');
