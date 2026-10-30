@@ -26,12 +26,12 @@
       navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
-      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR Quiz Assistant 貼上，Agent 會開始生成題目。',
+      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
       copy: '複製', copied: '已複製', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
       colDraft: '草稿', colTopic: '主題', colProgress: '進度', colStatus: '狀態', colBy: '建立者', colUpdated: '更新時間',
       st_generating: '生成中', st_draft: '待校對', st_ready: '可發佈', generated: '已生成 {a} / {b}', reviewedN: '已校對 {a} / {b}',
       noDrafts: '還沒有草稿。按「建立草稿」開始。', back: '← 草稿',
-      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RR Quiz Assistant 貼上：',
+      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RR AI Quiz Assistant 貼上：',
       genAuto: '此頁每 15 秒自動更新。', markReady: '標記為可發佈', unready: '退回校對', readyDone: '草稿已標記為可發佈',
       readyNeed: '還有 {n} 題未校對', prev: '上一題', next: '下一題', save: '儲存', saved: '已儲存', saving: '儲存中…',
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
@@ -52,12 +52,12 @@
       navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
-      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR Quiz Assistant in SeaTalk to start generating.',
+      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
       copy: 'Copy', copied: 'Copied', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
       colDraft: 'Draft', colTopic: 'Topic', colProgress: 'Progress', colStatus: 'Status', colBy: 'Created by', colUpdated: 'Updated',
       st_generating: 'Generating', st_draft: 'In review', st_ready: 'Ready', generated: 'Generated {a} / {b}', reviewedN: 'Reviewed {a} / {b}',
       noDrafts: 'No drafts yet. Click "New draft" to start.', back: '← Drafts',
-      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RR Quiz Assistant in SeaTalk:',
+      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RR AI Quiz Assistant in SeaTalk:',
       genAuto: 'This page refreshes every 15 seconds.', markReady: 'Mark as ready', unready: 'Back to review', readyDone: 'Draft marked as ready',
       readyNeed: '{n} question(s) not reviewed', prev: 'Previous', next: 'Next', save: 'Save', saved: 'Saved', saving: 'Saving…',
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
@@ -922,7 +922,7 @@
   Object.assign(I18N.zh, {
     grading: '閱卷發佈', goGrading: '前往批改', gradeList: '選擇要批改的測驗', noGradable: '還沒有已結束的測驗。測驗結束（或提前結束）後就能批改。',
     gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
-    needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
+    needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR AI Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
     releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
     released: '成績已公布', unrelease: '取消公布', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
     overview: '總覽', lowN: '{n} 低信心', correctAns: '正解', ptsSplit: '選擇 {a} 分 + 原因 {b} 分', ptsText: '文字 {b} 分', modelAnswer2: '標準答案',
@@ -938,7 +938,7 @@
   Object.assign(I18N.en, {
     grading: 'Grading & Release', goGrading: 'Go to grading', gradeList: 'Choose a quiz to grade', noGradable: 'No closed quizzes yet. You can grade after a quiz ends (or is ended early).',
     gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
-    needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
+    needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR AI Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
     releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
     released: 'Results released', unrelease: 'Withdraw results', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
     overview: 'Overview', lowN: '{n} low', correctAns: 'Answer', ptsSplit: 'Choice {a} + reason {b} points', ptsText: 'Written {b} points', modelAnswer2: 'Model answer',
@@ -1332,7 +1332,7 @@
       <select id="f_status"><option value="active">${esc(t('active'))}</option><option value="retired">${esc(t('retired'))}</option><option value="">${esc(t('allStatus'))}</option></select>
       <label class="small"><input type="checkbox" id="f_out"> ${esc(t('onlyOutdated'))}</label>
       <input type="search" id="f_q" placeholder="${esc(t('searchPh'))}">`;
-    const tagName = (id) => L((d.tags.find((x) => x.tagId === id) || {}).name) || id;
+    const tagName = (id) => L((d.tags.concat(d.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     function draw() {
       const q = f.q.toLowerCase();
       const list = d.questions.filter((x) => (!f.type || x.type === f.type) && (!f.tag || x.tags.includes(f.tag)) && (!f.status || x.status === f.status) && (!f.outdated || x.outdated)
@@ -1441,7 +1441,7 @@
       </div>
       <div id="s_err" class="banner err" hidden></div>
       <div class="row"><button type="submit" class="btn brand" id="s_go">${esc(t('publish'))}</button><button type="button" class="btn" id="s_cancel">${esc(t('cancel'))}</button></div></form>`;
-    const tagName = (id) => L((meta.tags.find((x) => x.tagId === id) || {}).name) || id;
+    const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     const drawTags = () => { const tid = $('#c_topic').value; $('#c_tags').innerHTML = meta.tags.filter((x) => x.topicId === tid).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
       $$('#c_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
     drawTags(); $('#c_topic').onchange = drawTags;
@@ -1520,6 +1520,8 @@
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
     libTopicTags: '主題與標籤', libTag: '標籤', libAll: '全部範例', libAllInTopic: '全部', libUntagged: '未分類', libSearchPh: '搜尋範例代碼、判斷重點、標籤…', libCount: '{n} / {all} 筆', libNoMatch: '沒有符合條件的範例。',
     addTagTitle: '新增標籤', tagNameZh: '中文名稱', tagNameZhPh: '例如：賣家反悔', tagNameEn: '英文名稱', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: '說明（選填）', tagDescPh: '給 AI 參考的判斷說明，例如：賣家先同意後又改口', tagHint: '新標籤會立即出現在申請、範例審核與草稿的標籤選項中，AI 出題與分類也會參考。', add: '新增', tagNeedNames: '請填寫中文與英文名稱', tagAdded: '已新增標籤「{name}」',
+    editTagTitle: '編輯標籤', editTagHint: '修改名稱或說明不會影響已使用這個標籤的範例與題目，所有地方會直接顯示新名稱。', tagSaved: '已儲存標籤「{name}」', tagInactive: '已停用',
+    tagDisable: '停用標籤', tagEnable: '重新啟用', tagDisableConfirm: '停用「{name}」？停用後不會出現在申請、審核、草稿與抽題的標籤選項中，AI 也不會再使用；已標記的範例與題目會保留這個標籤，之後可以重新啟用。', tagDisabled: '已停用「{name}」', tagEnabled: '已重新啟用「{name}」',
     ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
     sm_pending: '待審', sm_active: '已核准', sm_rejected: '已退回', sm_inactive: '已停用', colSampleId: '範例', colAnswer2: '正解', colStatus2: '狀態',
     aiSuggest: 'AI 建議', yourExpect: '申請時的預期', diffWarn: 'AI 建議的分類與申請時的預期不同，請特別確認。', applyAi: '套用 AI 建議',
@@ -1533,6 +1535,8 @@
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
     libTopicTags: 'Topics & tags', libTag: 'Tag', libAll: 'All samples', libAllInTopic: 'All', libUntagged: 'Untagged', libSearchPh: 'Search sample ID, key point, tag…', libCount: '{n} / {all}', libNoMatch: 'No matching samples.',
     addTagTitle: 'Add tag', tagNameZh: 'Chinese name', tagNameZhPh: '例如：賣家反悔', tagNameEn: 'English name', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: 'Description (optional)', tagDescPh: 'Guidance for the AI, e.g. the seller agreed and then changed their mind', tagHint: 'The new tag appears right away in requests, sample review and drafts, and the AI uses it when generating and classifying.', add: 'Add', tagNeedNames: 'Enter both the Chinese and English names', tagAdded: 'Tag "{name}" added',
+    editTagTitle: 'Edit tag', editTagHint: 'Renaming or changing the description does not affect samples or questions that use this tag; the new name shows everywhere.', tagSaved: 'Tag "{name}" saved', tagInactive: 'Disabled',
+    tagDisable: 'Disable tag', tagEnable: 'Enable again', tagDisableConfirm: 'Disable "{name}"? It will no longer appear in tag options for requests, review, drafts or quiz picking, and the AI will stop using it. Samples and questions keep the tag, and you can enable it again later.', tagDisabled: '"{name}" disabled', tagEnabled: '"{name}" enabled again',
     ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
     sm_pending: 'Pending', sm_active: 'Approved', sm_rejected: 'Rejected', sm_inactive: 'Inactive', colSampleId: 'Sample', colAnswer2: 'Answer', colStatus2: 'Status',
     aiSuggest: 'AI suggestion', yourExpect: 'Expected at request', diffWarn: 'The AI suggestion differs from what was expected. Please check carefully.', applyAi: 'Apply AI suggestion',
@@ -1546,26 +1550,35 @@
   async function getLibMeta() { if (!libMeta) libMeta = await api('t_topics'); return libMeta; }
   const libFilter = { topic: '', tag: '', q: '' };
   /** 新增標籤（TW 講師）：回傳新標籤或 null */
-  function addTagDialog(meta, topicId) {
-    return modal(`<h2>${esc(t('addTagTitle'))}</h2>
+  function addTagDialog(meta, topicId, tag) {
+    const edit = !!tag, inactive = edit && !!tag.inactive;
+    return modal(`<h2>${esc(t(edit ? 'editTagTitle' : 'addTagTitle'))}${inactive ? ` <span class="chip warn">${esc(t('tagInactive'))}</span>` : ''}</h2>
       <form id="tf" class="form" style="margin-top:12px">
-        <label class="k" for="tg_topic">${esc(t('topic'))}</label><select id="tg_topic">${meta.topics.map((x) => `<option value="${esc(x.topicId)}" ${x.topicId === topicId ? 'selected' : ''}>${esc(L(x.name))}</option>`).join('')}</select>
-        <label class="k" for="tg_zh">${esc(t('tagNameZh'))}</label><input id="tg_zh" maxlength="20" required placeholder="${esc(t('tagNameZhPh'))}">
-        <label class="k" for="tg_en">${esc(t('tagNameEn'))}</label><input id="tg_en" maxlength="40" required placeholder="${esc(t('tagNameEnPh'))}">
-        <label class="k" for="tg_desc">${esc(t('tagDesc'))}</label><textarea id="tg_desc" rows="2" maxlength="200" placeholder="${esc(t('tagDescPh'))}" style="border:1px solid var(--line2);border-radius:8px;padding:8px"></textarea>
+        <label class="k" for="tg_topic">${esc(t('topic'))}</label><select id="tg_topic" ${edit ? 'disabled' : ''}>${meta.topics.map((x) => `<option value="${esc(x.topicId)}" ${x.topicId === (edit ? tag.topicId : topicId) ? 'selected' : ''}>${esc(L(x.name))}</option>`).join('')}</select>
+        <label class="k" for="tg_zh">${esc(t('tagNameZh'))}</label><input id="tg_zh" maxlength="20" required placeholder="${esc(t('tagNameZhPh'))}" value="${edit ? esc(tag.name.zh) : ''}">
+        <label class="k" for="tg_en">${esc(t('tagNameEn'))}</label><input id="tg_en" maxlength="40" required placeholder="${esc(t('tagNameEnPh'))}" value="${edit ? esc(tag.name.en) : ''}">
+        <label class="k" for="tg_desc">${esc(t('tagDesc'))}</label><textarea id="tg_desc" rows="2" maxlength="200" placeholder="${esc(t('tagDescPh'))}" style="border:1px solid var(--line2);border-radius:8px;padding:8px">${edit ? esc(tag.desc || '') : ''}</textarea>
       </form>
-      <div class="small muted" style="margin-top:8px">${esc(t('tagHint'))}</div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="tg_ok" type="button">${esc(t('add'))}</button></div>`,
+      <div class="small muted" style="margin-top:8px">${esc(t(edit ? 'editTagHint' : 'tagHint'))}</div>
+      <div class="row" style="margin-top:12px">${edit ? `<button class="btn ${inactive ? '' : 'danger'}" id="tg_act" type="button">${esc(t(inactive ? 'tagEnable' : 'tagDisable'))}</button>` : ''}<span class="spacer"></span><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="tg_ok" type="button">${esc(t(edit ? 'save' : 'add'))}</button></div>`,
     { onMount: (el, close) => {
       $('#tg_zh', el).focus();
       const go = async () => {
         const zh = $('#tg_zh', el).value.trim(), en = $('#tg_en', el).value.trim();
         if (!zh || !en) { toast(t('tagNeedNames'), 3000); return; }
         const btn = $('#tg_ok', el); btn.disabled = true;
-        try { const r = await api('tw_addTag', { topicId: $('#tg_topic', el).value, nameZh: zh, nameEn: en, descZh: $('#tg_desc', el).value.trim() }); toast(t('tagAdded', { name: zh })); close(r.tag); }
-        catch (e) { toast(e.message, 4000); btn.disabled = false; }
+        try {
+          const r = edit ? await api('tw_updateTag', { tagId: tag.tagId, nameZh: zh, nameEn: en, descZh: $('#tg_desc', el).value.trim() })
+            : await api('tw_addTag', { topicId: $('#tg_topic', el).value, nameZh: zh, nameEn: en, descZh: $('#tg_desc', el).value.trim() });
+          toast(t(edit ? 'tagSaved' : 'tagAdded', { name: zh })); close(r.tag);
+        } catch (e) { toast(e.message, 4000); btn.disabled = false; }
       };
       $('#tg_ok', el).onclick = go;
+      if (edit) $('#tg_act', el).onclick = async () => {
+        if (!inactive && !(await confirmBox(t('tagDisableConfirm', { name: tag.name.zh }), t('tagDisable'), t('cancel'), true))) return;
+        try { const r = await api('tw_updateTag', { tagId: tag.tagId, active: inactive }); toast(t(inactive ? 'tagEnabled' : 'tagDisabled', { name: tag.name.zh })); close(r.tag); }
+        catch (e) { toast(e.message, 4000); }
+      };
       $('#tf', el).addEventListener('submit', (e) => { e.preventDefault(); go(); });
     } });
   }
@@ -1580,7 +1593,7 @@
     $('#reload').onclick = () => viewLibrary();
     let meta, d;
     try { [meta, d] = await Promise.all([getLibMeta(), tab === 'requests' ? api('tw_listRequests') : api('tw_listSamples')]); } catch (e) { showError(e, $('#lb')); return; }
-    const tagName = (id) => L((meta.tags.find((x) => x.tagId === id) || {}).name) || id;
+    const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     if (tab !== 'requests') {
       const pend = d.samples.filter((s) => s.status === 'pending');
       $('#pn').textContent = pend.length ? `(${pend.length})` : '';
@@ -1597,12 +1610,18 @@
             const mine = all.filter((s) => (s.topicId || 'agreement') === tp.topicId);
             const tags = meta.tags.filter((x) => x.topicId === tp.topicId);
             const untagged = mine.filter((s) => !s.tags.length).length;
-            const row = (tag, label, n) => `<button type="button" class="lib-row ${f.topic === tp.topicId && f.tag === tag ? 'on' : ''}" data-topic="${esc(tp.topicId)}" data-tag="${esc(tag)}"><span>${esc(label)}</span><span class="n">${n}</span></button>`;
+            const off = (meta.inactiveTags || []).filter((x) => x.topicId === tp.topicId);
+            const row = (tag, label, n, editable, dim) => `<div class="lib-item ${dim ? 'off' : ''}"><button type="button" class="lib-row ${f.topic === tp.topicId && f.tag === tag ? 'on' : ''}" data-topic="${esc(tp.topicId)}" data-tag="${esc(tag)}"><span>${esc(label)}</span><span class="n">${n}</span></button>${editable ? `<button type="button" class="lib-edit" data-edit="${esc(tag)}" title="${esc(t('editTagTitle'))}" aria-label="${esc(t('editTagTitle'))}：${esc(label)}">✎</button>` : ''}</div>`;
             return `<div class="lib-grp">${esc(L(tp.name))}</div>${row('', t('libAllInTopic'), mine.length)}
-              ${tags.map((x) => row(x.tagId, L(x.name), mine.filter((s) => s.tags.includes(x.tagId)).length)).join('')}
-              ${untagged ? row('-', t('libUntagged'), untagged) : ''}`;
+              ${tags.map((x) => row(x.tagId, L(x.name), mine.filter((s) => s.tags.includes(x.tagId)).length, true)).join('')}
+              ${untagged ? row('-', t('libUntagged'), untagged) : ''}
+              ${off.length ? `<div class="lib-sub">${esc(t('tagInactive'))}</div>` + off.map((x) => row(x.tagId, L(x.name), mine.filter((s) => s.tags.includes(x.tagId)).length, true, true)).join('') : ''}`;
           }).join('')}`;
         $$('#ls [data-topic]').forEach((b) => b.addEventListener('click', () => { f.topic = b.dataset.topic; f.tag = b.dataset.tag; drawSide(); drawList(); }));
+        $$('#ls [data-edit]').forEach((b) => b.addEventListener('click', () => {
+          const tg = meta.tags.find((x) => x.tagId === b.dataset.edit) || Object.assign({ inactive: true }, (meta.inactiveTags || []).find((x) => x.tagId === b.dataset.edit));
+          addTagDialog(meta, tg.topicId, tg).then((r) => { if (r) { libMeta = null; topicsCache = null; viewLibrary(); } });
+        }));
         $('#addTag').onclick = () => addTagDialog(meta, f.topic || (meta.topics[0] || {}).topicId).then((tg) => { if (tg) { libMeta = null; topicsCache = null; f.topic = tg.topicId; f.tag = tg.tagId; viewLibrary(); } });
       };
       const drawList = () => {
@@ -1670,7 +1689,7 @@
     try { [meta, { sample: s }] = await Promise.all([getLibMeta(), api('tw_getSample', { sampleId: id })]); } catch (e) { showError(e); return; }
     let work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
-    const tagName = (x) => L((meta.tags.find((y) => y.tagId === x) || {}).name) || x;
+    const tagName = (x) => L((meta.tags.concat(meta.inactiveTags || []).find((y) => y.tagId === x) || {}).name) || x;
     function draw() {
       const sg = s.suggest, q = work.question, { left, req } = caseHtml(q);
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
@@ -1691,7 +1710,7 @@
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
         <div class="card pad libedit">
           <div class="form">
-            <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
+            <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
             <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(work.pointZh)}" maxlength="100">
             <label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${[t('agreedYes'), t('agreedNo')].map((x, i) => { const v = ['已達成協議', '未達成協議'][i]; return `<option value="${v}" ${work.answer === v ? 'selected' : ''}>${esc(x)}</option>`; }).join('')}</select>
             <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
