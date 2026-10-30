@@ -1,4 +1,4 @@
-/* RR Quiz Platform — 前端（M3 草稿校對、M4 發佈與作答、M5 批改、M6 成績與補考） */
+/* RR AI Quiz Platform — 前端（M3 草稿校對、M4 發佈與作答、M5 批改、M6 成績與補考） */
 (() => {
   'use strict';
   const CFG = window.RRQP_CONFIG || {};
@@ -23,8 +23,8 @@
     zh: {
       appSub: 'RR 部門線上測驗平台', signIn: '請使用公司 Google 帳號登入', signOut: '登出', teacherPortal: '講師後台',
       reLogin: '登入已失效，請重新登入', noConfig: '尚未設定 config.js（SCRIPT_URL / CLIENT_ID）', loading: '載入中…',
-      navLibrary: '範例庫', navDrafts: '草稿', navSessions: '測驗場次', navGrading: '批改', navResults: '成績', soon: '即將推出',
-      drafts: '草稿', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
+      navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
+      drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
       created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR Quiz Assistant 貼上，Agent 會開始生成題目。',
       copy: '複製', copied: '已複製', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
@@ -49,8 +49,8 @@
     en: {
       appSub: 'RR online quiz platform', signIn: 'Sign in with your company Google account', signOut: 'Sign out', teacherPortal: 'Trainer Console',
       reLogin: 'Your session expired. Please sign in again.', noConfig: 'config.js is not set (SCRIPT_URL / CLIENT_ID)', loading: 'Loading…',
-      navLibrary: 'Samples', navDrafts: 'Drafts', navSessions: 'Sessions', navGrading: 'Grading', navResults: 'Results', soon: 'Coming soon',
-      drafts: 'Drafts', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
+      navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
+      drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
       created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR Quiz Assistant in SeaTalk to start generating.',
       copy: 'Copy', copied: 'Copied', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
@@ -162,7 +162,7 @@
         <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
         <a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a></nav>` : '';
     app().innerHTML = `<header class="top">
-        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR Quiz Platform</span>${teacher ? `<span>${esc(t('teacherPortal'))}</span>` : ''}</div>
+        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR AI Quiz Platform</span>${teacher ? `<span>${esc(t('teacherPortal'))}</span>` : ''}</div>
         ${nav}
         <div class="right">${langSeg()}<span class="muted hide-sm">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout>${esc(t('signOut'))}</button></div>
       </header><main id="main">${inner}</main>`;
@@ -178,7 +178,7 @@
   function renderLogin(msg) {
     app().innerHTML = `<div class="login"><div class="card">
         <span class="logo" aria-hidden="true">S</span>
-        <h1>RR Quiz Platform</h1>
+        <h1>RR AI Quiz Platform</h1>
         <div class="muted">${esc(t('appSub'))}</div>
         ${msg ? `<div class="banner warn" style="width:100%">${esc(msg)}</div>` : ''}
         <div class="small muted" style="margin-top:8px">${esc(t('signIn'))}</div>
@@ -602,7 +602,7 @@
 
   // ═════════════════════════ M4：發佈與作答 ═════════════════════════
   Object.assign(I18N.zh, {
-    sessions: '測驗場次', newSession: '發佈新測驗', pickDraft: '考題（只列出可發佈的草稿）', noReady: '目前沒有「可發佈」的草稿，請先完成校對。',
+    sessions: '測驗管理', newSession: '發佈新測驗', pickDraft: '考題（只列出可發佈的草稿）', noReady: '目前沒有「可發佈」的草稿，請先完成校對。',
     titleZh: '測驗名稱（中文）', titleEn: '測驗名稱（英文）', startAt: '開始', endAt: '結束', minutes: '作答時限（分鐘）', tz: '時間以你的電腦時區為準（台北 / 馬尼拉皆為 UTC+8）',
     assignees: '受測者 Email（每行一個，可從 Excel 貼上）', validN: '{a} 個有效帳號 · {b} 個格式錯誤', publish: '發佈並產生測驗連結', published: '測驗 {id} 已發佈',
     linkHint: '把連結傳給受測者；他們用公司 Google 帳號登入後就能作答。', copyLink: '複製連結', goSession: '查看進度', publishDraft: '發佈測驗',
@@ -630,7 +630,7 @@
     noQuiz: '目前沒有指派給你的測驗', opensAt: '開放時間', saveLocal: '答案會暫存在這台電腦的瀏覽器',
   });
   Object.assign(I18N.en, {
-    sessions: 'Sessions', newSession: 'Publish a quiz', pickDraft: 'Questions (ready drafts only)', noReady: 'No ready drafts yet. Finish reviewing a draft first.',
+    sessions: 'Quiz Management', newSession: 'Publish a quiz', pickDraft: 'Questions (ready drafts only)', noReady: 'No ready drafts yet. Finish reviewing a draft first.',
     titleZh: 'Title (Chinese)', titleEn: 'Title (English)', startAt: 'Start', endAt: 'End', minutes: 'Time limit (minutes)', tz: 'Times use your computer’s time zone (Taipei / Manila are both UTC+8)',
     assignees: 'Emails (one per line, paste from Excel)', validN: '{a} valid · {b} invalid', publish: 'Publish and create link', published: 'Quiz {id} published',
     linkHint: 'Send this link to the assignees. They sign in with their company Google account to answer.', copyLink: 'Copy link', goSession: 'View progress', publishDraft: 'Publish quiz',
@@ -834,7 +834,7 @@
     function cleanup() { clearInterval(tick); clearInterval(poll); clearTimeout(retry); window.removeEventListener('beforeunload', onBeforeUnload); }
 
     app().innerHTML = `<header class="quizbar">
-        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span class="hide-sm">RR Quiz Platform</span></div>
+        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span class="hide-sm">RR AI Quiz Platform</span></div>
         <div class="qtitle">${esc(L(s.title))}</div>
         <span class="chip" id="qa"></span><span class="timer" id="timer" aria-live="off"></span>
         <span class="spacer"></span>${langSeg()}<button class="btn brand" id="finish">${esc(t('finish'))}</button></header>
@@ -920,7 +920,7 @@
 
   // ═════════════════════════ M5：批改與成績 ═════════════════════════
   Object.assign(I18N.zh, {
-    grading: '批改', goGrading: '前往批改', gradeList: '選擇要批改的測驗', noGradable: '還沒有已結束的測驗。測驗結束（或提前結束）後就能批改。',
+    grading: '閱卷發佈', goGrading: '前往批改', gradeList: '選擇要批改的測驗', noGradable: '還沒有已結束的測驗。測驗結束（或提前結束）後就能批改。',
     gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
     needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
     releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
@@ -936,7 +936,7 @@
     correct2: '正解', trainerNote: '講師評語', explanation2: '解析', modelAnswer3: '參考答案', viewResult: '查看成績', notReleasedYet: '測驗已結束，成績尚未公布。公布後會顯示在這裡。',
   });
   Object.assign(I18N.en, {
-    grading: 'Grading', goGrading: 'Go to grading', gradeList: 'Choose a quiz to grade', noGradable: 'No closed quizzes yet. You can grade after a quiz ends (or is ended early).',
+    grading: 'Grading & Release', goGrading: 'Go to grading', gradeList: 'Choose a quiz to grade', noGradable: 'No closed quizzes yet. You can grade after a quiz ends (or is ended early).',
     gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
     needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
     releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
@@ -1108,7 +1108,7 @@
 
   // ═════════════════════════ M6：成績、退回、補考 ═════════════════════════
   Object.assign(I18N.zh, {
-    results: '成績', bySession: '依測驗場次', byAgent: '依專員', avgScore: '平均分數', median: '中位數', highLow: '最高 / 最低', belowLine: '低於門檻 {n} 分',
+    results: '歷史成績', bySession: '依測驗場次', byAgent: '依專員', avgScore: '平均分數', median: '中位數', highLow: '最高 / 最低', belowLine: '低於門檻 {n} 分',
     autoN: '自動交卷', peopleN: '{n} 人', qRates: '各題得分率', qRatesNote: 'A 題以答對率、B / C 題以得分率計算；低於 60% 以紅色標示。',
     colScore: '分數', colWrong: '錯題', needCoach: '需輔導', detail: '明細', exportCsv: '匯出 CSV', makeupForChecked: '為勾選者建立補考',
     showingN: '共 {n} 人 · 依分數由低到高', noResults: '還沒有已結束的測驗。', partial: '部分', makeupOf: '補考自 {id}',
@@ -1120,7 +1120,7 @@
     attemptDetail: '作答明細', choiceLabel: '選擇', textLabel: '文字', aiLabel: 'AI', teacherLabel: '講師', notAnswered: '未作答',
   });
   Object.assign(I18N.en, {
-    results: 'Results', bySession: 'By quiz', byAgent: 'By agent', avgScore: 'Average', median: 'Median', highLow: 'High / Low', belowLine: 'Below {n}',
+    results: 'Results History', bySession: 'By quiz', byAgent: 'By agent', avgScore: 'Average', median: 'Median', highLow: 'High / Low', belowLine: 'Below {n}',
     autoN: 'Auto-submitted', peopleN: '{n}', qRates: 'Score rate by question', qRatesNote: 'A: correct rate. B / C: share of points earned. Below 60% is shown in red.',
     colScore: 'Score', colWrong: 'Missed', needCoach: 'Needs coaching', detail: 'Details', exportCsv: 'Export CSV', makeupForChecked: 'Makeup for selected',
     showingN: '{n} people · lowest score first', noResults: 'No closed quizzes yet.', partial: 'partial', makeupOf: 'Makeup of {id}',
@@ -1288,7 +1288,7 @@
 
   // ═════════════════════════ 題庫 ═════════════════════════
   Object.assign(I18N.zh, {
-    navBank: '題庫', bank: '題庫', delDraft: '刪除草稿', st_deleted: '已刪除', delDraftDone: '草稿 {id} 已刪除',
+    navBank: '可用題庫', bank: '可用題庫', delDraft: '刪除草稿', st_deleted: '已刪除', delDraftDone: '草稿 {id} 已刪除',
     delDraftAll: '刪除草稿 {id}？題目都已入庫，題庫與已發佈的測驗不受影響。', delDraftSome: '刪除草稿 {id}？還有 {n} 題尚未入庫，會一併移除（Sheet 仍保留紀錄）。',
     deletedNote: '這份草稿已刪除，只能檢視。', st_banked: '已入庫', addToBank: '加入題庫（{n} 題）', bankedAs: '已入庫為 {id}', bankAdded: '已加入題庫：{ids}',
     bankedNote: '這題已入庫為 {id}，之後請到題庫修改（草稿不再影響題庫）。', goBank: '前往題庫',
@@ -1303,7 +1303,7 @@
     noPick: '請先抽題或手動加題', addSelected: '加入選取的題目', noMore: '沒有可替換的題目', recheckSeen: '名單已變更，已重新計算做過的人數。',
   });
   Object.assign(I18N.en, {
-    navBank: 'Bank', bank: 'Question bank', delDraft: 'Delete draft', st_deleted: 'Deleted', delDraftDone: 'Draft {id} deleted',
+    navBank: 'Bank', bank: 'Question Bank', delDraft: 'Delete draft', st_deleted: 'Deleted', delDraftDone: 'Draft {id} deleted',
     delDraftAll: 'Delete draft {id}? All questions are in the bank; the bank and published quizzes are not affected.', delDraftSome: 'Delete draft {id}? {n} question(s) are not in the bank and will be removed (the Sheet keeps a record).',
     deletedNote: 'This draft was deleted and is read-only.', st_banked: 'In bank', addToBank: 'Add to bank ({n})', bankedAs: 'In bank as {id}', bankAdded: 'Added to bank: {ids}',
     bankedNote: 'This question is in the bank as {id}. Edit it in the bank from now on (the draft no longer affects it).', goBank: 'Open in bank',
@@ -1515,7 +1515,7 @@
 
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
-    library: '範例庫', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
+    library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
     ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
@@ -1526,7 +1526,7 @@
     tagsNeeded: '請至少選一個標籤', reviewOnlyTw: '範例庫僅開放 TW 講師',
   });
   Object.assign(I18N.en, {
-    library: 'Samples', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
+    library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
     ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
