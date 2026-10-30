@@ -1516,7 +1516,7 @@
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
     library: '範例庫', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
-    returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已在處理中而略過：{ids}',
+    returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
     ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
     sm_pending: '待審', sm_active: '已核准', sm_rejected: '已退回', sm_inactive: '已停用', colSampleId: '範例', colAnswer2: '正解', colStatus2: '狀態',
@@ -1527,7 +1527,7 @@
   });
   Object.assign(I18N.en, {
     library: 'Samples', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
-    returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already in progress): {ids}',
+    returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
     ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
     sm_pending: 'Pending', sm_active: 'Approved', sm_rejected: 'Rejected', sm_inactive: 'Inactive', colSampleId: 'Sample', colAnswer2: 'Answer', colStatus2: 'Status',
