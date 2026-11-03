@@ -1677,8 +1677,8 @@
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
     library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
-    cutoffHelp: '每行一筆：Return ID，後面接判斷時點（台北時間，例如 2026-10-20 14:30，通常是案件判決前）。抓取 DMS 資料時，這個時間之後的聊聊、DRC、物流都會被移除。',
-    noCutoff: '沒有填時間的案件不截斷（使用完整資料）', noCutoffShort: '不截斷', cutoffCount: '{n} 筆，{c} 筆有判斷時點', cutoffMissing: '{n} 筆沒有時間', cutoffBad: '無法解析的行',
+    cutoffHelp: '每行一筆：Return ID，後面接判斷時點（台北時間，例如 2026-10-20 14:30，通常是案件判決前）。只保留這個時間「以前」的聊聊、DRC、物流，該分鐘內的訊息也會移除；同一分鐘內要保留較早的訊息時，可以填到秒（例如 14:30:20）。',
+    noCutoff: '沒有填時間的案件不截斷（使用完整資料）', noCutoffShort: '不截斷', cutoffAtLabel: '判斷時點 {t} 以前', cutoffCount: '{n} 筆，{c} 筆有判斷時點', cutoffMissing: '{n} 筆沒有時間', cutoffBad: '無法解析的行',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', r_deleted: '範例已刪除', retry: '重試',
     delSample: '刪除範例', delSampleNote: '刪除後無法復原。範例和它的申請紀錄會一起刪除，之後同一個 Return ID 可以重新申請。',
@@ -1697,8 +1697,8 @@
   });
   Object.assign(I18N.en, {
     library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
-    cutoffHelp: 'One per line: Return ID followed by the cutoff (Taipei time, e.g. 2026-10-20 14:30, usually just before the case was judged). Chat, DRC and logistics after this time are removed when fetching from DMS.',
-    noCutoff: 'Use the full data for lines without a time (no cutoff)', noCutoffShort: 'No cutoff', cutoffCount: '{n} case(s), {c} with a cutoff', cutoffMissing: '{n} without a time', cutoffBad: 'Could not read',
+    cutoffHelp: 'One per line: Return ID followed by the cutoff (Taipei time, e.g. 2026-10-20 14:30, usually just before the case was judged). Only chat, DRC and logistics before this time are kept, so messages within that minute are removed too; add seconds (e.g. 14:30:20) to keep earlier messages in the same minute.',
+    noCutoff: 'Use the full data for lines without a time (no cutoff)', noCutoffShort: 'No cutoff', cutoffAtLabel: 'Up to {t}', cutoffCount: '{n} case(s), {c} with a cutoff', cutoffMissing: '{n} without a time', cutoffBad: 'Could not read',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', r_deleted: 'Sample deleted', retry: 'Retry',
     delSample: 'Delete sample', delSampleNote: 'This cannot be undone. The sample and its request record are both removed, so the same Return ID can be requested again.',
@@ -1850,19 +1850,19 @@
     const parseReq = (txt) => {
       const items = [], bad = [];
       String(txt || '').split(/\n/).map((x) => x.trim()).filter(Boolean).forEach((line) => {
-        const m = /^(\d{6,20})(?:[\s,;\t]+(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2}))?\s*$/.exec(line);
+        const m = /^(\d{6,20})(?:[\s,;\t]+(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*$/.exec(line);
         if (!m) { bad.push(line); return; }
         let at = null;
         if (m[2]) {
           const p2 = (n) => String(n).padStart(2, '0');
-          at = Date.parse(`${m[2]}-${p2(m[3])}-${p2(m[4])}T${p2(m[5])}:${m[6]}:00+08:00`);
+          at = Date.parse(`${m[2]}-${p2(m[3])}-${p2(m[4])}T${p2(m[5])}:${m[6]}:${m[7] || '00'}+08:00`);
           if (!Number.isFinite(at)) { bad.push(line); return; }
         }
         items.push({ returnId: m[1], cutoffAt: at });
       });
       return { items, bad };
     };
-    const fmtTW = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    const fmtTW = (ms) => { const x = new Date(ms + 8 * 3600e3).toISOString().replace('T', ' '); return x.slice(17, 19) === '00' ? x.slice(0, 16) : x.slice(0, 19); };
     const preview = () => {
       const { items, bad } = parseReq($('#r_ids').value);
       const noT = items.filter((x) => x.cutoffAt === null).length;
@@ -1873,8 +1873,8 @@
     function drawReqs(reqs) {
       if (!reqs.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noReq'))}</div>`; return; }
       $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('colWantedNote'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
-        reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}</td>
-          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}<div class="small soft">${r.cutoffAt ? '⏱ ' + esc(fmtTW(r.cutoffAt)) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
+        reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}<div class="soft" style="font-family:inherit">${r.cutoffAt ? esc(t('cutoffAtLabel', { t: fmtTW(r.cutoffAt) })) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td>
+          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
           <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
           <td style="text-align:right;white-space:nowrap">${r.status === 'failed' && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}">${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
       $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_retryRequest', { requestId: b.dataset.retry }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
@@ -1934,6 +1934,9 @@
             <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button>` : '<span class="soft">—</span>'}</div>
         </div>
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
+        ${sg && sg.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t('gapTitle'))}</b>${s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span>` : ''}<span class="spacer"></span>
+            ${s.gapState ? `<button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`}</div>
+          <div class="small" style="margin-top:6px">${esc(sg.criteriaGap.situation)}</div>${sg.criteriaGap.suggestion ? `<pre class="gapsug">${esc(sg.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
         <div class="card pad libedit">
           <div class="form">
             <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
@@ -1963,6 +1966,8 @@
         try { await api('tw_approveSample', { sampleId: s.sampleId }); toast(t('approved'), 4000); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
       };
       $('#delS').onclick = () => deleteSampleDialog();
+      const gi = $('#gapIgnore'); if (gi) gi.onclick = async () => { try { await api('tw_setGap', { sampleId: s.sampleId, state: 'dismissed' }); s.gapState = 'dismissed'; draw(); } catch (e) { toast(e.message, 4000); } };
+      const gr = $('#gapReset'); if (gr) gr.onclick = async () => { try { await api('tw_setGap', { sampleId: s.sampleId, state: '' }); s.gapState = ''; draw(); } catch (e) { toast(e.message, 4000); } };
       const rj = $('#rej'); if (rj) rj.onclick = () => modal(`<h2>${esc(s.status === 'active' ? t('deactivate') : t('reject'))} ${esc(s.sampleId)}</h2>
           <input type="text" id="rj_r" placeholder="${esc(t('rejectReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
           <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rj_go">${esc(s.status === 'active' ? t('deactivate') : t('reject'))}</button></div>`,
@@ -1974,7 +1979,7 @@
     /** 刪除範例；可勾選用新的判斷時點重新申請同一個 Return ID */
     function deleteSampleDialog() {
       const p2 = (n) => String(n).padStart(2, '0');
-      const old = s.cutoffAt ? new Date(s.cutoffAt + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ') : '';
+      const old = s.cutoffAt ? (() => { const x = new Date(s.cutoffAt + 8 * 3600e3).toISOString().replace('T', ' '); return x.slice(17, 19) === '00' ? x.slice(0, 16) : x.slice(0, 19); })() : '';
       const fld = 'height:36px;border:1px solid var(--line2);border-radius:8px;padding:0 10px';
       return modal(`<h2>${esc(t('delSample'))} ${esc(s.sampleId)}</h2>
         <div class="small" style="margin-top:8px">${esc(t('delSampleNote'))}</div>
@@ -1992,9 +1997,9 @@
           let requeue = null;
           if (re && re.checked) {
             const v = $('#ds_cut', el).value.trim(), none = $('#ds_none', el).checked;
-            const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2})$/.exec(v);
+            const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v);
             if (v && !m) { er.textContent = t('cutoffBad') + '：' + v; er.hidden = false; return; }
-            const at = m ? Date.parse(`${m[1]}-${p2(m[2])}-${p2(m[3])}T${p2(m[4])}:${m[5]}:00+08:00`) : null;
+            const at = m ? Date.parse(`${m[1]}-${p2(m[2])}-${p2(m[3])}T${p2(m[4])}:${m[5]}:${m[6] || '00'}+08:00`) : null;
             if (!at && !none) { er.textContent = t('delNeedCut'); er.hidden = false; return; }
             requeue = { cutoffAt: at, noCutoff: !at };
           }
@@ -2035,6 +2040,9 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
+    gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
+    gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
+    gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
     tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
     tDisable: '停用主題', tEnable: '重新啟用', tDisableConfirm: '停用「{n}」？停用後不能用它建立草稿或申請範例；已有的範例、草稿與題目不受影響。', tDisabled: '主題已停用', tEnabled: '主題已啟用',
     tInactiveNote: '這個主題已停用：不能用它建立草稿或申請範例。', tReasonsMoved: '申退原因與允許的申請方案是 DMS 系統規則，所有主題共用，請到',
@@ -2056,6 +2064,9 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
+    gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
+    gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
+    gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
     tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',
     tDisable: 'Deactivate topic', tEnable: 'Reactivate', tDisableConfirm: 'Deactivate "{n}"? It can no longer be used for new drafts or sample requests. Existing samples, drafts and questions are not affected.', tDisabled: 'Topic deactivated', tEnabled: 'Topic reactivated',
     tInactiveNote: 'This topic is inactive: it cannot be used for new drafts or sample requests.', tReasonsMoved: 'Return reasons and allowed solutions are DMS system rules shared by all topics. Edit them in',
@@ -2147,7 +2158,9 @@
   async function setTopicTab(box) {
     const meta = await api('t_topics');
     const topicId = pickedTopic(meta);
-    const { topic } = await api('tw_getTopic', { topicId });
+    const [{ topic }, smp] = await Promise.all([api('tw_getTopic', { topicId }), api('tw_listSamples').catch(() => ({ samples: [] }))]);
+    const gaps = smp.samples.filter((x) => x.topicId === topicId && x.gap && !x.gapState && x.status !== 'rejected');
+    const added = new Set();          // 這次加入判斷標準的建議（儲存後標記為已加入）
     const sets = meta.optionSets;
     const active = topic.active !== false;
     box.innerHTML = `${topicPicker(meta, topicId, 'topic')}
@@ -2158,6 +2171,10 @@
         <label class="k">${esc(t('tPrompt'))}</label><div style="display:flex;flex-direction:column;gap:6px;width:min(520px,100%)"><input type="text" id="tp_zh" value="${esc(topic.prompt && topic.prompt.zh)}" placeholder="${esc(t('zhL'))}" style="width:100%"><input type="text" id="tp_en" value="${esc(topic.prompt && topic.prompt.en)}" placeholder="${esc(t('enL'))}" style="width:100%"></div>
         <label class="k" for="t_set">${esc(t('tDefaultSet'))}</label><select id="t_set"><option value="">${esc(t('none'))}</option>${sets.map((o) => `<option value="${esc(o.setId)}" ${o.setId === topic.defaultOptionSet ? 'selected' : ''}>${esc(L(o.name))}</option>`).join('')}</select>
       </div>
+      ${gaps.length ? `<div class="gapbox"><b>💡 ${esc(t('gapListTitle', { n: gaps.length }))}</b><div class="small muted" style="margin:2px 0 8px">${esc(t('gapListHint'))}</div>
+        ${gaps.map((g) => `<div class="gaprow" data-gap="${esc(g.sampleId)}"><div class="row"><a href="#/library/${esc(g.sampleId)}"><b>${esc(g.sampleId)}</b></a><span class="small">${esc(g.gap)}</span><span class="spacer"></span>
+          <button class="btn sm ghost" type="button" data-gi="${esc(g.sampleId)}">${esc(t('gapIgnore'))}</button><button class="btn sm" type="button" data-ga="${esc(g.sampleId)}">${esc(t('gapAppend'))}</button></div>
+          ${g.gapSuggestion ? `<pre class="gapsug">${esc(g.gapSuggestion)}</pre>` : ''}</div>`).join('')}</div>` : ''}
       <div><div class="row" style="margin-bottom:6px"><b>${esc(t('tCriteria'))}</b><span class="chip info">${esc(topic.criteriaVersion || '')}</span></div><div class="small muted" style="margin-bottom:6px">${esc(t('tCriteriaNote'))}</div>${ta('t_crit', 14, topic.criteria || '')}</div>
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
       <div class="small muted">${esc(t('tReasonsMoved'))} <a href="#/settings?tab=dms">${esc(t('setDms'))} →</a></div>
@@ -2165,6 +2182,19 @@
       <details><summary class="small">${esc(t('tHistory'))}（${(topic.history || []).length}）</summary>${(topic.history || []).length ? (topic.history || []).slice().reverse().map((h) => `<div style="margin-top:10px"><span class="chip">${esc(h.version)}</span> <span class="small muted">${esc(t('tUntil', { t: fmtDT(h.until) }))} · ${esc(h.by || '')}</span><pre class="small" style="white-space:pre-wrap;background:var(--chip);padding:10px;border-radius:8px">${esc(h.criteria)}</pre></div>`).join('') : `<div class="small muted" style="margin-top:8px">${esc(t('tNoHistory'))}</div>`}</details>
       <div class="row"><button class="btn brand" id="t_save" disabled>${esc(t('tSave'))}</button><span class="spacer"></span><button class="btn ${active ? 'danger' : ''}" id="t_act" type="button">${esc(t(active ? 'tDisable' : 'tEnable'))}</button></div></div>`;
     let dirty = false;
+    const appendGap = (id) => {
+      const g = gaps.find((x) => x.sampleId === id); if (!g || added.has(id)) return;
+      const ta2 = $('#t_crit'); ta2.value = ta2.value.replace(/\s+$/, '') + '\n' + (g.gapSuggestion || g.gap);
+      added.add(id); dirty = true; $('#t_save').disabled = false;
+      const b = $(`[data-ga="${id}"]`, box); if (b) { b.textContent = t('gapAppended'); b.disabled = true; }
+      ta2.scrollIntoView({ block: 'center' }); ta2.focus();
+    };
+    $$('[data-ga]', box).forEach((b) => b.addEventListener('click', () => appendGap(b.dataset.ga)));
+    $$('[data-gi]', box).forEach((b) => b.addEventListener('click', async () => {
+      try { await api('tw_setGap', { sampleId: b.dataset.gi, state: 'dismissed' }); const r = $(`[data-gap="${b.dataset.gi}"]`, box); if (r) r.remove(); added.delete(b.dataset.gi); toast(t('gapIgnored')); } catch (e) { toast(e.message, 4000); }
+    }));
+    const wantGap = new URLSearchParams(location.hash.split('?')[1] || '').get('gap');
+    if (wantGap) setTimeout(() => appendGap(wantGap), 0);
     $('#tp_new').onclick = () => addTopicDialog(meta).then((tp) => { if (tp) { topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; location.hash = '#/settings?tab=topic&topic=' + tp.topicId; } });
     $('#t_act').onclick = async () => {
       if (dirty && !window.confirm(t('unsavedLeave'))) return;
@@ -2189,9 +2219,10 @@
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
           defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value,
         } });
+        if (added.size) await api('tw_setGap', { sampleIds: [...added], state: 'added' }).catch(() => null);
         dirty = false; leaveGuard = null; topicsCache = null; libMeta = null;
         toast(r.bumped ? t('tBumped', { v: r.bumped }) : t('tSaved'), 3500);
-        viewSettings();
+        const h = '#/settings?tab=topic&topic=' + topicId; if (location.hash !== h) location.hash = h; else viewSettings();
       } catch (e) { toast(e.message, 5000); $('#t_save').disabled = false; }
     };
   }

@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04d';
+const VERSION = 'V2-2026-11-04e';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -191,7 +191,8 @@ async function activeTopic(topicId) {
   return t;
 }
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
-  source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null });
+  source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null,
+  gap: (x.suggest && x.suggest.criteriaGap && x.suggest.criteriaGap.situation) || '', gapSuggestion: String((x.suggest && x.suggest.criteriaGap && x.suggest.criteriaGap.suggestion) || '').slice(0, 500), gapState: x.gapState || '' });
 async function sampleFull(id) {
   const x = await S.get('samples/' + id) || fail('找不到範例 / Sample not found: ' + id);
   const req = x.requestId ? await S.get('sampleRequests/' + x.requestId).catch(() => null) : null;
@@ -648,6 +649,22 @@ const ACTIONS = {
     }
     await S.batch(ops);
     return { deleted: id, requestId: newReq };
+  },
+
+  /** 判斷標準建議（範例匯入時 AI 回報的缺口）：added = 已加入判斷標準、dismissed = 忽略、'' = 待處理 */
+  tw_setGap: async (b) => {
+    const m = await needTW();
+    const state = ['added', 'dismissed', ''].includes(b.state) ? b.state : fail('state must be added / dismissed / empty');
+    const ids = (Array.isArray(b.sampleIds) ? b.sampleIds : [b.sampleId]).map(String).filter(Boolean);
+    if (!ids.length) return { updated: 0 };
+    const idx = (await S.get('meta/sampleIndex')) || {};
+    const ops = [];
+    ids.forEach((id) => {
+      ops.push({ op: 'update', path: 'samples/' + id, data: { gapState: state, gapBy: m.email, gapAt: now() } });
+      if ((idx.items || {})[id]) ops.push({ op: 'update', path: 'meta/sampleIndex', data: { ['items.' + id + '.gapState']: state } });
+    });
+    await S.batch(ops);
+    return { updated: ids.length, state };
   },
 
   /** 重建範例索引：讀一次所有範例重新產生（意外時的保險） */

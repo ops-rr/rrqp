@@ -309,3 +309,9 @@ tr.dim td { opacity: .55; }
 .topic-pick .tp.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); font-weight: 700; }
 .topic-pick .tp.off { opacity: .7; }
 table.dms td { vertical-align: middle; }
+/* 判斷標準建議 */
+.gapcard { border-left: 3px solid var(--info); }
+.gapbox { background: var(--info-bg); border: 1px solid #C3D3F7; border-radius: 10px; padding: 12px 14px; }
+.gaprow { padding: 8px 0; border-top: 1px solid #C3D3F7; }
+.gaprow .row { gap: 8px; }
+pre.gapsug { white-space: pre-wrap; font: inherit; font-size: 13px; background: #fff; border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; margin: 6px 0 0; }
