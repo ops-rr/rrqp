@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-03c';
+const VERSION = 'V2-2026-11-04a';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -125,12 +125,71 @@ async function whoAmI() {
 const needTeacher = async () => { const m = await whoAmI(); if (!m.isTeacher) fail('Teacher access only / 僅限講師'); return m; };
 const needTW = async () => { const m = await whoAmI(); if (m.role !== 'tw') fail('TW teacher access only / 僅限 TW 講師'); return m; };
 
-const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', reasons: t.reasons || [] });
+const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', active: t.active !== false,
+  prompt: t.prompt || null, defaultOptionSet: t.defaultOptionSet || '' });
+
+// ───────── DMS 系統規則（與主題無關，所有題目都要遵守） ─────────
+const SOLUTIONS = ['Return and Refund', 'Refund Only'];
+/** 預設規則：DMS 申退原因與允許的申請方案（2025-Dec）；設定頁儲存後以 settings/dms 為準 */
+const DEFAULT_DMS = {
+  reasons: [
+    { en: 'Parcel not delivered', zh: '包裹未送達／無法取件', solutions: ['Refund Only'], aliases: [] },
+    { en: 'Missing part of the order', zh: '商品缺件／賣家通知缺貨', solutions: ['Return and Refund', 'Refund Only'], aliases: [] },
+    { en: 'Seller sent wrong item (e.g wrong size, model)', zh: '收到完全不同的商品', solutions: ['Return and Refund'], aliases: [] },
+    { en: 'Damaged item', zh: '商品外表瑕疵／毀損', solutions: ['Return and Refund'], aliases: [] },
+    { en: 'Product is defective or does not work', zh: '商品功能有問題', solutions: ['Return and Refund'], aliases: [] },
+    { en: 'Counterfeit product', zh: '商品有仿品疑慮', solutions: ['Return and Refund'], aliases: [] },
+    { en: 'I want to return item in original / sealed condition', zh: '其它(商品須以原包裝退還)', solutions: ['Return and Refund'], aliases: [] },
+    { en: 'Product is significantly different from description', zh: '實品與賣場描述／圖片有落差', solutions: ['Return and Refund'], aliases: ['Product does not meet expectations'] },
+    { en: 'Empty Parcel', zh: '只收到破壞袋、外箱', solutions: ['Refund Only'], aliases: [] },
+  ],
+  notes: '',
+};
+/** 比對用：忽略大小寫與空白（"Damaged Item" = "Damaged item"、"original/ sealed" = "original / sealed"） */
+const reasonKey = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+function findReason(rules, name) {
+  const k = reasonKey(name);
+  if (!k) return null;
+  return ((rules && rules.reasons) || []).find((x) => reasonKey(x.en) === k || (x.aliases || []).some((a) => reasonKey(a) === k)) || null;
+}
+/** 舊名稱、大小寫不同 → 換成規則表的正式英文名稱 */
+function normalizeReason(q, rules) {
+  const r = q && q.request; if (!r || Array.isArray(rules)) return q;
+  const e = findReason(rules, r.reason);
+  if (e && r.reason !== e.en) r.reason = e.en;
+  return q;
+}
+async function loadDms() {
+  const d = await S.get('settings/dms').catch(() => null);
+  return d && Array.isArray(d.reasons) && d.reasons.length ? { reasons: d.reasons, notes: d.notes || '', updatedAt: d.updatedAt || null, saved: true } : Object.assign({ saved: false }, DEFAULT_DMS);
+}
+/** 判斷時點：題目內所有時間都不能晚於 cutoff（格式 YYYY-MM-DD HH:mm） */
+const TS_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/;
+function cutoffErrors(q) {
+  const c = q && q.cutoff;
+  if (c === undefined || c === null || c === '') return [];
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(String(c))) return ['cutoff must be YYYY-MM-DD HH:mm'];
+  const out = [];
+  const chk = (t, p) => { if (TS_RE.test(String(t || '')) && String(t).slice(0, 16) > c) out.push(p + ' (' + t + ') is after the cutoff ' + c); };
+  (q.chat || []).forEach((m, j) => chk(m && m.t, 'chat[' + j + '].t'));
+  ['buyer', 'seller'].forEach((s) => ((q.drc || {})[s] || []).forEach((d, j) => chk(d && d.t, 'drc.' + s + '[' + j + '].t')));
+  ((q.logistics || {}).events || []).forEach((e, j) => chk(e && e.t, 'logistics.events[' + j + '].t'));
+  return out;
+}
 const tagOut = (t) => ({ tagId: t.id, topicId: t.topicId, name: t.name || { zh: t.id, en: t.id }, desc: t.desc || '' });
 
 // ───────── 範例的共用處理 ─────────
 const reqOut = (r) => ({ requestId: r.id, requestedBy: r.requestedBy || '', requestedAt: r.requestedAt || null, returnId: r.returnId || '', topicId: r.topicId || 'agreement',
-  wantedTags: r.wantedTags || [], note: r.note || '', status: r.status, reason: r.reason || '', sampleId: r.sampleId || '', updatedAt: r.updatedAt || null });
+  wantedTags: r.wantedTags || [], note: r.note || '', status: r.status, reason: r.reason || '', sampleId: r.sampleId || '', updatedAt: r.updatedAt || null,
+  cutoffAt: r.cutoffAt || null, noCutoff: !!r.noCutoff });
+/** 主題必須存在且啟用中（建立草稿、申請範例時檢查） */
+async function activeTopic(topicId) {
+  if (!topicId) fail('請選擇主題 / Choose a topic');
+  const t = await S.get('topics/' + topicId);
+  if (!t) fail('找不到主題 / Topic not found');
+  if (t.active === false) fail('這個主題已停用 / This topic is inactive');
+  return t;
+}
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
   source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null });
 async function sampleFull(id) {
@@ -218,7 +277,13 @@ function checkQuestion(q, reasons) {
   const lg = q.logistics;
   if (!lg) errs.push('logistics missing');
   else { bi(lg.carrier, 'logistics.carrier'); need(Array.isArray(lg.events) && lg.events.length, 'logistics.events must be a non-empty array'); (lg.events || []).forEach((e, j) => { need(e && e.t, 'logistics.events[' + j + '].t missing'); if (e) bi(e.status, 'logistics.events[' + j + '].status'); }); }
-  if (reasons && reasons.length && !reasons.includes(r.reason)) errs.push('request.reason "' + r.reason + '" is not in the allowed list');
+  if (Array.isArray(reasons)) { if (reasons.length && !reasons.includes(r.reason)) errs.push('request.reason "' + r.reason + '" is not in the allowed list'); }
+  else if (reasons && reasons.reasons) {
+    const e = findReason(reasons, r.reason);
+    if (!e) errs.push('request.reason "' + r.reason + '" is not a DMS return reason (use one of: ' + reasons.reasons.map((x) => x.en).join(' | ') + ')');
+    else if (SOLUTIONS.includes(r.solution) && !(e.solutions || []).includes(r.solution)) errs.push('DMS rule: reason "' + e.en + '" only allows ' + (e.solutions || []).join(' / ') + ' as the request solution, but request.solution is "' + r.solution + '"');
+  }
+  cutoffErrors(q).forEach((x) => errs.push(x));
   bi(r.remark, 'request.remark');
   const fo = (drc.buyer || []).find((d) => d && d.type === 'offer');
   if (fo && (fo.solution !== r.solution || fo.amount !== r.amount)) errs.push('drc.buyer first offer (' + fo.solution + ' $' + fo.amount + ') must equal request (' + r.solution + ' $' + r.amount + ')');
@@ -265,9 +330,10 @@ const ACTIONS = {
   /** 主題、標籤（啟用 / 停用）、選項範本：各頁共用 */
   t_topics: async () => {
     await needTeacher();
-    const [topics, tags, sets] = await Promise.all([S.list('topics'), S.list('tags'), S.list('optionSets')]);
+    const [topics, tags, sets, dms] = await Promise.all([S.list('topics'), S.list('tags'), S.list('optionSets'), loadDms()]);
     return {
-      topics: topics.map(topicOut),
+      topics: topics.map(topicOut).sort((a, b) => (b.active - a.active) || a.topicId.localeCompare(b.topicId)),
+      dms,
       tags: tags.filter((t) => t.active !== false).map(tagOut),
       inactiveTags: tags.filter((t) => t.active === false).map(tagOut),
       optionSets: sets.map((o) => ({ setId: o.id, name: o.name, options: o.options || [] })),
@@ -312,8 +378,8 @@ const ACTIONS = {
     const m = await needTeacher();
     const name = String(b.name || '').trim();
     if (!name) fail('草稿名稱必填 / Draft name is required');
-    const topicId = b.topicId || 'agreement';
-    if (!(await S.get('topics/' + topicId))) fail('找不到主題 / Topic not found');
+    const topicId = String(b.topicId || '');
+    await activeTopic(topicId);
     const target = Number(b.target);
     if (!(target >= 1 && target <= 50)) fail('題數需介於 1–50 / Target must be 1–50');
     const mx = b.mix || {};
@@ -359,8 +425,9 @@ const ACTIONS = {
     const path = 'drafts/' + b.draftId + '/questions/' + b.qid;
     const row = await S.get(path) || fail('找不到題目 / Question not found: ' + b.qid);
     const q = Object.assign({}, b.question || {}); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete q[k]);
-    const topic = (await S.get('topics/' + d.topicId)) || {};
-    const chk = checkQuestion(q, topic.reasons || []);
+    const dms = await loadDms();
+    normalizeReason(q, dms);
+    const chk = checkQuestion(q, dms);
     if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
     if (q.type !== row.type) fail('不能變更題型 / Question type cannot be changed');
     const patch = { question: q, answer: q.answer || '', pointZh: (q.point && q.point.zh) || '', warnings: chk.warnings, updatedAt: now(), updatedBy: m.email };
@@ -442,21 +509,30 @@ const ACTIONS = {
   // ─── 範例生成（TW 講師） ───
   tw_requestSamples: async (b) => {
     const m = await needTW();
-    const topicId = b.topicId || 'agreement';
-    if (!(await S.get('topics/' + topicId))) fail('找不到主題 / Topic not found');
-    const ids = [...new Set(String(Array.isArray(b.returnIds) ? b.returnIds.join('\n') : b.returnIds || '').split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean))];
+    const topicId = String(b.topicId || '');
+    await activeTopic(topicId);
+    // items：[{returnId, cutoffAt}]；cutoffAt 是毫秒（判斷時點），沒有時必須勾選 noCutoff（使用完整資料）
+    const raw = Array.isArray(b.items) ? b.items : String(Array.isArray(b.returnIds) ? b.returnIds.join('\n') : b.returnIds || '').split(/[\s,;]+/).map((x) => ({ returnId: x }));
+    const seen = new Set(), items = [];
+    raw.forEach((x) => { const id = String((x && x.returnId) || '').trim(); if (id && !seen.has(id)) { seen.add(id); items.push({ returnId: id, cutoffAt: x.cutoffAt ? Number(x.cutoffAt) : null }); } });
+    const ids = items.map((x) => x.returnId);
     if (!ids.length) fail('請輸入 Return ID / Enter at least one Return ID');
     const bad = ids.filter((x) => !/^\d{6,20}$/.test(x));
     if (bad.length) fail('Return ID 格式錯誤（只能是數字） / Invalid Return ID: ' + bad.join(', '));
     if (ids.length > 30) fail('一次最多 30 筆 / At most 30 per request');
+    const badT = items.filter((x) => x.cutoffAt !== null && !(x.cutoffAt > 1.5e12 && x.cutoffAt < now() + 864e5));
+    if (badT.length) fail('判斷時點不正確（不能是未來時間） / Invalid cutoff: ' + badT.map((x) => x.returnId).join(', '));
+    const noTime = items.filter((x) => x.cutoffAt === null);
+    if (noTime.length && !b.noCutoff) fail('以下 Return ID 沒有填判斷時點；若確定使用完整資料，請勾選「不截斷」 / Missing cutoff: ' + noTime.map((x) => x.returnId).join(', '));
     // 等待中、處理中、已完成的 Return ID 不重複申請（取消或失敗的可以再申請）
     const open = new Set((await S.list('sampleRequests')).filter((r) => ['queued', 'processing', 'done'].includes(r.status)).map((r) => String(r.returnId)));
-    const dup = ids.filter((x) => open.has(x)), add = ids.filter((x) => !open.has(x));
+    const dup = ids.filter((x) => open.has(x)), add = items.filter((x) => !open.has(x.returnId));
     if (!add.length) return { added: 0, duplicates: dup };
     const first = await S.nextIds('R', add.length);
     const t = now(), tags = (b.wantedTags || []).map(String), note = String(b.note || '').slice(0, 500);
-    await S.batch(add.map((rid, i) => ({ op: 'set', path: 'sampleRequests/R' + String(first + i).padStart(4, '0'),
-      data: { requestedBy: m.email, requestedAt: t, returnId: rid, topicId, wantedTags: tags, note, status: 'queued', reason: '', sampleId: '', updatedAt: t } })));
+    await S.batch(add.map((x, i) => ({ op: 'set', path: 'sampleRequests/R' + String(first + i).padStart(4, '0'),
+      data: { requestedBy: m.email, requestedAt: t, returnId: x.returnId, topicId, wantedTags: tags, note, status: 'queued', reason: '', sampleId: '', updatedAt: t,
+        cutoffAt: x.cutoffAt, noCutoff: x.cutoffAt === null } })));
     return { added: add.length, duplicates: dup };
   },
 
@@ -502,8 +578,9 @@ const ACTIONS = {
     const patch = { updatedAt: now(), updatedBy: m.email };
     if (b.question) {
       const q = Object.assign({}, b.question); ['id', 'qid', 'seq', 'points'].forEach((k) => delete q[k]);
-      const topic = (await S.get('topics/' + cur.topicId)) || {};
-      const chk = checkQuestion(q, topic.reasons || []);
+      const dms = await loadDms();
+      normalizeReason(q, dms);
+      const chk = checkQuestion(q, dms);
       if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
       const leak = leakScan(q, '');
       if (leak.length) fail('內容疑似含有真實資料，未儲存 / Possible real data: ' + leak.join('、'));
@@ -594,7 +671,11 @@ const ACTIONS = {
     if (p.name) { if (!p.name.zh || !p.name.en) fail('主題名稱需要中英文 / Topic name needs both languages'); patch.name = p.name; }
     if (p.prompt) patch.prompt = p.prompt;
     if (p.defaultOptionSet !== undefined) patch.defaultOptionSet = p.defaultOptionSet;
-    ['keyFactors', 'reasons'].forEach((k) => { if (Array.isArray(p[k])) patch[k] = p[k].map((x) => String(x).trim()).filter(Boolean); });
+    if (Array.isArray(p.keyFactors)) patch.keyFactors = p.keyFactors.map((x) => String(x).trim()).filter(Boolean);
+    if (p.active !== undefined) {
+      if (!p.active && t.active !== false && (await S.list('topics')).filter((x) => x.active !== false).length <= 1) fail('至少要保留一個啟用中的主題 / Keep at least one active topic');
+      patch.active = !!p.active;
+    }
     if (typeof p.rules === 'string') patch.rules = p.rules;
     let bumped = null;
     if (typeof p.criteria === 'string' && p.criteria.trim() !== String(t.criteria || '').trim()) {
@@ -606,6 +687,47 @@ const ACTIONS = {
     }
     await S.update('topics/' + b.topicId, patch);
     return { topic: Object.assign({ topicId: b.topicId }, t, patch), bumped };
+  },
+
+  /** 新增主題；可從現有主題複製出題規則、判斷關鍵、預設選項（判斷標準需另外填寫） */
+  tw_addTopic: async (b) => {
+    const m = await needTW();
+    const name = b.name || {}, zh = String(name.zh || '').trim(), en = String(name.en || '').trim();
+    if (!zh || !en) fail('主題名稱需要中英文 / Topic name needs both languages');
+    const all = await S.list('topics');
+    if (all.some((x) => String(x.name?.zh || '').trim() === zh)) fail('已有同名主題 / A topic with this name already exists: ' + zh);
+    const base = slug(en, 24) || 'topic'; let topicId = base, n = 2;
+    while (all.some((x) => x.id === topicId)) topicId = base + '-' + (n++);
+    const src = b.copyFrom ? all.find((x) => x.id === b.copyFrom) : null;
+    const t = now();
+    const doc = { name: { zh, en }, active: true, criteriaVersion: 'v1', criteria: String(b.criteria || '').trim() || '（請填寫判斷標準）',
+      keyFactors: src ? (src.keyFactors || []) : [], rules: src ? (src.rules || '') : '', blocks: src ? (src.blocks || []) : [],
+      prompt: b.prompt && b.prompt.zh && b.prompt.en ? b.prompt : (src ? src.prompt : { zh: '', en: '' }), defaultOptionSet: src ? (src.defaultOptionSet || '') : '',
+      history: [], createdAt: t, createdBy: m.email, updatedAt: t, updatedBy: m.email };
+    await S.set('topics/' + topicId, doc);
+    return { topic: Object.assign({ topicId }, doc) };
+  },
+
+  /** DMS 系統規則：申退原因 × 允許的申請方案，與給 AI 的文字規則 */
+  tw_getDms: async () => { await needTeacher(); return { dms: await loadDms() }; },
+  tw_saveDms: async (b) => {
+    const m = await needTW();
+    const cur = await S.get('settings/dms');
+    if (b.baseUpdatedAt && cur && cur.updatedAt && b.baseUpdatedAt !== cur.updatedAt) fail('DMS 規則剛被其他人修改，請重新整理後再編輯 / Someone else just changed the rules. Reload and try again.');
+    const seen = new Set();
+    const reasons = (b.reasons || []).map((x, i) => {
+      const en = String(x.en || '').trim(), zh = String(x.zh || '').trim();
+      if (!en || !zh) fail('第 ' + (i + 1) + ' 列：申退原因需要中英文 / Row ' + (i + 1) + ': both names are required');
+      const sol = SOLUTIONS.filter((s) => (x.solutions || []).includes(s));
+      if (!sol.length) fail('「' + zh + '」至少要允許一種申請方案 / Allow at least one solution for ' + en);
+      const aliases = (x.aliases || []).map((a) => String(a).trim()).filter(Boolean);
+      [en].concat(aliases).forEach((k) => { const kk = reasonKey(k); if (seen.has(kk)) fail('申退原因重複 / Duplicate reason: ' + k); seen.add(kk); });
+      return { en, zh, solutions: sol, aliases };
+    });
+    if (!reasons.length) fail('至少要有一個申退原因 / At least one reason');
+    const t = now();
+    await S.set('settings/dms', { reasons, notes: String(b.notes || '').slice(0, 5000), updatedAt: t, updatedBy: m.email });
+    return { dms: { reasons, notes: String(b.notes || ''), updatedAt: t, saved: true } };
   },
 
   tw_saveOptionSet: async (b) => {
@@ -696,7 +818,8 @@ async function api(action, payload = {}) {
     signOut: () => { ME = null; currentEmail = null; return S.auth.signOut(); },
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
-    check: (q, reasons) => checkQuestion(q, reasons),   // 題目格式檢查（編輯器套用前先檢查）
+    check: (q, rules) => checkQuestion(q, rules),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },
     /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {
       requests: (cb) => S.watchColl('sampleRequests', (rows) => cb(rows.map(reqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)))),

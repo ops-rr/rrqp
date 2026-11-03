@@ -300,3 +300,12 @@ tr.dim td { opacity: .55; }
 .qe-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .qe-amount { font-weight: 700; font-size: 16px; padding: 6px 0; }
 @media (max-width: 760px) { .qe-bi, .qe-two { grid-template-columns: 1fr; } }
+
+/* 判斷時點（資訊截至） */
+.cutoff { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+/* 設定頁：主題切換 */
+.topic-pick { gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.topic-pick .tp { padding: 5px 12px; border: 1px solid var(--line2); border-radius: 999px; text-decoration: none; color: inherit; font-size: 14px; background: #fff; }
+.topic-pick .tp.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); font-weight: 700; }
+.topic-pick .tp.off { opacity: .7; }
+table.dms td { vertical-align: middle; }

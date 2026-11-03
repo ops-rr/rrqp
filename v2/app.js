@@ -228,7 +228,7 @@
 
   // ───────── 草稿列表 ─────────
   let topicsCache = null;
-  async function getTopics() { if (!topicsCache) topicsCache = await api('t_topics'); return topicsCache; }
+  async function getTopics() { if (!topicsCache) { topicsCache = await api('t_topics'); dmsRules = topicsCache.dms || dmsRules; } return topicsCache; }
   const statusChip = (s) => `<span class="chip ${s === 'ready' || s === 'banked' ? 'ok' : s === 'generating' ? 'info' : 'warn'}">${s === 'generating' ? '<span class="spin" style="width:10px;height:10px;border-width:1.5px"></span> ' : ''}${esc(t('st_' + s))}</span>`;
   const fmtTime = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return iso; const p = (n) => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   function progressCell(d) {
@@ -287,7 +287,7 @@
       const tp = topics || await getTopics();
       const box = $('#createBox');
       if (box.innerHTML) { box.innerHTML = ''; return; }
-      const topicOpts = tp.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
+      const topicOpts = tp.topics.filter((x) => x.active).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
       box.innerHTML = `<form class="card pad" id="cform" style="display:flex;flex-direction:column;gap:16px">
         <h2>${esc(t('newDraft'))}</h2>
         <div class="form">
@@ -358,18 +358,15 @@
     if (!arr || !arr.length) return `<div class="soft small">${t('none')}</div>`;
     return arr.map((d) => `<div class="item"><span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
   }
-  /** DMS 退貨原因：中文介面顯示「中文（English）」 */
-  const REASON_ZH = {
-    'Parcel not delivered': '包裹未送達／無法取件', 'Seller sent wrong item (e.g wrong size, model)': '收到完全不同的商品',
-    'I want to return item in original/ sealed condition': '其它(商品須以原包裝退還)', 'Missing part of the order': '商品缺件／賣家通知缺貨',
-    'Product does not meet expectations': '實品與賣場描述／圖片有落差', 'Counterfeit product': '商品有仿品疑慮', 'Damaged Item': '商品外表瑕疵／毀損',
-    'Product is defective or does not work': '商品功能有問題', 'Empty parcel': '只收到破壞袋、外箱',
-  };
-  const reasonLabel = (r) => (lang === 'zh' && REASON_ZH[r] ? `${REASON_ZH[r]}（${r}）` : r || '');
+  /** DMS 申退原因：中文介面顯示「中文（English）」；講師端用設定頁的 DMS 規則，專員端用內建表 */
+  let dmsRules = null;                       // 由 t_topics 載入（getTopics / getLibMeta）
+  const dmsNow = () => dmsRules || (DB() && DB().dms ? DB().dms.defaults : { reasons: [] });
+  const findReason = (r) => (DB() && DB().dms ? DB().dms.find(dmsNow(), r) : null);
+  const reasonLabel = (r) => { const e = findReason(r); const en = e ? e.en : r; return lang === 'zh' && e ? `${e.zh}（${en}）` : en || ''; };
   /** 題目情境（左欄 + 右欄的申請資訊）；講師與專員共用 */
   function caseHtml(q) {
     const r = q.request || {};
-    const left = `<div class="prompt">${esc(L(q.prompt))}</div>
+    const left = `${q.cutoff ? `<div class="cutoff">⏱ ${esc(t('cutoffBanner', { t: q.cutoff }))}</div>` : ''}<div class="prompt">${esc(L(q.prompt))}</div>
       <div class="parties">${esc(t('buyer'))} ${esc(q.buyer?.username)} (${esc(q.buyer?.id)}) · ${esc(t('seller'))} ${esc(q.seller?.username)} (${esc(q.seller?.id)})</div>
       ${q.order ? `<h4>${esc(t('orderItems'))}</h4>${itemTable(q.order.items)}` : ''}
       ${q.payment ? `<h4>${esc(t('payment'))}</h4><div class="box kv"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
@@ -399,6 +396,8 @@
     qeQuestion: '題目與解析', qePrompt: '題目問句', qeQType: '題型', qeTypeA: 'A：選擇', qeTypeB: 'B：選擇 + 原因', qeTypeC: 'C：文字作答', qeOptions: '選項（點圓圈設為正解）', qeAddOpt: '＋ 新增選項',
     qePoint: '判斷重點', qeModel: '參考答案', qeRubric: '評分標準', qeExpl: '解析',
     qeUp: '上移', qeDown: '下移', qeDel: '刪除', qeErrors: '還有以下問題需要修正：', qeOrderHint: '申退商品要從訂單商品中挑選，名稱與規格需完全相同、單價相同。',
+    qeSolOnly: 'DMS 規則：此原因只能申請 {s}', qeCutoff: '判斷時點（資訊截至）', qeCutoffHint: '題目只呈現到這個時間；聊聊、DRC、物流都不能晚於此時間。空白表示不截斷。',
+    cutoffBanner: '資訊截至 {t}（請依此時點判斷）',
   });
   Object.assign(I18N.en, {
     qeApplied: 'Applied. Remember to press Save.', qeTitle: 'Edit question content', qeOpen: 'Edit content', qeApply: 'Apply', qeCancel: 'Cancel', qeJsonAdv: 'Advanced: edit JSON',
@@ -414,6 +413,8 @@
     qeQuestion: 'Question & explanation', qePrompt: 'Prompt', qeQType: 'Type', qeTypeA: 'A: Choice', qeTypeB: 'B: Choice + reason', qeTypeC: 'C: Written', qeOptions: 'Options (click the circle to set the answer)', qeAddOpt: '＋ Add option',
     qePoint: 'Key point', qeModel: 'Model answer', qeRubric: 'Rubric', qeExpl: 'Explanation',
     qeUp: 'Up', qeDown: 'Down', qeDel: 'Delete', qeErrors: 'Please fix the following:', qeOrderHint: 'Requested items must come from the order items, with the same name, variation and unit price.',
+    qeSolOnly: 'DMS rule: this reason only allows {s}', qeCutoff: 'Information cutoff', qeCutoffHint: 'The case only shows information up to this time; chat, DRC and logistics cannot be later. Leave blank for no cutoff.',
+    cutoffBanner: 'Information as of {t} (judge at this point)',
   });
 
   const getP = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[/^\d+$/.test(k) ? +k : k]), o);
@@ -424,8 +425,10 @@
   };
 
   /** 開啟題目內容編輯器；回傳修改後的題目，取消時回傳 null */
-  async function questionEditor(question, { reasons = [], title = '' } = {}) {
+  async function questionEditor(question, { rules = null, title = '' } = {}) {
+    rules = rules || dmsNow();
     const q = clone(question);
+    if (DB() && DB().dms) DB().dms.normalize(q, rules);     // 舊名稱換成規則表的正式名稱
     q.order = q.order || { items: [] }; q.order.items = q.order.items || [];
     q.request = q.request || {}; q.request.items = q.request.items || [];
     q.payment = q.payment || { method: { zh: '', en: '' }, status: { zh: '', en: '' } };
@@ -459,7 +462,12 @@
     const optHtml = () => (q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
         ${(q.options || []).length < 4 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
 
-    const reasonOpts = (reasons.length ? reasons : [q.request.reason || '']).map((r) => [r, reasonLabel(r)]);
+    const rlist = (rules.reasons || []).map((x) => x.en);
+    const reasonOpts = (rlist.includes(q.request.reason) ? [] : [[q.request.reason || '', (q.request.reason || '—') + ' ⚠']]).concat(rlist.map((r) => [r, reasonLabel(r)]));
+    const allowed = () => { const e = (rules.reasons || []).find((x) => x.en === q.request.reason); return e ? e.solutions : ['Return and Refund', 'Refund Only']; };
+    /** 申退原因只允許一種方案時，自動帶入 */
+    const fitSolution = () => { const a = allowed(); if (a.length === 1 && q.request.solution !== a[0]) q.request.solution = a[0]; };
+    const solHint = () => { const a = allowed(); return a.length < 2 ? t('qeSolOnly', { s: a.join(' / ') }) : ''; };
     const recalc = () => {
       const sum = q.request.items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
       const ded = Number(q.request.deduction) || 0;
@@ -471,13 +479,14 @@
     recalc();
 
     const body = () => `
+      ${sec('qeCutoff', `<div class="qe-row"><div>${inp('cutoff', 'YYYY-MM-DD HH:mm', '170px')}</div><div class="small muted qe-grow">${esc(t('qeCutoffHint'))}</div></div>`)}
       ${sec('qeParties', `<div class="qe-row"><div class="qe-grow">${lab('qeBuyer')}${inp('buyer.username')}</div><div>${lab('qeId')}${inp('buyer.id', '', '130px', true)}</div><div class="qe-grow">${lab('qeSeller')}${inp('seller.username')}</div><div>${lab('qeId')}${inp('seller.id', '', '130px', true)}</div></div>`)}
       ${sec('qeOrder', items('order.items'))}
       ${sec('qePayment', `<div class="qe-row"><div class="qe-grow">${lab('qeMethod')}${bi('payment.method')}</div><div class="qe-grow">${lab('qePayStatus')}${bi('payment.status')}</div></div>`)}
       ${sec('qeLogistics', `${lab('qeCarrier')}${bi('logistics.carrier')}<div style="margin-top:8px">${lab('qeEvents')}</div>${q.logistics.events.map((e, i) => `<div class="qe-row"><div>${inp(`logistics.events.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div><div class="qe-grow">${bi(`logistics.events.${i}.status`)}</div>${ctl('logistics.events', i, q.logistics.events.length)}</div>`).join('')}<button type="button" class="btn sm" data-act="add" data-arr="logistics.events">${esc(t('qeAddEvent'))}</button>`)}
       ${sec('qeChat', chatHtml())}
       ${sec('qeDrc', `<div class="qe-two"><div><b class="small">${esc(t('drcBuyer'))}</b>${drcHtml('buyer')}</div><div><b class="small">${esc(t('drcSeller'))}</b>${drcHtml('seller')}</div></div>`, t('qeDrcSync'))}
-      ${sec('qeRequest', `<div class="qe-row"><div>${lab('qeSolution')}${sel('request.solution', solOpts)}</div><div class="qe-grow">${lab('qeReason')}${sel('request.reason', reasonOpts)}</div><div>${lab('qeDeduction')}${inp('request.deduction', '0', '120px', true)}</div><div>${lab('qeAmount')}<div class="qe-amount" id="qe_amt">$${esc(q.request.amount)}</div></div></div>
+      ${sec('qeRequest', `<div class="qe-row"><div>${lab('qeSolution')}${sel('request.solution', solOpts.map(([v, l]) => [v, allowed().includes(v) ? l : l + ' ✕']))}<div class="small" style="color:var(--warn);margin-top:2px">${esc(solHint())}</div></div><div class="qe-grow">${lab('qeReason')}${sel('request.reason', reasonOpts)}</div><div>${lab('qeDeduction')}${inp('request.deduction', '0', '120px', true)}</div><div>${lab('qeAmount')}<div class="qe-amount" id="qe_amt">$${esc(q.request.amount)}</div></div></div>
         <div class="small muted" style="margin:4px 0 10px">${esc(t('qeAmountAuto'))}</div>${lab('qeRemark')}${bi('request.remark', 2)}
         <div style="margin-top:10px">${lab('qeReqItems')}<div class="small muted" style="margin-bottom:6px">${esc(t('qeOrderHint'))}</div>${items('request.items')}</div>`)}
       ${sec('qeQuestion', `${lab('qePrompt')}${bi('prompt')}<div class="qe-row" style="margin-top:8px"><div>${lab('qeQType')}${sel('type', [['A', t('qeTypeA')], ['B', t('qeTypeB')], ['C', t('qeTypeC')]])}</div></div>
@@ -511,6 +520,7 @@
         const p = tgt.dataset.p; if (!p) return;
         if (p === 'type') { if (q.type === 'C') { delete q.options; delete q.answer; } else if (!q.options) { q.options = [{ id: 'a', text: { zh: '', en: '' } }, { id: 'b', text: { zh: '', en: '' } }]; } if (q.type === 'A') { delete q.modelAnswer; delete q.rubric; } else { q.modelAnswer = q.modelAnswer || { zh: '', en: '' }; q.rubric = q.rubric || { zh: '', en: '' }; } render(); }
         if (p === 'request.solution') { recalc(); render(); }
+        if (p === 'request.reason') { fitSolution(); recalc(); render(); }
       });
       box.addEventListener('click', (e) => {
         const b = e.target.closest('[data-act]'); if (!b) return;
@@ -533,7 +543,8 @@
       $('#qe_ok', el).onclick = () => {
         const out = clone(q);
         (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim() && !String(it.variation.en || '').trim()) delete it.variation; });
-        const chk = DB() && DB().check ? DB().check(out, reasons) : { errors: [] };
+        if (!String(out.cutoff || '').trim()) delete out.cutoff; else out.cutoff = String(out.cutoff).trim();
+        const chk = DB() && DB().check ? DB().check(out, rules) : { errors: [] };
         if (chk.errors.length) { const er = $('#qe_err', el); er.innerHTML = `<b>${esc(t('qeErrors'))}</b><br>${chk.errors.slice(0, 8).map(esc).join('<br>')}`; er.hidden = false; return; }
         close(out);
       };
@@ -690,9 +701,8 @@
       const un = $('#unrev'); if (un) un.onclick = () => save(false);
       $('#qedit').onclick = async () => {
         const tp = await getTopics().catch(() => null);
-        const reasons = ((tp && tp.topics.find((x) => x.topicId === draft.topicId)) || {}).reasons || [];
         const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete raw[k]);
-        const out = await questionEditor(raw, { reasons, title: questions[idx].id });
+        const out = await questionEditor(raw, { rules: tp && tp.dms, title: questions[idx].id });
         if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs }); draw(); setDirty(true); toast(t('qeApplied')); }
       };
       $('#json').onclick = async () => {
@@ -1663,7 +1673,9 @@
 
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
-    library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（每行一個，一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
+    library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
+    cutoffHelp: '每行一筆：Return ID，後面接判斷時點（台北時間，例如 2026-10-20 14:30，通常是案件判決前）。抓取 DMS 資料時，這個時間之後的聊聊、DRC、物流都會被移除。',
+    noCutoff: '沒有填時間的案件不截斷（使用完整資料）', noCutoffShort: '不截斷', cutoffCount: '{n} 筆，{c} 筆有判斷時點', cutoffMissing: '{n} 筆沒有時間', cutoffBad: '無法解析的行',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
     r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
     libTopicTags: '主題與標籤', libTag: '標籤', libAll: '全部範例', libAllInTopic: '全部', libUntagged: '未分類', libSearchPh: '搜尋範例代碼、判斷重點、標籤…', libCount: '{n} / {all} 筆', libNoMatch: '沒有符合條件的範例。',
@@ -1678,7 +1690,9 @@
     tagsNeeded: '請至少選一個標籤', reviewOnlyTw: '範例庫僅開放 TW 講師',
   });
   Object.assign(I18N.en, {
-    library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (one per line, up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
+    library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
+    cutoffHelp: 'One per line: Return ID followed by the cutoff (Taipei time, e.g. 2026-10-20 14:30, usually just before the case was judged). Chat, DRC and logistics after this time are removed when fetching from DMS.',
+    noCutoff: 'Use the full data for lines without a time (no cutoff)', noCutoffShort: 'No cutoff', cutoffCount: '{n} case(s), {c} with a cutoff', cutoffMissing: '{n} without a time', cutoffBad: 'Could not read',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
     r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
     libTopicTags: 'Topics & tags', libTag: 'Tag', libAll: 'All samples', libAllInTopic: 'All', libUntagged: 'Untagged', libSearchPh: 'Search sample ID, key point, tag…', libCount: '{n} / {all}', libNoMatch: 'No matching samples.',
@@ -1695,7 +1709,7 @@
   const reqChip = (s) => `<span class="chip ${s === 'done' ? 'ok' : s === 'failed' ? 'warn' : s === 'processing' || s === 'queued' ? 'info' : ''}">${esc(t('r_' + s))}</span>`;
   const smChip = (s) => `<span class="chip ${s === 'active' ? 'ok' : s === 'pending' ? 'info' : 'warn'}">${esc(t('sm_' + s))}</span>`;
   let libMeta = null;
-  async function getLibMeta() { if (!libMeta) libMeta = await api('t_topics'); return libMeta; }
+  async function getLibMeta() { if (!libMeta) { libMeta = await api('t_topics'); dmsRules = libMeta.dms || dmsRules; } return libMeta; }
   const libFilter = { topic: '', tag: '', q: '' };
   /** 新增標籤（TW 講師）：回傳新標籤或 null */
   function addTagDialog(meta, topicId, tag) {
@@ -1807,10 +1821,13 @@
       return;
     }
     // 申請
-    const topicOpts = meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
+    const topicOpts = meta.topics.filter((x) => x.active).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
     $('#lb').innerHTML = `<form class="card pad" id="rf" style="display:flex;flex-direction:column;gap:14px"><h2>${esc(t('reqTitle'))}</h2><div class="small muted">${esc(t('reqHint'))}</div>
         <div class="form">
-          <label class="k" for="r_ids">${esc(t('returnIds'))}</label><textarea id="r_ids" rows="4" class="mono" style="width:min(420px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="2510150001234567"></textarea>
+          <label class="k" for="r_ids">${esc(t('returnIds'))}</label><div><textarea id="r_ids" rows="5" class="mono" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="246771802264043  2026-10-20 14:30&#10;2510150001234567  2026-10-18 09:05"></textarea>
+            <div class="small muted" style="margin-top:4px;max-width:520px">${esc(t('cutoffHelp'))}</div>
+            <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="r_nocut"> ${esc(t('noCutoff'))}</label>
+            <div id="r_prev" class="small" style="margin-top:6px"></div></div>
           <label class="k" for="r_topic">${esc(t('topic'))}</label><select id="r_topic">${topicOpts}</select>
           <span class="k">${esc(t('wantedTags'))}</span><div class="tags" id="r_tags"></div>
           <label class="k" for="r_note">${esc(t('reqNote'))}</label><input type="text" id="r_note" maxlength="200" placeholder="${esc(t('reqNotePh'))}">
@@ -1820,11 +1837,35 @@
     const drawTags = () => { $('#r_tags').innerHTML = meta.tags.filter((x) => x.topicId === $('#r_topic').value).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
       $$('#r_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
     drawTags(); $('#r_topic').onchange = drawTags;
+    /** 解析申請清單：每行「Return ID [日期 時間]」，時間為台北時間 */
+    const parseReq = (txt) => {
+      const items = [], bad = [];
+      String(txt || '').split(/\n/).map((x) => x.trim()).filter(Boolean).forEach((line) => {
+        const m = /^(\d{6,20})(?:[\s,;\t]+(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2}))?\s*$/.exec(line);
+        if (!m) { bad.push(line); return; }
+        let at = null;
+        if (m[2]) {
+          const p2 = (n) => String(n).padStart(2, '0');
+          at = Date.parse(`${m[2]}-${p2(m[3])}-${p2(m[4])}T${p2(m[5])}:${m[6]}:00+08:00`);
+          if (!Number.isFinite(at)) { bad.push(line); return; }
+        }
+        items.push({ returnId: m[1], cutoffAt: at });
+      });
+      return { items, bad };
+    };
+    const fmtTW = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    const preview = () => {
+      const { items, bad } = parseReq($('#r_ids').value);
+      const noT = items.filter((x) => x.cutoffAt === null).length;
+      $('#r_prev').innerHTML = !items.length && !bad.length ? '' : `${items.length ? `<span class="chip">${esc(t('cutoffCount', { n: items.length, c: items.length - noT }))}</span>` : ''}
+        ${noT ? ` <span class="chip ${$('#r_nocut').checked ? '' : 'warn'}">${esc(t('cutoffMissing', { n: noT }))}</span>` : ''}${bad.length ? `<div style="color:var(--err);margin-top:4px">${esc(t('cutoffBad'))}：${bad.map(esc).join('、')}</div>` : ''}`;
+    };
+    $('#r_ids').addEventListener('input', preview); $('#r_nocut').addEventListener('change', preview);
     function drawReqs(reqs) {
       if (!reqs.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noReq'))}</div>`; return; }
       $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('colWantedNote'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
         reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}</td>
-          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
+          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}<div class="small soft">${r.cutoffAt ? '⏱ ' + esc(fmtTW(r.cutoffAt)) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
           <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
           <td style="text-align:right;white-space:nowrap">${r.status === 'failed' && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}">${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
       $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_retryRequest', { requestId: b.dataset.retry }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
@@ -1839,10 +1880,12 @@
     $('#rf').addEventListener('submit', async (e) => {
       e.preventDefault(); $('#r_go').disabled = true; $('#r_err').hidden = true;
       try {
-        const r = await api('tw_requestSamples', { returnIds: $('#r_ids').value.split(/[\s,;]+/).filter(Boolean), topicId: $('#r_topic').value,
+        const pr = parseReq($('#r_ids').value);
+        if (pr.bad.length) throw new Error(t('cutoffBad') + '：' + pr.bad.join('、'));
+        const r = await api('tw_requestSamples', { items: pr.items, noCutoff: $('#r_nocut').checked, topicId: $('#r_topic').value,
           wantedTags: $$('#r_tags input:checked').map((c) => c.value), note: $('#r_note').value.trim() });
         toast(t('reqAdded', { n: r.added }) + (r.duplicates.length ? '；' + t('reqDup', { ids: r.duplicates.join(', ') }) : ''), 5000);
-        $('#r_ids').value = ''; $('#r_note').value = ''; $('#r_go').disabled = false;
+        $('#r_ids').value = ''; $('#r_note').value = ''; $('#r_nocut').checked = false; preview(); $('#r_go').disabled = false;
         drawReqs((await api('tw_listRequests')).requests);
       } catch (err) { $('#r_err').textContent = err.message; $('#r_err').hidden = false; $('#r_go').disabled = false; }
     });
@@ -1856,6 +1899,13 @@
     let work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
     const tagName = (x) => L((meta.tags.concat(meta.inactiveTags || []).find((y) => y.tagId === x) || {}).name) || x;
+    /** 正解選項：主題的預設選項範本（範例的正解存中文文字） */
+    const ansChoices = () => {
+      const tp = meta.topics.find((x) => x.topicId === s.topicId) || {};
+      const set = meta.optionSets.find((o) => o.setId === tp.defaultOptionSet);
+      const list = set ? set.options.map((o) => ({ zh: o.text.zh, en: o.text.en })) : [{ zh: '已達成協議', en: t('agreedYes') }, { zh: '未達成協議', en: t('agreedNo') }];
+      return work.answer && !list.some((o) => o.zh === work.answer) ? [{ zh: work.answer, en: work.answer }].concat(list) : list;
+    };
     function draw() {
       const sg = s.suggest, q = work.question, { left, req } = caseHtml(q);
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
@@ -1878,7 +1928,7 @@
           <div class="form">
             <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
             <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(work.pointZh)}" maxlength="100">
-            <label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${[t('agreedYes'), t('agreedNo')].map((x, i) => { const v = ['已達成協議', '未達成協議'][i]; return `<option value="${v}" ${work.answer === v ? 'selected' : ''}>${esc(x)}</option>`; }).join('')}</select>
+            <label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${ansChoices().map((o) => `<option value="${esc(o.zh)}" ${work.answer === o.zh ? 'selected' : ''}>${esc(lang === 'zh' ? o.zh : o.en)}</option>`).join('')}</select>
             <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
           </div><div id="e_err" class="banner err" hidden></div></div>
         <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
@@ -1894,9 +1944,7 @@
       const ap = $('#applyAi'); if (ap) ap.onclick = () => { const sg = s.suggest; work.tags = (sg.tags || []).slice(); work.pointZh = sg.pointZh || work.pointZh; work.answer = sg.answer || work.answer; dirty = true; draw(); };
       $('#save').onclick = () => save();
       $('#qedit').onclick = async () => {
-        let reasons = [];
-        try { reasons = (await api('tw_getTopic', { topicId: s.topicId })).topic.reasons || []; } catch (_) { /* */ }
-        const out = await questionEditor(work.question, { reasons, title: s.sampleId });
+        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId });
         if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
       };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {
@@ -1931,7 +1979,7 @@
     seedTitle: '建立初始資料', seedHint: '第一次使用 V2 時，請選擇初始資料檔（rrqp_seed.json，放在 RR Quiz Platform\\firebase 資料夾，不在 GitHub 上）。會建立「協議判斷」主題、判斷標準、標籤、選項範本與系統設定，並把你加入講師名單。',
     seedPick: '選擇初始資料檔', seedRun: '建立初始資料', seedDone: '已建立：主題 {t} 個、標籤 {g} 個、選項範本 {o} 組', seedBad: '檔案不是有效的初始資料（JSON）',
     seedPreview: '主題 {t} 個、標籤 {g} 個、選項範本 {o} 組、系統設定 {s} 項',
-    tName: '主題名稱', tPrompt: '題目問句', tDefaultSet: '預設選項範本', tCriteria: '判斷標準', tKeyFactors: '判斷關鍵（每行一個）', tRules: '出題規則（給 AI）', tReasons: '退貨原因（每行一個，需與 DMS 一致）',
+    tName: '主題名稱', tPrompt: '題目問句', tDefaultSet: '預設選項範本', tCriteria: '判斷標準', tKeyFactors: '判斷關鍵（每行一個）', tRules: '出題規則（給 AI）', 
     tCriteriaNote: '修改判斷標準並儲存後，版本號會自動 +1；題庫中依舊版本出的題目會標示「需重新確認」。', tHistory: '舊版判斷標準', tNoHistory: '還沒有舊版本。',
     tSave: '儲存主題', tSaved: '主題已儲存', tBumped: '判斷標準已升為 {v}', tBumpConfirm: '判斷標準有修改，儲存後會從 {a} 升為 {b}，題庫中依 {a} 出的題目會標示「需重新確認」。確定儲存？',
     tUntil: '使用到 {t}', zhL: '中文', enL: 'English', none: '（無）', unsavedLeave: '有未儲存的修改，確定要離開嗎？',
@@ -1939,13 +1987,20 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
+    tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
+    tDisable: '停用主題', tEnable: '重新啟用', tDisableConfirm: '停用「{n}」？停用後不能用它建立草稿或申請範例；已有的範例、草稿與題目不受影響。', tDisabled: '主題已停用', tEnabled: '主題已啟用',
+    tInactiveNote: '這個主題已停用：不能用它建立草稿或申請範例。', tReasonsMoved: '申退原因與允許的申請方案是 DMS 系統規則，所有主題共用，請到',
+    setDms: 'DMS 規則', dmsReasons: '申退原因 × 允許的申請方案', dmsReasonsHint: '題目編輯器、AI 出題與範例匯入都會檢查：申請方案（與買家第一筆 DRC 提案）必須是該原因允許的方案。之後 DRC 協商的提案不受限制。',
+    dmsZh: '中文（DMS 顯示）', dmsEn: '英文（DMS 顯示，題目使用這個）', dmsAliases: '舊名稱（以 ; 分隔）', dmsAliasPh: '例：Damaged Item', dmsAdd: '＋ 新增原因',
+    dmsNotes: '其他 DMS 系統規則（文字，給 AI 出題與檢查參考）', dmsNotesHint: '無法用表格表示的規則，一行一條，例如「某情況下 DRC 不會出現某種選項」。', dmsSaved: 'DMS 規則已儲存',
+    dmsDefault: '目前使用內建的預設規則（2025-Dec）。確認內容後按「儲存」，之後就以這裡為準。',
   });
   Object.assign(I18N.en, {
     colWantedNote: 'Expected tags / note', settings: 'Settings', setTopic: 'Topic & criteria', setTags: 'Tags', setOptions: 'Option sets', setRoles: 'Trainers', setSystem: 'System',
     seedTitle: 'Initialize data', seedHint: 'The first time you use V2, choose the seed file (rrqp_seed.json, in the RR Quiz Platform\\firebase folder, not on GitHub). It creates the Agreement Check topic, criteria, tags, option sets and system settings, and adds you as a trainer.',
     seedPick: 'Choose seed file', seedRun: 'Initialize', seedDone: 'Created {t} topic(s), {g} tags, {o} option sets', seedBad: 'This is not a valid seed file (JSON)',
     seedPreview: '{t} topic(s), {g} tags, {o} option sets, {s} settings',
-    tName: 'Topic name', tPrompt: 'Question prompt', tDefaultSet: 'Default option set', tCriteria: 'Judgment criteria', tKeyFactors: 'Deciding factors (one per line)', tRules: 'Generation rules (for the AI)', tReasons: 'Return reasons (one per line, must match DMS)',
+    tName: 'Topic name', tPrompt: 'Question prompt', tDefaultSet: 'Default option set', tCriteria: 'Judgment criteria', tKeyFactors: 'Deciding factors (one per line)', tRules: 'Generation rules (for the AI)', 
     tCriteriaNote: 'Saving a change to the criteria bumps the version; bank questions written for the old version are marked Re-check.', tHistory: 'Previous criteria', tNoHistory: 'No previous versions yet.',
     tSave: 'Save topic', tSaved: 'Topic saved', tBumped: 'Criteria updated to {v}', tBumpConfirm: 'The criteria changed. Saving moves them from {a} to {b}, and bank questions written for {a} will be marked Re-check. Save?',
     tUntil: 'used until {t}', zhL: '中文', enL: 'English', none: '(none)', unsavedLeave: 'You have unsaved changes. Leave anyway?',
@@ -1953,12 +2008,19 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
+    tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',
+    tDisable: 'Deactivate topic', tEnable: 'Reactivate', tDisableConfirm: 'Deactivate "{n}"? It can no longer be used for new drafts or sample requests. Existing samples, drafts and questions are not affected.', tDisabled: 'Topic deactivated', tEnabled: 'Topic reactivated',
+    tInactiveNote: 'This topic is inactive: it cannot be used for new drafts or sample requests.', tReasonsMoved: 'Return reasons and allowed solutions are DMS system rules shared by all topics. Edit them in',
+    setDms: 'DMS rules', dmsReasons: 'Return reason × allowed solutions', dmsReasonsHint: "Checked by the question editor, AI generation and sample import: the request solution (and the buyer's first DRC offer) must be allowed for the reason. Later DRC negotiation offers are not restricted.",
+    dmsZh: 'Chinese (as in DMS)', dmsEn: 'English (as in DMS, used in questions)', dmsAliases: 'Old names (separate with ;)', dmsAliasPh: 'e.g. Damaged Item', dmsAdd: '＋ Add reason',
+    dmsNotes: 'Other DMS system rules (text, for AI generation and checks)', dmsNotesHint: 'Rules that do not fit the table, one per line.', dmsSaved: 'DMS rules saved',
+    dmsDefault: 'Using the built-in default rules (2025-Dec). Review them and press Save; from then on this page is the source of truth.',
   });
 
   async function viewSettings() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    const TABS = ['topic', 'tags', 'options', 'roles', 'system'];
-    const NAMES = { topic: 'setTopic', tags: 'setTags', options: 'setOptions', roles: 'setRoles', system: 'setSystem' };
+    const TABS = ['topic', 'tags', 'options', 'dms', 'roles', 'system'];
+    const NAMES = { topic: 'setTopic', tags: 'setTags', options: 'setOptions', dms: 'setDms', roles: 'setRoles', system: 'setSystem' };
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'topic';
     shell('settings', `<div class="row"><h1>${esc(t('settings'))}</h1></div><div id="sb"><div class="empty-state"><span class="spin"></span></div></div>`);
     let st;
@@ -1970,6 +2032,7 @@
       if (tab === 'topic') await setTopicTab(box);
       else if (tab === 'tags') await setTagsTab(box);
       else if (tab === 'options') await setOptionsTab(box);
+      else if (tab === 'dms') await setDmsTab(box);
       else if (tab === 'roles') await setRolesTab(box);
       else await setSystemTab(box);
     } catch (e) { showError(e, box); }
@@ -2006,12 +2069,42 @@
   const unlines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
   const ta = (id, rows, val, mono) => `<textarea id="${id}" rows="${rows}" class="${mono ? 'mono' : ''}" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px;font-size:14px;line-height:1.6">${esc(val)}</textarea>`;
 
+  /** 設定頁的主題選擇列（主題與判斷標準、標籤共用）；選擇記在網址 ?topic= */
+  function topicPicker(meta, cur, tab) {
+    return `<div class="row topic-pick"><b class="small">${esc(t('topic'))}</b>${meta.topics.map((x) => `<a class="tp ${x.topicId === cur ? 'on' : ''} ${x.active ? '' : 'off'}" href="#/settings?tab=${tab}&topic=${esc(x.topicId)}">${esc(L(x.name))}${x.active ? '' : ` <span class="chip warn">${esc(t('tagInactive'))}</span>`}</a>`).join('')}
+      ${tab === 'topic' ? `<span class="spacer"></span><button class="btn sm" id="tp_new" type="button">＋ ${esc(t('tAdd'))}</button>` : ''}</div>`;
+  }
+  const pickedTopic = (meta) => {
+    const want = new URLSearchParams(location.hash.split('?')[1] || '').get('topic');
+    return (meta.topics.find((x) => x.topicId === want) || meta.topics.find((x) => x.active) || meta.topics[0] || {}).topicId;
+  };
+  function addTopicDialog(meta) {
+    return modal(`<h2>${esc(t('tAdd'))}</h2>
+      <div class="form" style="margin-top:12px">
+        <label class="k">${esc(t('tName'))}</label><div class="row"><input id="na_zh" placeholder="${esc(t('zhL'))}" maxlength="30" style="width:180px"><input id="na_en" placeholder="${esc(t('enL'))}" maxlength="40" style="width:200px"></div>
+        <label class="k" for="na_src">${esc(t('tCopyFrom'))}</label><select id="na_src"><option value="">${esc(t('none'))}</option>${meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
+      </div>
+      <div class="small muted" style="margin-top:8px">${esc(t('tAddHint'))}</div>
+      <div class="row" style="margin-top:14px"><span class="spacer"></span><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="na_ok" type="button">${esc(t('add'))}</button></div>`,
+    { onMount: (el, close) => {
+      $('#na_zh', el).focus();
+      $('#na_ok', el).onclick = async () => {
+        const b = $('#na_ok', el); b.disabled = true;
+        try { const r = await api('tw_addTopic', { name: { zh: $('#na_zh', el).value.trim(), en: $('#na_en', el).value.trim() }, copyFrom: $('#na_src', el).value }); toast(t('tAdded', { n: r.topic.name.zh })); close(r.topic); }
+        catch (e) { toast(e.message, 4500); b.disabled = false; }
+      };
+    } });
+  }
+
   async function setTopicTab(box) {
     const meta = await api('t_topics');
-    const topicId = (meta.topics[0] || {}).topicId;
+    const topicId = pickedTopic(meta);
     const { topic } = await api('tw_getTopic', { topicId });
     const sets = meta.optionSets;
-    box.innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:16px">
+    const active = topic.active !== false;
+    box.innerHTML = `${topicPicker(meta, topicId, 'topic')}
+      ${active ? '' : `<div class="banner warn">${esc(t('tInactiveNote'))}</div>`}
+      <div class="card pad" style="display:flex;flex-direction:column;gap:16px">
       <div class="form">
         <label class="k">${esc(t('tName'))}</label><div class="row"><input type="text" id="tn_zh" value="${esc(topic.name && topic.name.zh)}" placeholder="${esc(t('zhL'))}" style="width:200px"><input type="text" id="tn_en" value="${esc(topic.name && topic.name.en)}" placeholder="${esc(t('enL'))}" style="width:220px"></div>
         <label class="k">${esc(t('tPrompt'))}</label><div style="display:flex;flex-direction:column;gap:6px;width:min(520px,100%)"><input type="text" id="tp_zh" value="${esc(topic.prompt && topic.prompt.zh)}" placeholder="${esc(t('zhL'))}" style="width:100%"><input type="text" id="tp_en" value="${esc(topic.prompt && topic.prompt.en)}" placeholder="${esc(t('enL'))}" style="width:100%"></div>
@@ -2019,11 +2112,18 @@
       </div>
       <div><div class="row" style="margin-bottom:6px"><b>${esc(t('tCriteria'))}</b><span class="chip info">${esc(topic.criteriaVersion || '')}</span></div><div class="small muted" style="margin-bottom:6px">${esc(t('tCriteriaNote'))}</div>${ta('t_crit', 14, topic.criteria || '')}</div>
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
-      <div><b>${esc(t('tReasons'))}</b>${ta('t_rs', 6, lines(topic.reasons), true)}</div>
+      <div class="small muted">${esc(t('tReasonsMoved'))} <a href="#/settings?tab=dms">${esc(t('setDms'))} →</a></div>
       <div><b>${esc(t('tRules'))}</b>${ta('t_rules', 12, topic.rules || '')}</div>
       <details><summary class="small">${esc(t('tHistory'))}（${(topic.history || []).length}）</summary>${(topic.history || []).length ? (topic.history || []).slice().reverse().map((h) => `<div style="margin-top:10px"><span class="chip">${esc(h.version)}</span> <span class="small muted">${esc(t('tUntil', { t: fmtDT(h.until) }))} · ${esc(h.by || '')}</span><pre class="small" style="white-space:pre-wrap;background:var(--chip);padding:10px;border-radius:8px">${esc(h.criteria)}</pre></div>`).join('') : `<div class="small muted" style="margin-top:8px">${esc(t('tNoHistory'))}</div>`}</details>
-      <div class="row"><button class="btn brand" id="t_save" disabled>${esc(t('tSave'))}</button></div></div>`;
+      <div class="row"><button class="btn brand" id="t_save" disabled>${esc(t('tSave'))}</button><span class="spacer"></span><button class="btn ${active ? 'danger' : ''}" id="t_act" type="button">${esc(t(active ? 'tDisable' : 'tEnable'))}</button></div></div>`;
     let dirty = false;
+    $('#tp_new').onclick = () => addTopicDialog(meta).then((tp) => { if (tp) { topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; location.hash = '#/settings?tab=topic&topic=' + tp.topicId; } });
+    $('#t_act').onclick = async () => {
+      if (dirty && !window.confirm(t('unsavedLeave'))) return;
+      if (active && !(await confirmBox(t('tDisableConfirm', { n: L(topic.name) }), t('tDisable'), t('cancel'), true))) return;
+      try { await api('tw_saveTopic', { topicId, baseUpdatedAt: topic.updatedAt, patch: { active: !active } }); dirty = false; leaveGuard = null; topicsCache = null; libMeta = null; toast(t(active ? 'tDisabled' : 'tEnabled')); viewSettings(); }
+      catch (e) { toast(e.message, 5000); }
+    };
     const mark = () => { dirty = true; $('#t_save').disabled = false; };
     $$('input,textarea,select', box).forEach((el) => el.addEventListener('input', mark));
     leaveGuard = () => !dirty || window.confirm(t('unsavedLeave'));
@@ -2039,7 +2139,7 @@
         const r = await api('tw_saveTopic', { topicId, baseUpdatedAt: topic.updatedAt, patch: {
           name: { zh: $('#tn_zh').value.trim(), en: $('#tn_en').value.trim() },
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
-          defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), reasons: unlines($('#t_rs').value), rules: $('#t_rules').value,
+          defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value,
         } });
         dirty = false; leaveGuard = null; topicsCache = null; libMeta = null;
         toast(r.bumped ? t('tBumped', { v: r.bumped }) : t('tSaved'), 3500);
@@ -2050,10 +2150,10 @@
 
   async function setTagsTab(box) {
     const meta = await api('t_topics');
-    const topicId = (meta.topics[0] || {}).topicId;
+    const topicId = pickedTopic(meta);
     const rows = meta.tags.filter((x) => x.topicId === topicId).map((x) => Object.assign({ inactive: false }, x))
       .concat((meta.inactiveTags || []).filter((x) => x.topicId === topicId).map((x) => Object.assign({ inactive: true }, x)));
-    box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="spacer"></span><button class="btn" id="tg_new">${esc(t('addTagBtn'))}</button></div>
+    box.innerHTML = `${topicPicker(meta, topicId, 'tags')}<div class="row" style="margin-bottom:10px"><span class="spacer"></span><button class="btn" id="tg_new">${esc(t('addTagBtn'))}</button></div>
       ${rows.length ? `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('tagCol'))}</th><th>${esc(t('descCol'))}</th><th>${esc(t('stateCol'))}</th><th></th></tr></thead><tbody>${rows.map((x) => `<tr><td><b>${esc(x.name.zh)}</b><div class="small muted">${esc(x.name.en)}</div></td><td class="small">${esc(x.desc || '')}</td><td>${x.inactive ? `<span class="chip warn">${esc(t('tagInactive'))}</span>` : `<span class="chip ok">${esc(t('enabled'))}</span>`}</td><td style="text-align:right"><button class="btn sm" data-tg="${esc(x.tagId)}">${esc(t('editBtn'))}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="card empty-state">${esc(t('noTags'))}</div>`}`;
     const done = (r) => { if (r) { topicsCache = null; libMeta = null; viewSettings(); } };
     $('#tg_new').onclick = () => addTagDialog(meta, topicId).then(done);
@@ -2098,6 +2198,40 @@
         try { await api('tw_deleteOptionSet', { setId: set.setId }); toast(t('optDeleted')); close({ deleted: true }); } catch (e) { toast(e.message, 4500); }
       };
     } });
+  }
+
+  async function setDmsTab(box) {
+    const { dms } = await api('tw_getDms');
+    const rows = clone(dms.reasons);
+    const SOL = ['Return and Refund', 'Refund Only'];
+    const cell = 'height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 8px;width:100%;min-width:0';
+    box.innerHTML = `${dms.saved ? '' : `<div class="banner info">${esc(t('dmsDefault'))}</div>`}
+      <div class="card pad" style="display:flex;flex-direction:column;gap:12px">
+        <div><b>${esc(t('dmsReasons'))}</b><div class="small muted" style="margin-top:4px">${esc(t('dmsReasonsHint'))}</div></div>
+        <div class="scroll-x"><table class="list dms"><thead><tr><th>${esc(t('dmsZh'))}</th><th>${esc(t('dmsEn'))}</th><th style="text-align:center">Return and Refund</th><th style="text-align:center">Refund Only</th><th>${esc(t('dmsAliases'))}</th><th></th></tr></thead><tbody id="dm_rows"></tbody></table></div>
+        <div><button class="btn sm" id="dm_add" type="button">${esc(t('dmsAdd'))}</button></div>
+        <div><b>${esc(t('dmsNotes'))}</b><div class="small muted" style="margin:4px 0 6px">${esc(t('dmsNotesHint'))}</div>${ta('dm_notes', 6, dms.notes || '')}</div>
+        <div class="row"><button class="btn brand" id="dm_save" ${dms.saved ? 'disabled' : ''}>${esc(t('save'))}</button></div></div>`;
+    let dirty = !dms.saved;
+    const mark = () => { dirty = true; $('#dm_save').disabled = false; };
+    const draw = () => {
+      $('#dm_rows').innerHTML = rows.map((r, i) => `<tr><td><input data-i="${i}" data-k="zh" value="${esc(r.zh)}" style="${cell};min-width:150px"></td><td><input data-i="${i}" data-k="en" value="${esc(r.en)}" style="${cell};min-width:330px"></td>
+        ${SOL.map((x) => `<td style="text-align:center"><input type="checkbox" data-i="${i}" data-sol="${x}" ${r.solutions.includes(x) ? 'checked' : ''} aria-label="${esc(r.zh)} ${x}"></td>`).join('')}
+        <td><input data-i="${i}" data-k="aliases" value="${esc((r.aliases || []).join('; '))}" placeholder="${esc(t('dmsAliasPh'))}" style="${cell};min-width:160px"></td>
+        <td><button class="btn sm ghost danger" data-rm="${i}" type="button" aria-label="${esc(t('qeDel'))}">✕</button></td></tr>`).join('');
+      $$('#dm_rows input[data-k]').forEach((el) => el.addEventListener('input', () => { const r = rows[+el.dataset.i]; if (el.dataset.k === 'aliases') r.aliases = el.value.split(';').map((x) => x.trim()).filter(Boolean); else r[el.dataset.k] = el.value; mark(); }));
+      $$('#dm_rows input[data-sol]').forEach((el) => el.addEventListener('change', () => { const r = rows[+el.dataset.i]; r.solutions = SOL.filter((x) => (x === el.dataset.sol ? el.checked : r.solutions.includes(x))); mark(); }));
+      $$('#dm_rows [data-rm]').forEach((b) => b.addEventListener('click', () => { rows.splice(+b.dataset.rm, 1); mark(); draw(); }));
+    };
+    draw();
+    $('#dm_add').onclick = () => { rows.push({ zh: '', en: '', solutions: ['Return and Refund'], aliases: [] }); mark(); draw(); };
+    $('#dm_notes').addEventListener('input', mark);
+    leaveGuard = () => !dirty || !dms.saved || window.confirm(t('unsavedLeave'));
+    $('#dm_save').onclick = async () => {
+      $('#dm_save').disabled = true;
+      try { const r = await api('tw_saveDms', { reasons: rows, notes: $('#dm_notes').value, baseUpdatedAt: dms.updatedAt }); dmsRules = r.dms; topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; toast(t('dmsSaved')); viewSettings(); }
+      catch (e) { toast(e.message, 5000); $('#dm_save').disabled = false; }
+    };
   }
 
   async function setRolesTab(box) {
