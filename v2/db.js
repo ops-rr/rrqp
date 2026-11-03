@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04f';
+const VERSION = 'V2-2026-11-04g';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -662,6 +662,21 @@ const ACTIONS = {
     }
     if (b.pointZh !== undefined) patch.pointZh = String(b.pointZh || '').slice(0, 200);
     if (b.answer !== undefined) patch.answer = String(b.answer || '').slice(0, 50);
+    // 判斷重點雙向同步：表單改了 → 題目內的中文跟著改（英文標成待翻譯）；只在編輯器改了題目內的 → 表單跟著改
+    {
+      const baseQ = patch.question || cur.question || {};
+      const qPoint = String((baseQ.point && baseQ.point.zh) || '');
+      const formChanged = patch.pointZh !== undefined && patch.pointZh !== (cur.pointZh || '');
+      if (formChanged && patch.pointZh.trim() && patch.pointZh !== qPoint) {
+        const nq = JSON.parse(JSON.stringify(baseQ));
+        nq.point = Object.assign({ en: '' }, nq.point, { zh: patch.pointZh });
+        patch.enPending = enPendingAfter(baseQ, nq, patch.enPending || cur.enPending);
+        patch.question = nq;
+        if (patch.rev === undefined) patch.rev = (cur.rev || 0) + 1;
+      } else if (!formChanged && patch.question && qPoint && qPoint !== String((cur.question && cur.question.point && cur.question.point.zh) || '')) {
+        patch.pointZh = qPoint.slice(0, 200);
+      }
+    }
     if ((patch.answer !== undefined && patch.answer !== (cur.answer || '')) || (patch.pointZh !== undefined && patch.pointZh !== (cur.pointZh || ''))) patch.judgedBy = m.email;
     if (b.changeHint !== undefined) patch.changeHint = String(b.changeHint || '').slice(0, 1000);
     await saveSample(b.sampleId, cur, patch);
