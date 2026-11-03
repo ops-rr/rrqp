@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04c';
+const VERSION = 'V2-2026-11-04d';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -635,7 +635,7 @@ const ACTIONS = {
     const req = cur.requestId ? await S.get('sampleRequests/' + cur.requestId).catch(() => null) : null;
     const t = now();
     const ops = [{ op: 'del', path: 'samples/' + id }, { op: 'update', path: 'meta/sampleIndex', data: { ['items.' + id]: S.deleteField() } }];
-    if (req) ops.push({ op: 'update', path: 'sampleRequests/' + cur.requestId, data: { status: 'deleted', reason: '範例 ' + id + ' 已刪除（' + m.email + '）', updatedAt: t } });
+    if (req) ops.push({ op: 'del', path: 'sampleRequests/' + cur.requestId });     // 申請紀錄一併刪除；Return ID ↔ 範例的對照仍保留在排程機的 map.csv
     let newReq = '';
     if (b.requeue) {
       if (!req || !req.returnId) fail('找不到原本的 Return ID，無法重新申請 / Original Return ID not found');
