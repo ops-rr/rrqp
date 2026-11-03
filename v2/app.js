@@ -191,9 +191,11 @@
 
   // ───────── router ─────────
   let pollTimer = null;
+  let liveOff = null;   // 即時監聽的取消函式（換頁時取消）
   let leaveGuard = null; // 回傳 true 表示可以離開
   function route() {
     clearInterval(pollTimer); pollTimer = null;
+    if (liveOff) { liveOff(); liveOff = null; }
     if (!authKnown) { app().innerHTML = `<div class="login"><div class="muted"><span class="spin"></span> ${esc(t('loading'))}</div></div>`; return; }
     if (!auth) { renderLogin(); return; }
     if (!me) { boot(); return; }
@@ -375,6 +377,162 @@
       <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${esc(t('remark'))}</span><span>${esc(L(r.remark))}</span></div>
       ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items)}` : ''}`;
     return { left, req };
+  }
+
+  // ───────── 題目內容編輯器（表單，取代手動編輯 JSON） ─────────
+  Object.assign(I18N.zh, {
+    qeApplied: '已套用，記得按「儲存」', qeTitle: '編輯題目內容', qeOpen: '編輯題目內容', qeApply: '套用', qeCancel: '取消', qeJsonAdv: '進階：編輯 JSON',
+    qeParties: '買家與賣家', qeBuyer: '買家帳號', qeSeller: '賣家帳號', qeId: 'ID',
+    qeOrder: '訂單商品', qeName: '商品名稱', qeVar: '規格', qeQty: '數量', qePrice: '單價', qeAddItem: '＋ 新增商品',
+    qePayment: '付款', qeMethod: '付款方式', qePayStatus: '付款狀態',
+    qeLogistics: '物流', qeCarrier: '物流商', qeEvents: '物流時間軸', qeAddEvent: '＋ 新增物流紀錄', qeTime: '時間', qeEvStatus: '狀態',
+    qeChat: '聊聊', qeAddMsg: '＋ 新增訊息', qeFrom: '誰說的', qeType: '類型', qeText: '文字', qeSticker: '貼圖', qeMedia: '照片 / 影片', qeKind: '種類', qeImage: '照片', qeVideo: '影片', qeDesc: '畫面描述',
+    qeStickerOk: 'OK（同意）', qeStickerThanks: '謝謝',
+    qeDrc: 'DRC', qeAddDrc: '＋ 新增', qeOffer: '提案', qeDrcText: '文字', qeDrcSync: '買家 DRC 的第一筆提案會自動和下方申請的方案與金額一致。',
+    qeRequest: '退貨退款申請', qeSolution: '方案', qeReason: '退貨原因', qeRemark: '申請備註', qeDeduction: '折抵（折價券 / 蝦幣）', qeReqItems: '申退商品', qeAmount: '申請金額',
+    qeAmountAuto: '依申退商品「單價 × 數量」加總，再扣掉折抵，自動計算；買家無法自行調整金額。',
+    qeQuestion: '題目與解析', qePrompt: '題目問句', qeQType: '題型', qeTypeA: 'A：選擇', qeTypeB: 'B：選擇 + 原因', qeTypeC: 'C：文字作答', qeOptions: '選項（點圓圈設為正解）', qeAddOpt: '＋ 新增選項',
+    qePoint: '判斷重點', qeModel: '參考答案', qeRubric: '評分標準', qeExpl: '解析',
+    qeUp: '上移', qeDown: '下移', qeDel: '刪除', qeErrors: '還有以下問題需要修正：', qeOrderHint: '申退商品要從訂單商品中挑選，名稱與規格需完全相同、單價相同。',
+  });
+  Object.assign(I18N.en, {
+    qeApplied: 'Applied. Remember to press Save.', qeTitle: 'Edit question content', qeOpen: 'Edit content', qeApply: 'Apply', qeCancel: 'Cancel', qeJsonAdv: 'Advanced: edit JSON',
+    qeParties: 'Buyer & seller', qeBuyer: 'Buyer username', qeSeller: 'Seller username', qeId: 'ID',
+    qeOrder: 'Order items', qeName: 'Item name', qeVar: 'Variation', qeQty: 'Qty', qePrice: 'Unit price', qeAddItem: '＋ Add item',
+    qePayment: 'Payment', qeMethod: 'Method', qePayStatus: 'Status',
+    qeLogistics: 'Logistics', qeCarrier: 'Carrier', qeEvents: 'Timeline', qeAddEvent: '＋ Add event', qeTime: 'Time', qeEvStatus: 'Status',
+    qeChat: 'Chat', qeAddMsg: '＋ Add message', qeFrom: 'From', qeType: 'Type', qeText: 'Text', qeSticker: 'Sticker', qeMedia: 'Photo / video', qeKind: 'Kind', qeImage: 'Photo', qeVideo: 'Video', qeDesc: 'What it shows',
+    qeStickerOk: 'OK (agree)', qeStickerThanks: 'Thanks',
+    qeDrc: 'DRC', qeAddDrc: '＋ Add', qeOffer: 'Offer', qeDrcText: 'Text', qeDrcSync: "The buyer's first DRC offer automatically matches the request's solution and amount below.",
+    qeRequest: 'Return / refund request', qeSolution: 'Solution', qeReason: 'Reason', qeRemark: 'Remark', qeDeduction: 'Deduction (voucher / coins)', qeReqItems: 'Requested items', qeAmount: 'Amount',
+    qeAmountAuto: 'Calculated from the requested items (price × qty) minus the deduction; buyers cannot edit the amount.',
+    qeQuestion: 'Question & explanation', qePrompt: 'Prompt', qeQType: 'Type', qeTypeA: 'A: Choice', qeTypeB: 'B: Choice + reason', qeTypeC: 'C: Written', qeOptions: 'Options (click the circle to set the answer)', qeAddOpt: '＋ Add option',
+    qePoint: 'Key point', qeModel: 'Model answer', qeRubric: 'Rubric', qeExpl: 'Explanation',
+    qeUp: 'Up', qeDown: 'Down', qeDel: 'Delete', qeErrors: 'Please fix the following:', qeOrderHint: 'Requested items must come from the order items, with the same name, variation and unit price.',
+  });
+
+  const getP = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[/^\d+$/.test(k) ? +k : k]), o);
+  const setP = (o, path, v) => {
+    const ks = path.split('.'); let a = o;
+    ks.slice(0, -1).forEach((k, i) => { const kk = /^\d+$/.test(k) ? +k : k; if (a[kk] == null) a[kk] = /^\d+$/.test(ks[i + 1]) ? [] : {}; a = a[kk]; });
+    const last = ks.at(-1); a[/^\d+$/.test(last) ? +last : last] = v;
+  };
+
+  /** 開啟題目內容編輯器；回傳修改後的題目，取消時回傳 null */
+  async function questionEditor(question, { reasons = [], title = '' } = {}) {
+    const q = clone(question);
+    q.order = q.order || { items: [] }; q.order.items = q.order.items || [];
+    q.request = q.request || {}; q.request.items = q.request.items || [];
+    q.payment = q.payment || { method: { zh: '', en: '' }, status: { zh: '', en: '' } };
+    q.logistics = q.logistics || { carrier: { zh: '', en: '' }, events: [] }; q.logistics.events = q.logistics.events || [];
+    q.chat = q.chat || []; q.drc = q.drc || { buyer: [], seller: [] }; q.drc.buyer = q.drc.buyer || []; q.drc.seller = q.drc.seller || [];
+    q.buyer = q.buyer || {}; q.seller = q.seller || {};
+
+    const fld = 'border:1px solid var(--line2);border-radius:8px;padding:6px 8px;font-size:14px;background:#fff;min-width:0';
+    const inp = (p, ph, w, num) => `<input data-p="${p}" ${num ? 'data-num="1" type="number" step="any" min="0"' : 'type="text"'} value="${esc(getP(q, p) ?? '')}" placeholder="${esc(ph || '')}" style="${fld};${w ? 'width:' + w : 'width:100%'}">`;
+    const txt = (p, ph, rows = 2) => `<textarea data-p="${p}" rows="${rows}" placeholder="${esc(ph || '')}" style="${fld};width:100%;resize:vertical">${esc(getP(q, p) ?? '')}</textarea>`;
+    const bi = (p, rows) => `<div class="qe-bi">${rows ? txt(p + '.zh', '中文', rows) : inp(p + '.zh', '中文')}${rows ? txt(p + '.en', 'English', rows) : inp(p + '.en', 'English')}</div>`;
+    const sel = (p, opts) => `<select data-p="${p}" style="${fld}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(getP(q, p) ?? '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    const ctl = (arr, i, n) => `<span class="qe-ctl">${i > 0 ? `<button type="button" class="btn sm ghost" data-act="up" data-arr="${arr}" data-i="${i}" title="${esc(t('qeUp'))}">↑</button>` : ''}${i < n - 1 ? `<button type="button" class="btn sm ghost" data-act="down" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDown'))}">↓</button>` : ''}<button type="button" class="btn sm ghost danger" data-act="del" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDel'))}">✕</button></span>`;
+    const lab = (k) => `<div class="qe-lab">${esc(t(k))}</div>`;
+    const sec = (k, body, note) => `<section class="qe-sec"><h3>${esc(t(k))}</h3>${note ? `<div class="small muted" style="margin:-4px 0 8px">${esc(note)}</div>` : ''}${body}</section>`;
+    const items = (arr) => `${(getP(q, arr) || []).map((_, i, a) => `<div class="qe-card"><div class="qe-row"><div class="qe-grow">${lab('qeName')}${bi(`${arr}.${i}.name`)}</div>${ctl(arr, i, a.length)}</div>
+        <div class="qe-row"><div class="qe-grow">${lab('qeVar')}${bi(`${arr}.${i}.variation`)}</div><div>${lab('qeQty')}${inp(`${arr}.${i}.qty`, '', '80px', true)}</div><div>${lab('qePrice')}${inp(`${arr}.${i}.price`, '', '110px', true)}</div></div></div>`).join('')}
+        <button type="button" class="btn sm" data-act="add" data-arr="${arr}">${esc(t('qeAddItem'))}</button>`;
+    const fromOpts = [['buyer', t('buyer')], ['seller', t('seller')]];
+    const solOpts = [['Refund Only', 'Refund Only'], ['Return and Refund', 'Return and Refund']];
+    const chatHtml = () => q.chat.map((m, i) => `<div class="qe-card ${m.from === 'seller' ? 'qe-seller' : ''}"><div class="qe-row">
+        <div>${lab('qeTime')}${inp(`chat.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div><div>${lab('qeFrom')}${sel(`chat.${i}.from`, fromOpts)}</div>
+        <div>${lab('qeType')}<select data-type="chat.${i}" style="${fld}">${[['text', t('qeText')], ['sticker', t('qeSticker')], ['media', t('qeMedia')]].map(([v, l]) => `<option value="${v}" ${m.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+        <span class="spacer"></span>${ctl('chat', i, q.chat.length)}</div>
+        ${m.type === 'sticker' ? `<div>${lab('qeSticker')}${sel(`chat.${i}.sticker`, [['ok', t('qeStickerOk')], ['thanks', t('qeStickerThanks')]])}</div>`
+          : m.type === 'media' ? `<div class="qe-row"><div>${lab('qeKind')}${sel(`chat.${i}.kind`, [['image', t('qeImage')], ['video', t('qeVideo')]])}</div><div class="qe-grow">${lab('qeDesc')}${bi(`chat.${i}.desc`, 2)}</div></div>`
+          : `<div>${bi(`chat.${i}.text`, 2)}</div>`}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="chat">${esc(t('qeAddMsg'))}</button>`;
+    const drcHtml = (side) => q.drc[side].map((d, i) => `<div class="qe-card"><div class="qe-row"><div>${lab('qeTime')}${inp(`drc.${side}.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div>
+        <div>${lab('qeType')}<select data-type="drc.${side}.${i}" style="${fld}">${[['offer', t('qeOffer')], ['text', t('qeDrcText')]].map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div><span class="spacer"></span>${ctl('drc.' + side, i, q.drc[side].length)}</div>
+        ${d.type === 'offer' ? `<div class="qe-row"><div>${lab('qeSolution')}${sel(`drc.${side}.${i}.solution`, solOpts)}</div><div>${lab('qeAmount')}${inp(`drc.${side}.${i}.amount`, '', '120px', true)}</div></div>` : bi(`drc.${side}.${i}.text`, 2)}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="drc.${side}">${esc(t('qeAddDrc'))}</button>`;
+    const optHtml = () => (q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
+        ${(q.options || []).length < 4 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
+
+    const reasonOpts = (reasons.length ? reasons : [q.request.reason || '']).map((r) => [r, reasonLabel(r)]);
+    const recalc = () => {
+      const sum = q.request.items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+      const ded = Number(q.request.deduction) || 0;
+      q.request.amount = Math.round((sum - ded) * 100) / 100;
+      if (!q.request.deduction) delete q.request.deduction;
+      const first = q.drc.buyer.find((d) => d.type === 'offer');
+      if (first) { first.solution = q.request.solution; first.amount = q.request.amount; }
+    };
+    recalc();
+
+    const body = () => `
+      ${sec('qeParties', `<div class="qe-row"><div class="qe-grow">${lab('qeBuyer')}${inp('buyer.username')}</div><div>${lab('qeId')}${inp('buyer.id', '', '130px', true)}</div><div class="qe-grow">${lab('qeSeller')}${inp('seller.username')}</div><div>${lab('qeId')}${inp('seller.id', '', '130px', true)}</div></div>`)}
+      ${sec('qeOrder', items('order.items'))}
+      ${sec('qePayment', `<div class="qe-row"><div class="qe-grow">${lab('qeMethod')}${bi('payment.method')}</div><div class="qe-grow">${lab('qePayStatus')}${bi('payment.status')}</div></div>`)}
+      ${sec('qeLogistics', `${lab('qeCarrier')}${bi('logistics.carrier')}<div style="margin-top:8px">${lab('qeEvents')}</div>${q.logistics.events.map((e, i) => `<div class="qe-row"><div>${inp(`logistics.events.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div><div class="qe-grow">${bi(`logistics.events.${i}.status`)}</div>${ctl('logistics.events', i, q.logistics.events.length)}</div>`).join('')}<button type="button" class="btn sm" data-act="add" data-arr="logistics.events">${esc(t('qeAddEvent'))}</button>`)}
+      ${sec('qeChat', chatHtml())}
+      ${sec('qeDrc', `<div class="qe-two"><div><b class="small">${esc(t('drcBuyer'))}</b>${drcHtml('buyer')}</div><div><b class="small">${esc(t('drcSeller'))}</b>${drcHtml('seller')}</div></div>`, t('qeDrcSync'))}
+      ${sec('qeRequest', `<div class="qe-row"><div>${lab('qeSolution')}${sel('request.solution', solOpts)}</div><div class="qe-grow">${lab('qeReason')}${sel('request.reason', reasonOpts)}</div><div>${lab('qeDeduction')}${inp('request.deduction', '0', '120px', true)}</div><div>${lab('qeAmount')}<div class="qe-amount" id="qe_amt">$${esc(q.request.amount)}</div></div></div>
+        <div class="small muted" style="margin:4px 0 10px">${esc(t('qeAmountAuto'))}</div>${lab('qeRemark')}${bi('request.remark', 2)}
+        <div style="margin-top:10px">${lab('qeReqItems')}<div class="small muted" style="margin-bottom:6px">${esc(t('qeOrderHint'))}</div>${items('request.items')}</div>`)}
+      ${sec('qeQuestion', `${lab('qePrompt')}${bi('prompt')}<div class="qe-row" style="margin-top:8px"><div>${lab('qeQType')}${sel('type', [['A', t('qeTypeA')], ['B', t('qeTypeB')], ['C', t('qeTypeC')]])}</div></div>
+        <div style="margin-top:8px">${optHtml()}</div>
+        <div style="margin-top:8px">${lab('qePoint')}${bi('point')}</div>
+        ${q.type !== 'A' ? `<div style="margin-top:8px">${lab('qeModel')}${bi('modelAnswer', 3)}</div><div style="margin-top:8px">${lab('qeRubric')}${bi('rubric', 3)}</div>` : ''}
+        <div style="margin-top:8px">${lab('qeExpl')}${bi('explanation', 4)}</div>`)}`;
+
+    return modal(`<div class="qe"><div class="row qe-head"><h2>${esc(t('qeTitle'))}${title ? ' · ' + esc(title) : ''}</h2></div>
+        <div class="qe-body" id="qe_body"></div>
+        <div class="qe-foot"><div id="qe_err" class="banner err" hidden></div><div class="row"><span class="spacer"></span><button class="btn" data-close="">${esc(t('qeCancel'))}</button><button class="btn brand" id="qe_ok" type="button">${esc(t('qeApply'))}</button></div></div></div>`,
+    { wide: true, onMount: (el, close) => {
+      el.classList.add('qe-modal');
+      const box = $('#qe_body', el);
+      const render = () => { const y = box.scrollTop; box.innerHTML = body(); box.scrollTop = y; };
+      render();
+      box.addEventListener('input', (e) => {
+        const p = e.target.dataset.p; if (!p) return;
+        setP(q, p, e.target.dataset.num ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value);
+        if (/^request\.(items|deduction)/.test(p)) { recalc(); $('#qe_amt', el).textContent = '$' + q.request.amount; }
+      });
+      box.addEventListener('change', (e) => {
+        const tgt = e.target;
+        if (tgt.name === 'qe_ans') { q.answer = tgt.value; return; }
+        if (tgt.dataset.type) {   // 換類型：只保留共用欄位
+          const cur = getP(q, tgt.dataset.type), v = tgt.value, base = { t: cur.t };
+          if (tgt.dataset.type.startsWith('chat')) Object.assign(base, { from: cur.from, type: v }, v === 'text' ? { text: { zh: '', en: '' } } : v === 'sticker' ? { sticker: 'ok' } : { kind: 'image', desc: { zh: '', en: '' } });
+          else Object.assign(base, { type: v }, v === 'offer' ? { solution: q.request.solution || 'Refund Only', amount: q.request.amount || 0 } : { text: { zh: '', en: '' } });
+          setP(q, tgt.dataset.type, base); recalc(); render(); return;
+        }
+        const p = tgt.dataset.p; if (!p) return;
+        if (p === 'type') { if (q.type === 'C') { delete q.options; delete q.answer; } else if (!q.options) { q.options = [{ id: 'a', text: { zh: '', en: '' } }, { id: 'b', text: { zh: '', en: '' } }]; } if (q.type === 'A') { delete q.modelAnswer; delete q.rubric; } else { q.modelAnswer = q.modelAnswer || { zh: '', en: '' }; q.rubric = q.rubric || { zh: '', en: '' }; } render(); }
+        if (p === 'request.solution') { recalc(); render(); }
+      });
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]'); if (!b) return;
+        const arrP = b.dataset.arr, arr = getP(q, arrP) || [], i = +b.dataset.i;
+        if (b.dataset.act === 'del') arr.splice(i, 1);
+        else if (b.dataset.act === 'up') [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+        else if (b.dataset.act === 'down') [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+        else if (b.dataset.act === 'add') {
+          const last = arr.at(-1);
+          if (/items$/.test(arrP)) arr.push(arrP.startsWith('request') && q.order.items[0] ? clone(Object.assign({}, q.order.items[0], { qty: 1 })) : { name: { zh: '', en: '' }, variation: { zh: '', en: '' }, qty: 1, price: 0 });
+          else if (arrP === 'chat') arr.push({ t: (last && last.t) || '', from: last && last.from === 'buyer' ? 'seller' : 'buyer', type: 'text', text: { zh: '', en: '' } });
+          else if (arrP.startsWith('drc')) arr.push({ t: (last && last.t) || '', type: 'text', text: { zh: '', en: '' } });
+          else if (arrP === 'logistics.events') arr.push({ t: (last && last.t) || '', status: { zh: '', en: '' } });
+          else if (arrP === 'options') arr.push({ id: '', text: { zh: '', en: '' } });
+          setP(q, arrP, arr);
+        }
+        if (arrP === 'options') { const old = (q.options || []).findIndex((o) => o.id === q.answer); q.options.forEach((o, k) => { o.id = String.fromCharCode(97 + k); }); if (old < 0 || old >= q.options.length) q.answer = q.answer && q.options.some((o) => o.id === q.answer) ? q.answer : undefined; }
+        recalc(); render();
+      });
+      $('#qe_ok', el).onclick = () => {
+        const out = clone(q);
+        (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim() && !String(it.variation.en || '').trim()) delete it.variation; });
+        const chk = DB() && DB().check ? DB().check(out, reasons) : { errors: [] };
+        if (chk.errors.length) { const er = $('#qe_err', el); er.innerHTML = `<b>${esc(t('qeErrors'))}</b><br>${chk.errors.slice(0, 8).map(esc).join('<br>')}`; er.hidden = false; return; }
+        close(out);
+      };
+    } });
   }
 
   // ───────── 草稿校對 ─────────
@@ -1564,6 +1722,7 @@
       <div class="tabs"><a class="tab ${tab === 'pending' ? 'on' : ''}" href="#/library">${esc(t('libPending'))} <span id="pn"></span></a><a class="tab ${tab === 'active' ? 'on' : ''}" href="#/library?tab=active">${esc(t('libActive'))}</a><a class="tab ${tab === 'requests' ? 'on' : ''}" href="#/library?tab=requests">${esc(t('libRequests'))}</a></div>
       <div id="lb"><div class="empty-state"><span class="spin"></span></div></div>`);
     $('#reload').onclick = () => viewLibrary();
+    if (liveOff) { liveOff(); liveOff = null; }
     let meta, d;
     try { [meta, d] = await Promise.all([getLibMeta(), tab === 'requests' ? api('tw_listRequests') : api('tw_listSamples')]); } catch (e) { showError(e, $('#lb')); return; }
     const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
@@ -1571,7 +1730,18 @@
       const pend = d.samples.filter((s) => s.status === 'pending');
       $('#pn').textContent = pend.length ? `(${pend.length})` : '';
       const all = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
-      if (!all.length) { $('#lb').innerHTML = `<div class="card empty-state">${esc(t(tab === 'pending' ? 'noPending' : 'noActive'))}</div>`; return; }
+      // 範例索引有變動（例如排程送來新的待審範例）就自動重新整理；正在搜尋輸入時不打斷
+      const liveSamples = (cur) => {
+        if (!DB() || !DB().live) return;
+        let last = JSON.stringify(cur);
+        liveOff = DB().live.sampleIndex((rows) => {
+          const j = JSON.stringify(rows); if (j === last) return; last = j;
+          if (!/^#\/library(\?|$)/.test(location.hash)) return;
+          if (document.activeElement && document.activeElement.id === 'lq') return;
+          viewLibrary();
+        });
+      };
+      if (!all.length) { $('#lb').innerHTML = `<div class="card empty-state">${esc(t(tab === 'pending' ? 'noPending' : 'noActive'))}</div>`; liveSamples(d.samples); return; }
       const f = libFilter;                        // 篩選條件在切換分頁 / 重新整理時保留
       $('#lb').innerHTML = `<div class="lib-grid"><aside class="card lib-side" id="ls"></aside>
         <div class="lib-main"><div class="lib-search"><input id="lq" type="search" placeholder="${esc(t('libSearchPh'))}" value="${esc(f.q)}" aria-label="${esc(t('libSearchPh'))}"><span class="small muted" id="lc"></span></div><div id="ll"></div></div></div>`;
@@ -1616,6 +1786,7 @@
       };
       $('#lq').addEventListener('input', (e) => { f.q = e.target.value; drawList(); });
       drawSide(); drawList();
+      liveSamples(d.samples);
       return;
     }
     // 申請
@@ -1634,7 +1805,7 @@
     drawTags(); $('#r_topic').onchange = drawTags;
     function drawReqs(reqs) {
       if (!reqs.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noReq'))}</div>`; return; }
-      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('wantedTags'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('colWantedNote'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
         reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}</td>
           <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
           <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
@@ -1643,6 +1814,11 @@
       $$('[data-cancel]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_cancelRequest', { requestId: b.dataset.cancel }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
     }
     drawReqs(d.requests);
+    // 申請狀態有變動（排程處理中、完成、失敗）就自動更新列表
+    if (DB() && DB().live) {
+      let last = JSON.stringify(d.requests);
+      liveOff = DB().live.requests((rows) => { const j = JSON.stringify(rows); if (j === last) return; last = j; if ($('#rl')) drawReqs(rows); });
+    }
     $('#rf').addEventListener('submit', async (e) => {
       e.preventDefault(); $('#r_go').disabled = true; $('#r_err').hidden = true;
       try {
@@ -1668,7 +1844,7 @@
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
-          <span class="spacer"></span><button class="btn sm" id="json">${esc(t('editJson'))}</button>
+          <span class="spacer"></span><button class="btn sm ghost" id="json">${esc(t('qeJsonAdv'))}</button><button class="btn" id="qedit">✎ ${esc(t('qeOpen'))}</button>
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
           <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
           ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
@@ -1700,6 +1876,12 @@
       $('#e_hint').oninput = (e) => { work.changeHint = e.target.value; mark(); };
       const ap = $('#applyAi'); if (ap) ap.onclick = () => { const sg = s.suggest; work.tags = (sg.tags || []).slice(); work.pointZh = sg.pointZh || work.pointZh; work.answer = sg.answer || work.answer; dirty = true; draw(); };
       $('#save').onclick = () => save();
+      $('#qedit').onclick = async () => {
+        let reasons = [];
+        try { reasons = (await api('tw_getTopic', { topicId: s.topicId })).topic.reasons || []; } catch (_) { /* */ }
+        const out = await questionEditor(work.question, { reasons, title: s.sampleId });
+        if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
+      };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {
         if (!work.tags.length) { toast(t('tagsNeeded')); return; }
         if (dirty && !(await save())) return;
@@ -1728,7 +1910,7 @@
 
   // ───────── 主題設定（TW 講師） ─────────
   Object.assign(I18N.zh, {
-    settings: '主題設定', setTopic: '主題與判斷標準', setTags: '標籤', setOptions: '選項範本', setRoles: '講師名單', setSystem: '系統設定',
+    colWantedNote: '預期分類 / 說明', settings: '主題設定', setTopic: '主題與判斷標準', setTags: '標籤', setOptions: '選項範本', setRoles: '講師名單', setSystem: '系統設定',
     seedTitle: '建立初始資料', seedHint: '第一次使用 V2 時，請選擇初始資料檔（rrqp_seed.json，放在 RR Quiz Platform\\firebase 資料夾，不在 GitHub 上）。會建立「協議判斷」主題、判斷標準、標籤、選項範本與系統設定，並把你加入講師名單。',
     seedPick: '選擇初始資料檔', seedRun: '建立初始資料', seedDone: '已建立：主題 {t} 個、標籤 {g} 個、選項範本 {o} 組', seedBad: '檔案不是有效的初始資料（JSON）',
     seedPreview: '主題 {t} 個、標籤 {g} 個、選項範本 {o} 組、系統設定 {s} 項',
@@ -1742,7 +1924,7 @@
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
   });
   Object.assign(I18N.en, {
-    settings: 'Settings', setTopic: 'Topic & criteria', setTags: 'Tags', setOptions: 'Option sets', setRoles: 'Trainers', setSystem: 'System',
+    colWantedNote: 'Expected tags / note', settings: 'Settings', setTopic: 'Topic & criteria', setTags: 'Tags', setOptions: 'Option sets', setRoles: 'Trainers', setSystem: 'System',
     seedTitle: 'Initialize data', seedHint: 'The first time you use V2, choose the seed file (rrqp_seed.json, in the RR Quiz Platform\\firebase folder, not on GitHub). It creates the Agreement Check topic, criteria, tags, option sets and system settings, and adds you as a trainer.',
     seedPick: 'Choose seed file', seedRun: 'Initialize', seedDone: 'Created {t} topic(s), {g} tags, {o} option sets', seedBad: 'This is not a valid seed file (JSON)',
     seedPreview: '{t} topic(s), {g} tags, {o} option sets, {s} settings',

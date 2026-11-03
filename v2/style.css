@@ -281,3 +281,22 @@ tr.dim td { opacity: .55; }
 @media (hover: none) { .lib-edit { opacity: 1; } }
 .guide-link { display: inline-flex; align-items: center; text-decoration: none !important; color: var(--ink); }
 @media (max-width: 1420px) { header.top .hdr-email { display: none; } }
+
+/* 題目內容編輯器 */
+.modal.qe-modal { width: min(1100px, 96vw); max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; padding: 0; }
+.qe { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.qe-head { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.qe-body { overflow: auto; padding: 8px 20px 20px; flex: 1; min-height: 0; max-height: calc(92vh - 140px); }
+.qe-foot { border-top: 1px solid var(--line); padding: 12px 20px; display: flex; flex-direction: column; gap: 8px; }
+.qe-sec { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.qe-sec h3 { font-size: 15px; margin: 0 0 10px; }
+.qe-lab { font-size: 12.5px; color: var(--muted); margin: 2px 0 4px; }
+.qe-bi { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.qe-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 6px; }
+.qe-row > .qe-grow { flex: 1; min-width: 220px; }
+.qe-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+.qe-card.qe-seller { background: var(--seller); }
+.qe-ctl { display: inline-flex; gap: 2px; margin-left: auto; }
+.qe-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.qe-amount { font-weight: 700; font-size: 16px; padding: 6px 0; }
+@media (max-width: 760px) { .qe-bi, .qe-two { grid-template-columns: 1fr; } }

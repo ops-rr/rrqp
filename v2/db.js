@@ -31,6 +31,9 @@ async function firestoreStore() {
     async del(path) { await F.deleteDoc(ref(path)); },
     async batch(ops) { for (let i = 0; i < ops.length; i += 450) { const b = F.writeBatch(db); toOps(b, ops.slice(i, i + 450)); await b.commit(); } },
     deleteField: () => F.deleteField(),
+    /** 即時監聽：資料有變動就呼叫 cb；回傳取消監聽的函式 */
+    watchDoc(path, cb) { return F.onSnapshot(ref(path), (s) => cb(s.exists() ? s.data() : null), (e) => console.warn('watch', path, e.code)); },
+    watchColl(coll, cb) { return F.onSnapshot(F.collection(db, coll), (s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), (e) => console.warn('watch', coll, e.code)); },
     /** 流水號：用交易保證兩位講師同時申請也不會拿到同一個號碼；回傳第一個號碼 */
     async nextIds(kind, count) {
       return F.runTransaction(db, async (tx) => {
@@ -52,7 +55,8 @@ function memoryStore() {
   const KEY = 'rrqp2:preview-db';
   let data = {};
   try { data = JSON.parse(sessionStorage.getItem(KEY) || '{}'); } catch (_) { /* */ }
-  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(data)); } catch (_) { /* */ } };
+  const watchers = new Set();
+  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(data)); } catch (_) { /* */ } setTimeout(() => watchers.forEach((w) => w()), 0); };
   const DEL = { __del: true };
   const setPath = (obj, dotted, v) => {
     const ks = dotted.split('.'); let o = obj;
@@ -84,7 +88,9 @@ function memoryStore() {
       signOut: async () => { user = null; subs.forEach((cb) => cb(null)); },
       onAuth: (cb) => { subs.push(cb); cb(user); },
     },
-    devPut: (path, d) => { data[path] = clone(d); save(); },   // 只在預覽模式：放入測試資料
+    devPut: (path, d) => { data[path] = clone(d); save(); },
+    watchDoc(path, cb) { const w = () => cb(clone(data[path] || null)); watchers.add(w); w(); return () => watchers.delete(w); },
+    watchColl(coll, cb) { const pre = coll + '/'; const w = () => cb(Object.keys(data).filter((p) => p.startsWith(pre) && !p.slice(pre.length).includes('/')).map((p) => Object.assign({ id: p.slice(pre.length) }, clone(data[p])))); watchers.add(w); w(); return () => watchers.delete(w); },   // 只在預覽模式：放入測試資料
   };
 }
 
@@ -533,6 +539,12 @@ async function api(action, payload = {}) {
     signOut: () => { ME = null; currentEmail = null; return S.auth.signOut(); },
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
+    check: (q, reasons) => checkQuestion(q, reasons),   // 題目格式檢查（編輯器套用前先檢查）
+    /** 即時監聽（只給 TW 講師的範例生成頁用；權限仍由規則把關） */
+    live: {
+      requests: (cb) => S.watchColl('sampleRequests', (rows) => cb(rows.map(reqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)))),
+      sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
+    },
   };
   window.dispatchEvent(new Event('rrqp-db-ready'));
 })();
