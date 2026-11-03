@@ -26,12 +26,12 @@
       guide: '使用說明', navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
-      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
+      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant Beta 貼上，Agent 會開始生成題目。',
       copy: '複製', copied: '已複製', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
       colDraft: '草稿', colTopic: '主題', colProgress: '進度', colStatus: '狀態', colBy: '建立者', colUpdated: '更新時間',
       st_generating: '生成中', st_draft: '待校對', st_ready: '可發佈', generated: '已生成 {a} / {b}', reviewedN: '已校對 {a} / {b}',
       noDrafts: '還沒有草稿。按「建立草稿」開始。', back: '← 草稿',
-      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RR AI Quiz Assistant 貼上：',
+      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RR AI Quiz Assistant Beta 貼上：',
       genAuto: '此頁每 15 秒自動更新。', markReady: '標記為可發佈', unready: '退回校對', readyDone: '草稿已標記為可發佈',
       readyNeed: '還有 {n} 題未校對', prev: '上一題', next: '下一題', save: '儲存', saved: '已儲存', saving: '儲存中…',
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
@@ -52,12 +52,12 @@
       guide: 'Guide', navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
-      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
+      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant Beta in SeaTalk to start generating.',
       copy: 'Copy', copied: 'Copied', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
       colDraft: 'Draft', colTopic: 'Topic', colProgress: 'Progress', colStatus: 'Status', colBy: 'Created by', colUpdated: 'Updated',
       st_generating: 'Generating', st_draft: 'In review', st_ready: 'Ready', generated: 'Generated {a} / {b}', reviewedN: 'Reviewed {a} / {b}',
       noDrafts: 'No drafts yet. Click "New draft" to start.', back: '← Drafts',
-      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RR AI Quiz Assistant in SeaTalk:',
+      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RR AI Quiz Assistant Beta in SeaTalk:',
       genAuto: 'This page refreshes every 15 seconds.', markReady: 'Mark as ready', unready: 'Back to review', readyDone: 'Draft marked as ready',
       readyNeed: '{n} question(s) not reviewed', prev: 'Previous', next: 'Next', save: 'Save', saved: 'Saved', saving: 'Saving…',
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
@@ -249,10 +249,17 @@
     $('#refresh').onclick = () => loadList();
     if (createdCmd) showCmd(createdCmd);
     let topics;
+    let lastJ = '';
     async function loadList(silent) {
       try {
         const [{ drafts }, tp] = await Promise.all([api('t_listDrafts'), getTopics()]);
-        topics = tp;
+        topics = tp; render(drafts);
+        if (!liveOff) liveOff = DB().live.drafts((rows) => { const j = JSON.stringify(rows); if (j !== lastJ && $('#listBox')) render(rows); });
+      } catch (e) { if (!silent) showError(e, $('#listBox')); }
+    }
+    function render(drafts) {
+      lastJ = JSON.stringify(drafts);
+      {
         const topicName = (id) => L((topics.topics.find((x) => x.topicId === id) || {}).name) || id;
         const box = $('#listBox'); if (!box) return;
         if (!drafts.length) { box.innerHTML = `<div class="empty-state">${esc(t('noDrafts'))}</div>`; return; }
@@ -267,9 +274,7 @@
         $$('[data-copy]', box).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); copyText(b.dataset.copy); }));
         $$('[data-open]', box).forEach((r) => r.addEventListener('click', () => { location.hash = '#/draft/' + r.dataset.open; }));
         $$('[data-del]', box).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); deleteDraft(b.dataset.del, b.dataset.banked === '1' ? 0 : null, loadList); }));
-        clearInterval(pollTimer); pollTimer = null;
-        if (drafts.some((d) => d.status === 'generating')) pollTimer = setInterval(() => { if (!document.hidden) loadList(true); }, 15000);
-      } catch (e) { if (!silent) showError(e, $('#listBox')); }
+      }
     }
     function showCmd(cmd) {
       const id = cmd.replace('生成考題 ', '');
@@ -604,7 +609,8 @@
         <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
         <div class="dfoot">
           <button class="btn sm danger" id="del" ${editable ? '' : 'disabled'}>${esc(t('del'))}</button>
-          <button class="btn sm" id="json" ${editable ? '' : 'disabled'}>${esc(t('editJson'))}</button>
+          <button class="btn sm primary" id="qedit" ${editable ? '' : 'disabled'}>✎ ${esc(t('qeOpen'))}</button>
+          <button class="btn sm ghost" id="json" ${editable ? '' : 'disabled'}>${esc(t('qeJsonAdv'))}</button>
           <span class="spacer"></span><span class="small soft" id="dirtyMark"></span>
           <button class="btn" id="save" ${editable && dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
           ${src.reviewed && !dirty
@@ -636,7 +642,7 @@
         toast(t('saved'));
         if (reviewed) { const nxt = questions.findIndex((q, i) => i > idx && !q.reviewed); if (nxt >= 0) { idx = nxt; work = clone(questions[idx]); } }
         history.replaceState(null, '', '#/draft/' + draft.draftId + '?q=' + questions[idx].id);
-        draw();
+        draw(); if (pending) refetch();
       } catch (e) {
         saving = false;
         err.innerHTML = esc(e.message); err.hidden = false;
@@ -682,6 +688,13 @@
       $('#save').onclick = () => save(questions[idx].reviewed);
       const rv = $('#rev'); if (rv) rv.onclick = () => save(true);
       const un = $('#unrev'); if (un) un.onclick = () => save(false);
+      $('#qedit').onclick = async () => {
+        const tp = await getTopics().catch(() => null);
+        const reasons = ((tp && tp.topics.find((x) => x.topicId === draft.topicId)) || {}).reasons || [];
+        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete raw[k]);
+        const out = await questionEditor(raw, { reasons, title: questions[idx].id });
+        if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs }); draw(); setDirty(true); toast(t('qeApplied')); }
+      };
       $('#json').onclick = async () => {
         const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings'].forEach((k) => delete raw[k]);
         await modal(`<h2>${esc(t('editJson'))} · ${esc(questions[idx].id)}</h2>
@@ -709,26 +722,30 @@
           draft = r.draft; questions.splice(idx, 1); idx = Math.min(idx, questions.length - 1); dirty = false;
           work = questions.length ? clone(questions[Math.max(0, idx)]) : null; idx = Math.max(0, idx);
           if (r.command) { copyText(r.command); toast(t('delRefillDone', { cmd: r.command }), 6000); } else toast(t('delDone'));
-          draw(); if (draft.status === 'generating') startPoll();
+          draw();
         } catch (e) { toast(e.message, 4000); }
       };
     }
-    function startPoll() {
-      clearInterval(pollTimer);
-      pollTimer = setInterval(async () => {
-        if (document.hidden || dirty) return;
-        try {
-          const r = await api('t_getDraft', { draftId: draft.draftId });
-          const changed = r.questions.length !== questions.length || r.draft.status !== draft.status;
-          draft = r.draft; questions = r.questions;
-          if (changed) { idx = Math.min(idx, Math.max(0, questions.length - 1)); work = questions.length ? clone(questions[idx]) : null; draw(); }
-          if (draft.status !== 'generating') { clearInterval(pollTimer); pollTimer = null; }
-        } catch (_) { /* 下次再試 */ }
-      }, 15000);
+    /** 即時監聽這份草稿：Agent 寫入新題目或狀態改變時自動重新載入（正在編輯時先不打擾） */
+    let pending = false;
+    async function refetch() {
+      if (dirty || saving) { pending = true; return; }
+      pending = false;
+      try {
+        const r = await api('t_getDraft', { draftId: draft.draftId });
+        const curId = questions[idx] && questions[idx].id;
+        draft = r.draft; questions = r.questions;
+        idx = Math.max(0, questions.findIndex((q) => q.id === curId));
+        work = questions.length ? clone(questions[idx]) : null; draw();
+      } catch (_) { /* 下次再試 */ }
     }
+    if (liveOff) { liveOff(); liveOff = null; }
+    liveOff = DB().live.draft(draft.draftId, (d) => {
+      if (!d) return;
+      if (d.imported !== draft.imported || d.status !== draft.status || d.target !== draft.target) refetch();
+    });
     work = questions.length ? clone(questions[idx]) : null;
     draw();
-    if (draft.status === 'generating') startPoll();
   }
 
   // ═════════════════════════ M4：發佈與作答 ═════════════════════════

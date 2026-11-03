@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-03b';
+const VERSION = 'V2-2026-11-03c';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -125,7 +125,7 @@ async function whoAmI() {
 const needTeacher = async () => { const m = await whoAmI(); if (!m.isTeacher) fail('Teacher access only / 僅限講師'); return m; };
 const needTW = async () => { const m = await whoAmI(); if (m.role !== 'tw') fail('TW teacher access only / 僅限 TW 講師'); return m; };
 
-const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1' });
+const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', reasons: t.reasons || [] });
 const tagOut = (t) => ({ tagId: t.id, topicId: t.topicId, name: t.name || { zh: t.id, en: t.id }, desc: t.desc || '' });
 
 // ───────── 範例的共用處理 ─────────
@@ -233,6 +233,31 @@ function checkQuestion(q, reasons) {
   return { errors: errs, warnings: warn };
 }
 
+// ───────── 草稿與題庫的共用處理 ─────────
+const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags: d.tags || [], target: d.target || 0, mix: d.mix || {}, imported: d.imported || 0,
+  reviewed: d.reviewed || 0, status: d.status, createdBy: d.createdBy || '', updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : null, version: d.updatedAt || 0 });
+const questionOut = (q) => Object.assign({}, q.question || {}, { id: q.id, reviewed: !!q.reviewed, criteriaVersion: q.criteriaVersion || '', warnings: q.warnings || [] });
+const bankIndexRow = (x) => {
+  const j = x.question || {}, opt = (j.options || []).find((o) => o.id === j.answer);
+  return { topicId: x.topicId, type: x.type, tags: x.tags || [], pointZh: x.pointZh || '', point: j.point || null, prompt: j.prompt || null, answer: opt ? opt.text : null,
+    criteriaVersion: x.criteriaVersion || '', status: x.status, version: x.version || 1, sourceDraft: x.sourceDraft || '', sourceQid: x.sourceQid || '', updatedAt: x.updatedAt || null,
+    used: x.used || 0, rateSum: x.rateSum || 0, rateN: x.rateN || 0 };
+};
+/** 草稿題目 → 題庫編號（從題庫索引查，不用讀整個題庫） */
+async function bankedBySource() {
+  const idx = (await S.get('meta/bankIndex')) || {}; const m = {};
+  Object.entries(idx.items || {}).forEach(([qid, r]) => { if (r.sourceQid) m[r.sourceQid] = qid; });
+  return m;
+}
+/** 重新計算已校對題數；可發佈的草稿被修改後退回待校對 */
+async function touchDraft(draftId, d) {
+  const qs = await S.list('drafts/' + draftId + '/questions');
+  const patch = { reviewed: qs.filter((q) => q.reviewed).length, updatedAt: now() };
+  if (d.status === 'ready' && patch.reviewed < qs.length) patch.status = 'draft';
+  await S.update('drafts/' + draftId, patch);
+  return draftOut(Object.assign({ id: draftId }, d, patch));
+}
+
 // ───────── 動作 ─────────
 const ACTIONS = {
   me: async () => whoAmI(),
@@ -280,6 +305,138 @@ const ACTIONS = {
     if (b.active !== undefined) patch.active = !!b.active;
     await S.update('tags/' + b.tagId, patch);
     return { tag: { tagId: b.tagId, topicId: r.topicId, name: patch.name || r.name, active: b.active !== undefined ? !!b.active : r.active !== false } };
+  },
+
+  // ─── 題庫生成（草稿） ───
+  t_createDraft: async (b) => {
+    const m = await needTeacher();
+    const name = String(b.name || '').trim();
+    if (!name) fail('草稿名稱必填 / Draft name is required');
+    const topicId = b.topicId || 'agreement';
+    if (!(await S.get('topics/' + topicId))) fail('找不到主題 / Topic not found');
+    const target = Number(b.target);
+    if (!(target >= 1 && target <= 50)) fail('題數需介於 1–50 / Target must be 1–50');
+    const mx = b.mix || {};
+    const mix = { A: Number(mx.A) || 0, B: Number(mx.B) || 0, C: Number(mx.C) || 0 };
+    if (mix.A + mix.B + mix.C === 0) mix.B = target;
+    if (mix.A + mix.B + mix.C !== target) fail('題型數量加總需等於題數 / Type mix must add up to target');
+    const tags = (b.tags || []).map(String);
+    const known = new Set((await S.list('tags')).filter((t) => t.topicId === topicId).map((t) => t.id));
+    const unknown = tags.filter((t) => !known.has(t));
+    if (unknown.length) fail('未知的標籤 / Unknown tags: ' + unknown.join(', '));
+    const n = await S.nextIds('D', 1);
+    const draftId = 'D' + String(n).padStart(3, '0'), t = now();
+    await S.set('drafts/' + draftId, { name, topicId, tags, target, mix, imported: 0, reviewed: 0, status: 'generating', createdBy: m.email, createdAt: t, updatedAt: t });
+    return { draftId, command: '生成考題 ' + draftId };
+  },
+
+  t_listDrafts: async () => {
+    await needTeacher();
+    const rows = await S.list('drafts');
+    return { drafts: rows.filter((d) => d.status !== 'deleted').map(draftOut).sort((a, b) => b.draftId.localeCompare(a.draftId)) };
+  },
+
+  t_deleteDraft: async (b) => {
+    const m = await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    const [qs, banked] = await Promise.all([S.list('drafts/' + b.draftId + '/questions'), bankedBySource()]);
+    await S.update('drafts/' + b.draftId, { status: 'deleted', prevStatus: d.status, updatedAt: now(), updatedBy: m.email });
+    return { deleted: b.draftId, unbanked: qs.filter((q) => !banked[q.id]).length };
+  },
+
+  t_getDraft: async (b) => {
+    await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found: ' + b.draftId);
+    const [qs, banked] = await Promise.all([S.list('drafts/' + b.draftId + '/questions'), bankedBySource()]);
+    return { draft: draftOut(Object.assign({ id: b.draftId }, d)), questions: qs.sort((x, y) => (x.seq || 0) - (y.seq || 0)).map((q) => Object.assign(questionOut(q), { bankedAs: banked[q.id] || null })) };
+  },
+
+  /** 修改一題（整題）；重新檢查格式，有錯誤就不寫入。可同時設定 reviewed */
+  t_updateQuestion: async (b) => {
+    const m = await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    if (d.status === 'generating') fail('草稿生成中，請等生成完成再修改 / Draft is still generating');
+    const path = 'drafts/' + b.draftId + '/questions/' + b.qid;
+    const row = await S.get(path) || fail('找不到題目 / Question not found: ' + b.qid);
+    const q = Object.assign({}, b.question || {}); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete q[k]);
+    const topic = (await S.get('topics/' + d.topicId)) || {};
+    const chk = checkQuestion(q, topic.reasons || []);
+    if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
+    if (q.type !== row.type) fail('不能變更題型 / Question type cannot be changed');
+    const patch = { question: q, answer: q.answer || '', pointZh: (q.point && q.point.zh) || '', warnings: chk.warnings, updatedAt: now(), updatedBy: m.email };
+    if (b.reviewed !== undefined) patch.reviewed = !!b.reviewed;
+    await S.update(path, patch);
+    const nd = await touchDraft(b.draftId, d);
+    return { question: questionOut(Object.assign({ id: b.qid }, row, patch)), draft: nd };
+  },
+
+  t_setReviewed: async (b) => {
+    await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    if (d.status === 'generating') fail('草稿生成中 / Draft is still generating');
+    await S.update('drafts/' + b.draftId + '/questions/' + b.qid, { reviewed: !!b.reviewed });
+    return { qid: b.qid, reviewed: !!b.reviewed, draft: await touchDraft(b.draftId, d) };
+  },
+
+  /** 刪除一題；refill=true 時草稿回到生成中，再傳一次指令讓 Agent 補題；否則題數減 1 */
+  t_deleteQuestion: async (b) => {
+    await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    if (d.status === 'generating') fail('草稿生成中 / Draft is still generating');
+    const path = 'drafts/' + b.draftId + '/questions/' + b.qid;
+    const row = await S.get(path) || fail('找不到題目 / Question not found: ' + b.qid);
+    const patch = { imported: Math.max(0, (d.imported || 0) - 1), updatedAt: now() };
+    if (b.refill) patch.status = 'generating';
+    else {
+      const mix = Object.assign({ A: 0, B: 0, C: 0 }, d.mix);
+      if (mix[row.type] > 0) mix[row.type]--;
+      Object.assign(patch, { mix, target: Math.max(0, (d.target || 0) - 1), status: 'draft' });
+    }
+    await S.batch([{ op: 'del', path }, { op: 'update', path: 'drafts/' + b.draftId, data: patch }]);
+    const nd = await touchDraft(b.draftId, Object.assign({}, d, patch));
+    return { deleted: b.qid, draft: nd, command: b.refill ? '生成考題 ' + b.draftId : '' };
+  },
+
+  t_markReady: async (b) => {
+    await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    if (b.ready === false) { await S.update('drafts/' + b.draftId, { status: 'draft', updatedAt: now() }); return { draft: draftOut(Object.assign({ id: b.draftId }, d, { status: 'draft' })) }; }
+    if (d.status !== 'draft') fail('只有「待校對」的草稿可以標記為可發佈 / Only drafts under review can be marked ready');
+    const qs = await S.list('drafts/' + b.draftId + '/questions');
+    if (!qs.length) fail('草稿沒有題目 / Draft has no questions');
+    const left = qs.filter((q) => !q.reviewed).length;
+    if (left) fail('還有 ' + left + ' 題未校對 / ' + left + ' question(s) not reviewed');
+    await S.update('drafts/' + b.draftId, { status: 'ready', updatedAt: now() });
+    return { draft: draftOut(Object.assign({ id: b.draftId }, d, { status: 'ready' })) };
+  },
+
+  /** 把草稿中已校對的題目加入題庫；題目、題庫索引、草稿狀態在同一批寫入 */
+  t_bankAdd: async (b) => {
+    const m = await needTeacher();
+    const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
+    if (d.status === 'generating') fail('草稿生成中 / Draft is still generating');
+    const [all, banked] = await Promise.all([S.list('drafts/' + b.draftId + '/questions'), bankedBySource()]);
+    all.sort((x, y) => (x.seq || 0) - (y.seq || 0));
+    const want = Array.isArray(b.qids) && b.qids.length ? b.qids.map(String) : null;
+    const pick = all.filter((q) => (!want || want.includes(q.id)) && !banked[q.id]);
+    const notRev = pick.filter((q) => !q.reviewed);
+    if (want && notRev.length) fail('只有已校對的題目可以入庫 / Only reviewed questions can be added: ' + notRev.map((q) => q.id).join(', '));
+    const rows = pick.filter((q) => q.reviewed);
+    if (!rows.length) fail('沒有可入庫的題目（需已校對且尚未入庫） / Nothing to add');
+    const first = await S.nextIds('Q', rows.length), t = now(), ops = [], idx = {};
+    const out = rows.map((q, i) => {
+      const qid = 'Q' + String(first + i).padStart(4, '0'), j = q.question || {};
+      const doc = { topicId: d.topicId, type: q.type, tags: j.tags || [], answer: j.answer || '', pointZh: (j.point && j.point.zh) || '', criteriaVersion: q.criteriaVersion || '',
+        status: 'active', sourceDraft: b.draftId, sourceQid: q.id, addedBy: m.email, addedAt: t, updatedAt: t, version: 1, question: j };
+      ops.push({ op: 'set', path: 'bank/' + qid, data: doc });
+      idx[qid] = bankIndexRow(doc);
+      return { qid, sourceQid: q.id };
+    });
+    ops.push({ op: 'set', path: 'meta/bankIndex', merge: true, data: { items: idx } });
+    const allBanked = all.every((q) => banked[q.id] || rows.some((r) => r.id === q.id));
+    if (allBanked) ops.push({ op: 'update', path: 'drafts/' + b.draftId, data: { status: 'banked', updatedAt: t } });
+    await S.batch(ops);
+    return { added: out, draft: draftOut(Object.assign({ id: b.draftId }, d, allBanked ? { status: 'banked' } : {})) };
   },
 
   // ─── 範例生成（TW 講師） ───
@@ -540,9 +697,11 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, reasons) => checkQuestion(q, reasons),   // 題目格式檢查（編輯器套用前先檢查）
-    /** 即時監聽（只給 TW 講師的範例生成頁用；權限仍由規則把關） */
+    /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {
       requests: (cb) => S.watchColl('sampleRequests', (rows) => cb(rows.map(reqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)))),
+      drafts: (cb) => S.watchColl('drafts', (rows) => cb(rows.filter((d) => d.status !== 'deleted').map(draftOut).sort((a, b) => b.draftId.localeCompare(a.draftId)))),
+      draft: (id, cb) => S.watchDoc('drafts/' + id, (d) => cb(d ? draftOut(Object.assign({ id }, d)) : null)),
       sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
     },
   };
