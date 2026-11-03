@@ -136,7 +136,7 @@
   function shell(active, inner) {
     const teacher = me && me.isTeacher;
     const nav = teacher ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}">
-        ${me.role === 'tw' ? `<a href="#/library" class="${active === 'library' ? 'on' : ''}">${esc(t('navLibrary'))}</a>` : `<span title="${esc(t('reviewOnlyTw'))}">${esc(t('navLibrary'))}</span>`}
+        ${me.role === 'tw' ? `<a href="#/library" class="${active === 'library' ? 'on' : ''}">${esc(t('navLibrary'))}</a>` : ''}
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/bank" class="${active === 'bank' ? 'on' : ''}">${esc(t('navBank'))}</a>
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
