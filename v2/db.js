@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04j';
+const VERSION = 'V2-2026-11-04k';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -804,6 +804,7 @@ const ACTIONS = {
       patch.active = !!p.active;
     }
     if (typeof p.rules === 'string') patch.rules = p.rules;
+    if (typeof p.gradingGuide === 'string') patch.gradingGuide = p.gradingGuide.trim().slice(0, 3000);
     let bumped = null;
     if (typeof p.criteria === 'string' && p.criteria.trim() !== String(t.criteria || '').trim()) {
       if (!p.criteria.trim()) fail('判斷標準不能是空的 / Criteria cannot be empty');
@@ -1187,6 +1188,12 @@ Object.assign(ACTIONS, M4);
 
 // ───────── 閱卷與成績（M5）：grades/{email}（ai = AI 分數、teacher = 講師確認）；發佈時寫 results/{sid}_{email} 給專員看 ─────────
 const isTextQ = (t) => t === 'B' || t === 'C';
+/** 預設批改原則（主題沒有設定時使用；與 rrqp2_tool.py 相同） */
+const DEFAULT_GRADING_GUIDE = `1. 專員只要點出正確的判斷關鍵就給滿分（例如「買家申退數量和協議不同」），不需要引用判斷標準的條文編號，也不需要重述案件細節（商品名稱、金額、數量）。
+2. 回答簡短、用英文或中文都可以，不因文法、拼字、用詞簡略扣分。
+3. 給部分分數：本題有兩個以上必要的判斷關鍵，只答出其中一部分。
+4. 給 0 分或低分：判斷關鍵錯誤、與正解矛盾、只寫結論沒有理由（例如只寫「未達成」）、理由與本題無關。
+5. rubric 的細項若要求引用條文或寫出具體細節，以本原則為準。`;
 const qMax = (q) => r2(((q.points || {}).choice || 0) + ((q.points || {}).text || 0));
 const resultId = (sid, email) => sid + '_' + email;
 const aidOf = (email, qid) => email + '|' + qid;
@@ -1299,6 +1306,19 @@ const M5 = {
     return { answer: answerRows(d.qs, d.atts, d.g).find((r) => r.aid === b.aid) };
   },
 
+  /** 清除某題「講師還沒確認」的 AI 分數，再傳一次「批改」指令就會依新的批改原則重新評分 */
+  t_resetAi: async (b) => {
+    await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId);
+    const d = await gradingData(sid);
+    if (d.s.released) fail('成績已公布，請先取消公布 / Withdraw the results first');
+    const pick = answerRows(d.qs, d.atts, d.g).filter((r) => (!b.qid || r.qid === b.qid) && r.teacherScore === null && ((d.g[r.email] || {}).ai || {})[r.qid]);
+    const by = {}; pick.forEach((r) => { (by[r.email] = by[r.email] || {})['ai.' + r.qid] = S.deleteField(); });
+    const ops = Object.entries(by).map(([e, data]) => ({ op: 'update', path: 'sessions/' + sid + '/grades/' + e, data }));
+    if (ops.length) await S.batch(ops);
+    return { cleared: pick.length, command: '批改 ' + sid };
+  },
+
   /** 一次接受某題所有「未確認且非低信心」的 AI 分數 */
   t_acceptAll: async (b) => {
     const m = await needTeacher();
@@ -1400,7 +1420,7 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
-    enPendingAfter, biLeaves,
+    enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
     dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },
     /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {

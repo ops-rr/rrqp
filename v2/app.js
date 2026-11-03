@@ -1174,7 +1174,8 @@
     gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
     needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR AI Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
     releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
-    released: '成績已公布', unrelease: '取消公布', confirmedBy: '{who} · {t}', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
+    released: '成績已公布', unrelease: '取消公布', confirmedBy: '{who} · {t}',
+    resetAi: '重新批改本題未確認的分數', resetAiConfirm: '清除本題「還沒確認」的 AI 分數（已確認的不受影響），之後再傳一次批改指令，AI 會依目前的批改原則重新評分。確定嗎？', resetAiDone: '已清除 {n} 筆，指令已複製：{cmd}', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
     overview: '總覽', lowN: '{n} 低信心', correctAns: '正解', ptsSplit: '選擇 {a} 分 + 原因 {b} 分', ptsText: '文字 {b} 分', modelAnswer2: '標準答案',
     colAgent: '專員', colChoice: '選擇', colReason: '原因', colAnswer: '答案', colAi: 'AI 判分', colTeacher: '講師確認',
     right: '對', wrong: '錯', noChoice: '未選', conf: '信心度 {n}%', lowConf: '低信心度 {n}%', notGraded: '尚未批改', accept: '接受', confirm: '確認',
@@ -1190,7 +1191,8 @@
     gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
     needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR AI Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
     releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
-    released: 'Results released', unrelease: 'Withdraw results', confirmedBy: '{who} · {t}', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
+    released: 'Results released', unrelease: 'Withdraw results', confirmedBy: '{who} · {t}',
+    resetAi: 'Re-grade unconfirmed scores in this question', resetAiConfirm: 'Clear the AI scores you have not confirmed in this question (confirmed ones stay). Send the grading command again and the AI will re-grade with the current grading principles. Continue?', resetAiDone: 'Cleared {n}. Command copied: {cmd}', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
     overview: 'Overview', lowN: '{n} low', correctAns: 'Answer', ptsSplit: 'Choice {a} + reason {b} points', ptsText: 'Written {b} points', modelAnswer2: 'Model answer',
     colAgent: 'Agent', colChoice: 'Choice', colReason: 'Reason', colAnswer: 'Answer', colAi: 'AI score', colTeacher: 'Trainer',
     right: 'correct', wrong: 'wrong', noChoice: 'none', conf: 'confidence {n}%', lowConf: 'Low confidence {n}%', notGraded: 'Not graded', accept: 'Accept', confirm: 'Confirm',
@@ -1252,7 +1254,7 @@
           <div class="gref"><div><h4>${esc(t('modelAnswer2'))}</h4><div>${esc(L(q.modelAnswer))}</div></div><div><h4>${esc(t('rubric'))}</h4><div>${esc(L(q.rubric))}</div></div></div></div>
         <div class="card scroll-x"><table class="list gtable"><thead><tr><th>${esc(t('colAgent'))}</th>${q.type === 'B' ? `<th>${esc(t('colChoice'))}</th>` : ''}<th>${esc(q.type === 'B' ? t('colReason') : t('colAnswer'))}</th><th>${esc(t('colAi'))}</th><th>${esc(t('colTeacher'))}</th></tr></thead>
         <tbody>${rows.map((a) => rowHtml(q, a)).join('')}</tbody></table></div>
-        <div class="row small muted"><span>${esc(t('thresholdNote', { n: Math.round(th * 100) }))}</span><span class="spacer"></span>${d.session.state !== 'open' ? `<button class="btn" id="accAll" data-q="${esc(q.qid)}">${esc(t('acceptRest'))}</button>` : ''}</div>`;
+        <div class="row small muted"><span>${esc(t('thresholdNote', { n: Math.round(th * 100) }))}</span><span class="spacer"></span>${!d.session.released ? `<button class="btn ghost" id="resetAi" data-q="${esc(q.qid)}">${esc(t('resetAi'))}</button>` : ''}${d.session.state !== 'open' ? `<button class="btn" id="accAll" data-q="${esc(q.qid)}">${esc(t('acceptRest'))}</button>` : ''}</div>`;
     }
     function rowHtml(q, a) {
       const max = r2((q.points || {}).text), low = isLow(a);
@@ -1321,6 +1323,10 @@
       $$('[data-edit]').forEach((b) => b.addEventListener('click', () => { editing.add(b.dataset.edit); draw(); }));
       $$('[data-cm]').forEach((b) => b.addEventListener('click', () => { const box = $(`[data-cmbox="${b.dataset.cm}"]`); box.hidden = !box.hidden; if (!box.hidden) $('textarea', box).focus(); }));
       $$('[data-cms]').forEach((b) => b.addEventListener('click', () => setScore(b.dataset.cms, undefined, $('textarea', b.parentElement).value)));
+      const ra = $('#resetAi'); if (ra) ra.onclick = async () => {
+        if (!(await confirmBox(t('resetAiConfirm'), t('resetAi')))) return;
+        try { const r = await api('t_resetAi', { sessionId: d.session.sessionId, qid: ra.dataset.q }); copyText(r.command); toast(t('resetAiDone', { n: r.cleared, cmd: r.command }), 6000); viewGrading(d.session.sessionId); } catch (e) { toast(e.message, 4000); }
+      };
       const aa = $('#accAll'); if (aa) aa.onclick = async () => {
         try { const r = await api('t_acceptAll', { sessionId: d.session.sessionId, qid: aa.dataset.q }); r.answers.forEach(patchAnswer); toast(t('acceptedN', { n: r.accepted })); draw(); } catch (e) { toast(e.message, 4000); }
       };
@@ -2168,6 +2174,7 @@
     qPointIn: '判斷重點（題目內）', gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapTitle2: '判斷標準可能有缺口', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
     gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
     gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
+    tGrading: '批改原則（給 AI 批改用）', tGradingHint: 'AI 批改文字答案時優先依這裡的原則，其次才是每題的評分標準。例如：點出判斷關鍵就給滿分、不要求引用條文。',
     tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
     tDisable: '停用主題', tEnable: '重新啟用', tDisableConfirm: '停用「{n}」？停用後不能用它建立草稿或申請範例；已有的範例、草稿與題目不受影響。', tDisabled: '主題已停用', tEnabled: '主題已啟用',
     tInactiveNote: '這個主題已停用：不能用它建立草稿或申請範例。', tReasonsMoved: '申退原因與允許的申請方案是 DMS 系統規則，所有主題共用，請到',
@@ -2192,6 +2199,7 @@
     qPointIn: 'Key point (in the question)', gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapTitle2: 'Possible gap in the criteria', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
     gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
     gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
+    tGrading: 'Grading principles (for AI grading)', tGradingHint: 'When grading written answers, the AI follows these principles first, then each question’s rubric. E.g. full marks for naming the deciding factor; no need to cite rule numbers.',
     tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',
     tDisable: 'Deactivate topic', tEnable: 'Reactivate', tDisableConfirm: 'Deactivate "{n}"? It can no longer be used for new drafts or sample requests. Existing samples, drafts and questions are not affected.', tDisabled: 'Topic deactivated', tEnabled: 'Topic reactivated',
     tInactiveNote: 'This topic is inactive: it cannot be used for new drafts or sample requests.', tReasonsMoved: 'Return reasons and allowed solutions are DMS system rules shared by all topics. Edit them in',
@@ -2304,6 +2312,7 @@
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
       <div class="small muted">${esc(t('tReasonsMoved'))} <a href="#/settings?tab=dms">${esc(t('setDms'))} →</a></div>
       <div><b>${esc(t('tRules'))}</b>${ta('t_rules', 12, topic.rules || '')}</div>
+      <div><b>${esc(t('tGrading'))}</b><div class="small muted" style="margin:2px 0 6px">${esc(t('tGradingHint'))}</div>${ta('t_grade', 7, topic.gradingGuide || (DB().gradingGuide || ''))}</div>
       <details><summary class="small">${esc(t('tHistory'))}（${(topic.history || []).length}）</summary>${(topic.history || []).length ? (topic.history || []).slice().reverse().map((h) => `<div style="margin-top:10px"><span class="chip">${esc(h.version)}</span> <span class="small muted">${esc(t('tUntil', { t: fmtDT(h.until) }))} · ${esc(h.by || '')}</span><pre class="small" style="white-space:pre-wrap;background:var(--chip);padding:10px;border-radius:8px">${esc(h.criteria)}</pre></div>`).join('') : `<div class="small muted" style="margin-top:8px">${esc(t('tNoHistory'))}</div>`}</details>
       <div class="row"><button class="btn brand" id="t_save" disabled>${esc(t('tSave'))}</button><span class="spacer"></span><button class="btn ${active ? 'danger' : ''}" id="t_act" type="button">${esc(t(active ? 'tDisable' : 'tEnable'))}</button></div></div>`;
     let dirty = false;
@@ -2342,7 +2351,7 @@
         const r = await api('tw_saveTopic', { topicId, baseUpdatedAt: topic.updatedAt, patch: {
           name: { zh: $('#tn_zh').value.trim(), en: $('#tn_en').value.trim() },
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
-          defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value,
+          defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value, gradingGuide: $('#t_grade').value,
         } });
         if (added.size) await api('tw_setGap', { sampleIds: [...added], state: 'added' }).catch(() => null);
         dirty = false; leaveGuard = null; topicsCache = null; libMeta = null;
