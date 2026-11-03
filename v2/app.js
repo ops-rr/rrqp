@@ -544,11 +544,77 @@
         const out = clone(q);
         (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim() && !String(it.variation.en || '').trim()) delete it.variation; });
         if (!String(out.cutoff || '').trim()) delete out.cutoff; else out.cutoff = String(out.cutoff).trim();
-        const chk = DB() && DB().check ? DB().check(out, rules) : { errors: [] };
+        const chk = DB() && DB().check ? DB().check(out, rules, { allowEmptyEn: true }) : { errors: [] };   // 英文可留白，存檔後標成待翻譯
         if (chk.errors.length) { const er = $('#qe_err', el); er.innerHTML = `<b>${esc(t('qeErrors'))}</b><br>${chk.errors.slice(0, 8).map(esc).join('<br>')}`; er.hidden = false; return; }
         close(out);
       };
     } });
+  }
+
+  // ───────── 處理狀態：英文待翻譯、AI 檢查、判斷標準缺口（草稿題目與範例共用） ─────────
+  Object.assign(I18N.zh, {
+    wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RR AI Quiz Assistant Beta；完成後這裡會自動更新。',
+    wkEnQ: '英文待翻譯 {n} 題', wkRvQ: '待 AI 檢查 {n} 題', wkEnF: '英文待翻譯 {n} 個欄位', wkRv1: '待 AI 檢查', wkGap1: '待分析判斷標準',
+    enPendingTitle: '英文待翻譯', enPendingHint: '你只改了中文，這些欄位的英文會在「處理」時重新翻譯（你自己改過的英文不會被覆蓋）。把英文清空也會重新翻譯。',
+    enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
+    rvAsk: '要求 AI 檢查', rvAsked: '已排入 AI 檢查，請傳「{cmd}」', rvWanted: '已排入 AI 檢查',
+    lv_must: '必改', lv_suggest: '建議', lv_note: '提醒', mkEn: '譯', mkRv: 'AI',
+    gk_missing: '判斷標準缺少條文', gk_ambiguous: '判斷標準條文模糊', gk_ai_misread: 'AI 讀錯（標準已足夠）', gapFromTrainer: '依你修改的判斷分析',
+    pl_chat: '聊聊第 {n} 則', pl_chatDesc: '聊聊第 {n} 則（照片 / 影片描述）', pl_drcB: '買家 DRC 第 {n} 則', pl_drcS: '賣家 DRC 第 {n} 則', pl_remark: '申請備註',
+    pl_oName: '訂單商品 {n} 名稱', pl_oVar: '訂單商品 {n} 規格', pl_rName: '申退商品 {n} 名稱', pl_rVar: '申退商品 {n} 規格', pl_payM: '付款方式', pl_payS: '付款狀態',
+    pl_carrier: '物流商', pl_ev: '物流第 {n} 筆', pl_prompt: '題目問句', pl_point: '判斷重點', pl_expl: '解析', pl_model: '參考答案', pl_rubric: '評分標準', pl_opt: '選項 {n}',
+  });
+  Object.assign(I18N.en, {
+    wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RR AI Quiz Assistant Beta on SeaTalk; this page updates automatically when done.',
+    wkEnQ: 'English pending: {n} question(s)', wkRvQ: 'AI check pending: {n} question(s)', wkEnF: '{n} English field(s) pending', wkRv1: 'AI check pending', wkGap1: 'Criteria analysis pending',
+    enPendingTitle: 'English pending', enPendingHint: 'You changed only the Chinese, so the English of these fields will be re-translated when processed (English you edited yourself is kept). Clearing an English field also re-translates it.',
+    enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
+    rvAsk: 'Request AI check', rvAsked: 'AI check requested. Send "{cmd}"', rvWanted: 'AI check requested',
+    lv_must: 'Must fix', lv_suggest: 'Suggestion', lv_note: 'Note', mkEn: 'EN', mkRv: 'AI',
+    gk_missing: 'Missing rule in the criteria', gk_ambiguous: 'Ambiguous rule in the criteria', gk_ai_misread: 'AI misread (criteria are sufficient)', gapFromTrainer: 'Based on your corrected judgement',
+    pl_chat: 'Chat #{n}', pl_chatDesc: 'Chat #{n} (photo / video)', pl_drcB: 'Buyer DRC #{n}', pl_drcS: 'Seller DRC #{n}', pl_remark: 'Request remark',
+    pl_oName: 'Order item {n} name', pl_oVar: 'Order item {n} variation', pl_rName: 'Requested item {n} name', pl_rVar: 'Requested item {n} variation', pl_payM: 'Payment method', pl_payS: 'Payment status',
+    pl_carrier: 'Carrier', pl_ev: 'Logistics #{n}', pl_prompt: 'Prompt', pl_point: 'Key point', pl_expl: 'Explanation', pl_model: 'Model answer', pl_rubric: 'Rubric', pl_opt: 'Option {n}',
+  });
+  /** 欄位路徑 → 講師看得懂的位置 */
+  function pathLabel(p) {
+    const m = (re) => re.exec(p), n = (x) => Number(x) + 1; let r;
+    if ((r = m(/^chat\.(\d+)\.text$/))) return t('pl_chat', { n: n(r[1]) });
+    if ((r = m(/^chat\.(\d+)\.desc$/))) return t('pl_chatDesc', { n: n(r[1]) });
+    if ((r = m(/^drc\.buyer\.(\d+)\.text$/))) return t('pl_drcB', { n: n(r[1]) });
+    if ((r = m(/^drc\.seller\.(\d+)\.text$/))) return t('pl_drcS', { n: n(r[1]) });
+    if ((r = m(/^(order|request)\.items\.(\d+)\.(name|variation)$/))) return t('pl_' + (r[1] === 'order' ? 'o' : 'r') + (r[3] === 'name' ? 'Name' : 'Var'), { n: n(r[2]) });
+    if ((r = m(/^logistics\.events\.(\d+)\.status$/))) return t('pl_ev', { n: n(r[1]) });
+    if ((r = m(/^options\.(\d+)\.text$/))) return t('pl_opt', { n: String.fromCharCode(97 + Number(r[1])) });
+    return t({ 'request.remark': 'pl_remark', 'payment.method': 'pl_payM', 'payment.status': 'pl_payS', 'logistics.carrier': 'pl_carrier', prompt: 'pl_prompt', point: 'pl_point',
+      explanation: 'pl_expl', modelAnswer: 'pl_model', rubric: 'pl_rubric' }[p] || p);
+  }
+  const metaOf = (x) => (x && x._m) || { enPending: [], rev: 0, review: null, reviewWanted: false };
+  /** 下次「處理」會做什麼 */
+  const needsReview = (m) => m.reviewWanted || (m.rev > 0 && m.rev > ((m.review && m.review.rev) || 0));
+  const sampleNeedsGap = (smp) => {
+    const sg = smp.suggest; if (!smp.judgedBy || !sg) return false;
+    const cur = { answer: smp.answer || '', pointZh: smp.pointZh || '' };
+    if (cur.answer === (sg.answer || '') && cur.pointZh === (sg.pointZh || '')) return false;
+    const b = smp.criteriaGap && smp.criteriaGap.basis; return !b || b.answer !== cur.answer || b.pointZh !== cur.pointZh;
+  };
+  function cmdBox(cmd, counts) {
+    return `<div class="banner info wkbox"><div><b>${esc(t('wkCmdTitle'))}</b> <span class="small">${esc(counts)}</span><div class="small" style="margin-top:2px">${esc(t('wkCmdHint'))}</div></div>
+      <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" type="button" data-copycmd="${esc(cmd)}">${esc(t('copy'))}</button></span></div>`;
+  }
+  function enPendingHtml(m) {
+    if (!m.enPending.length) return '';
+    return `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('enPendingTitle'))}</b>：${m.enPending.map((p) => esc(pathLabel(p))).join('、')}<div class="small" style="margin-top:2px">${esc(t('enPendingHint'))}</div></div>`;
+  }
+  function reviewHtml(m, canAsk) {
+    const r = m.review, stale = r && m.rev > (r.rev || 0);
+    const ask = canAsk ? (m.reviewWanted ? `<span class="chip info">${esc(t('rvWanted'))}</span>` : `<button class="btn sm ghost" type="button" id="rvAsk">${esc(t('rvAsk'))}</button>`) : '';
+    if (!r) return ask ? `<div class="rvbox"><div class="row"><b>🤖 ${esc(t('rvTitle'))}</b><span class="spacer"></span>${ask}</div></div>` : '';
+    return `<div class="rvbox ${r.verdict === 'issues' && !stale ? 'bad' : ''}"><div class="row"><b>🤖 ${esc(t('rvTitle'))}</b>
+        <span class="chip ${r.verdict === 'ok' ? 'ok' : 'warn'}">${esc(r.verdict === 'ok' ? t('rvOk') : t('rvIssues', { n: (r.items || []).length }))}</span>
+        <span class="small soft">${esc(fmtDT(r.at))}</span>${stale ? `<span class="chip">${esc(t('rvStale'))}</span>` : ''}<span class="spacer"></span>${ask}</div>
+      ${r.summary ? `<div class="small" style="margin-top:4px">${esc(r.summary)}</div>` : ''}
+      ${(r.items || []).map((x) => `<div class="rvitem"><span class="chip lv-${esc(x.level)}">${esc(t('lv_' + x.level))}</span><div><b class="small">${esc(x.where || '')}</b> <span class="small">${esc(x.issue)}</span>${x.fix ? `<div class="small muted">→ ${esc(x.fix)}</div>` : ''}</div></div>`).join('')}</div>`;
   }
 
   // ───────── 草稿校對 ─────────
@@ -557,7 +623,7 @@
     let data;
     try { [data] = await Promise.all([api('t_getDraft', { draftId }), getTopics().catch(() => null)]); } catch (e) { showError(e); return; }
     /** 依目前的 DMS 規則重新檢查（規則加入前生成的題目也會標出來） */
-    const ruleErrs = (q) => { if (!DB() || !DB().check) return []; const x = clone(q); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete x[k]); return DB().check(x, dmsNow()).errors; };
+    const ruleErrs = (q) => { if (!DB() || !DB().check) return []; const x = clone(q); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete x[k]); return DB().check(x, dmsNow(), { allowEmptyEn: true }).errors; };
     let { draft, questions } = data;
     const params = new URLSearchParams((location.hash.split('?')[1]) || '');
     let idx = Math.max(0, questions.findIndex((q) => q.id === params.get('q')));
@@ -578,6 +644,11 @@
         ${draft.status !== 'generating' && draft.status !== 'banked' ? `<button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: all - rev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
       </div>
       ${draft.status === 'deleted' ? `<div class="banner warn">${esc(t('deletedNote'))}</div>` : ''}
+      ${(() => {
+        if (draft.status === 'generating' || draft.status === 'deleted') return '';
+        const live = questions.filter((q) => !q.bankedAs), a = live.filter((q) => metaOf(q).enPending.length).length, b = live.filter((q) => needsReview(metaOf(q))).length;
+        return a || b ? cmdBox('處理 ' + draft.draftId, [a && t('wkEnQ', { n: a }), b && t('wkRvQ', { n: b })].filter(Boolean).join(' · ')) : '';
+      })()}
       ${draft.status === 'generating' ? `<div class="banner info row"><span>${esc(t('genBanner', { a: draft.imported, b: draft.target }))}</span>
         <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" id="cpy2">${esc(t('copy'))}</button></span><span class="small">${esc(t('genAuto'))}</span></div>` : ''}`;
     }
@@ -587,7 +658,7 @@
         return `<div class="qitem ${i === idx ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
           <span class="dot ${q.reviewed ? 'on' : ''}" title="${esc(q.reviewed ? t('reviewedTag') : t('notReviewed'))}">${q.reviewed ? '✓' : ''}</span>
           <span class="id">${esc(q.id.split('-').pop())}</span><span class="chip" style="padding:0 7px">${esc(q.type)}</span>
-          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
+          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; return r && r.rev === m.rev ? `<span class="chip ${r.verdict === 'ok' ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${r.verdict === 'ok' ? '✓' : '!'}</span>` : ''; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
     function biField(key, label, short) {
@@ -614,6 +685,8 @@
         ${src.bankedAs ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('bankedNote', { id: src.bankedAs }))} <a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a></div>` : ''}
         ${(() => { const er = ruleErrs(q); return er.length ? `<div class="banner err" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('ruleErrTitle'))}</b>${esc(t('ruleErrHint'))}<br>${er.slice(0, 6).map(esc).join('<br>')}</div>` : ''; })()}
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
+        ${enPendingHtml(metaOf(src))}
+        ${(() => { const h = reviewHtml(metaOf(src), editable); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
           ${biField('point', t('point'), true)}
@@ -669,6 +742,12 @@
         dirty = false; clearInterval(pollTimer); viewDraft(draft.draftId);
       };
       const cp = $('#cpy2'); if (cp) cp.onclick = () => copyText(cmd);
+      $$('[data-copycmd]').forEach((b) => { b.onclick = () => copyText(b.dataset.copycmd); });
+      const ra = $('#rvAsk'); if (ra) ra.onclick = async () => {
+        ra.disabled = true;
+        try { await api('t_requestReview', { draftId: draft.draftId, qid: questions[idx].id }); questions[idx]._m = Object.assign({}, metaOf(questions[idx]), { reviewWanted: true }); if (!dirty) work = clone(questions[idx]); else work._m = questions[idx]._m; toast(t('rvAsked', { cmd: '處理 ' + draft.draftId }), 4000); draw(); }
+        catch (e) { toast(e.message, 4000); ra.disabled = false; }
+      };
       const dd = $('#delDraft'); if (dd) dd.onclick = () => deleteDraft(draft.draftId, questions.filter((q) => !q.bankedAs).length, () => { dirty = false; location.hash = '#/drafts'; });
       const ba = $('#bankAdd'); if (ba) ba.onclick = async () => {
         if (dirty && !(await confirmBox(t('unsaved'), t('discard'), t('keep'), true))) return;
@@ -704,12 +783,12 @@
       const un = $('#unrev'); if (un) un.onclick = () => save(false);
       $('#qedit').onclick = async () => {
         const tp = await getTopics().catch(() => null);
-        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete raw[k]);
+        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
         const out = await questionEditor(raw, { rules: tp && tp.dms, title: questions[idx].id });
-        if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs }); draw(); setDirty(true); toast(t('qeApplied')); }
+        if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs, _m: src._m }); draw(); setDirty(true); toast(t('qeApplied')); }
       };
       $('#json').onclick = async () => {
-        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings'].forEach((k) => delete raw[k]);
+        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
         await modal(`<h2>${esc(t('editJson'))} · ${esc(questions[idx].id)}</h2>
           <textarea class="json" spellcheck="false">${esc(JSON.stringify(raw, null, 2))}</textarea>
           <div id="jerr" class="banner err" hidden></div>
@@ -718,7 +797,7 @@
           $('#japply', el).onclick = () => {
             try {
               const v = JSON.parse($('textarea', el).value);
-              work = Object.assign(v, { id: questions[idx].id, reviewed: questions[idx].reviewed, criteriaVersion: questions[idx].criteriaVersion, warnings: questions[idx].warnings });
+              work = Object.assign(v, { id: questions[idx].id, reviewed: questions[idx].reviewed, criteriaVersion: questions[idx].criteriaVersion, warnings: questions[idx].warnings, _m: questions[idx]._m });
               dirty = true; close('ok'); draw(); setDirty(true);
             } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; }
           };
@@ -755,7 +834,7 @@
     if (liveOff) { liveOff(); liveOff = null; }
     liveOff = DB().live.draft(draft.draftId, (d) => {
       if (!d) return;
-      if (d.imported !== draft.imported || d.status !== draft.status || d.target !== draft.target) refetch();
+      if (d.imported !== draft.imported || d.status !== draft.status || d.target !== draft.target || d.version !== draft.version) refetch();
     });
     work = questions.length ? clone(questions[idx]) : null;
     draw();
@@ -1934,7 +2013,16 @@
             <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button>` : '<span class="soft">—</span>'}</div>
         </div>
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
-        ${sg && sg.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t('gapTitle'))}</b>${s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span>` : ''}<span class="spacer"></span>
+        ${(() => {   // 處理指令：英文待翻譯、待 AI 檢查、待分析判斷標準
+          const m = metaOf(s), a = m.enPending.length, rv = needsReview(m), gp = sampleNeedsGap(s);
+          return a || rv || gp ? cmdBox('處理 ' + s.sampleId, [a && t('wkEnF', { n: a }), rv && t('wkRv1'), gp && t('wkGap1')].filter(Boolean).join(' · ')) : '';
+        })()}
+        ${(() => { const m = metaOf(s); return m.enPending.length ? `<div class="card" style="overflow:hidden">${enPendingHtml(m)}</div>` : ''; })()}
+        ${reviewHtml(metaOf(s), true)}
+        ${s.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t(s.criteriaGap.kind === 'ai_misread' ? 'gk_ai_misread' : 'gapTitle2'))}</b><span class="chip">${esc(t('gk_' + s.criteriaGap.kind))}</span><span class="small soft">${esc(t('gapFromTrainer'))}</span>
+            ${s.criteriaGap.kind !== 'ai_misread' ? (s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span><span class="spacer"></span><button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<span class="spacer"></span><button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
+          <div class="small" style="margin-top:6px">${esc(s.criteriaGap.situation)}</div>${s.criteriaGap.suggestion ? `<pre class="gapsug">${esc(s.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
+        ${sg && sg.criteriaGap && !(s.criteriaGap && s.criteriaGap.kind !== 'ai_misread') ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t('gapTitle'))}</b>${s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span>` : ''}<span class="spacer"></span>
             ${s.gapState ? `<button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`}</div>
           <div class="small" style="margin-top:6px">${esc(sg.criteriaGap.situation)}</div>${sg.criteriaGap.suggestion ? `<pre class="gapsug">${esc(sg.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
         <div class="card pad libedit">
@@ -1966,6 +2054,12 @@
         try { await api('tw_approveSample', { sampleId: s.sampleId }); toast(t('approved'), 4000); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
       };
       $('#delS').onclick = () => deleteSampleDialog();
+      $$('[data-copycmd]').forEach((b) => { b.onclick = () => copyText(b.dataset.copycmd); });
+      const ra = $('#rvAsk'); if (ra) ra.onclick = async () => {
+        ra.disabled = true;
+        try { await api('t_requestReview', { sampleId: s.sampleId }); s._m = Object.assign({}, metaOf(s), { reviewWanted: true }); toast(t('rvAsked', { cmd: '處理 ' + s.sampleId }), 4000); draw(); }
+        catch (e) { toast(e.message, 4000); ra.disabled = false; }
+      };
       const gi = $('#gapIgnore'); if (gi) gi.onclick = async () => { try { await api('tw_setGap', { sampleId: s.sampleId, state: 'dismissed' }); s.gapState = 'dismissed'; draw(); } catch (e) { toast(e.message, 4000); } };
       const gr = $('#gapReset'); if (gr) gr.onclick = async () => { try { await api('tw_setGap', { sampleId: s.sampleId, state: '' }); s.gapState = ''; draw(); } catch (e) { toast(e.message, 4000); } };
       const rj = $('#rej'); if (rj) rj.onclick = () => modal(`<h2>${esc(s.status === 'active' ? t('deactivate') : t('reject'))} ${esc(s.sampleId)}</h2>
@@ -2024,6 +2118,16 @@
       } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; return false; }
     }
     draw();
+    if (liveOff) { liveOff(); liveOff = null; }
+    if (DB().live && DB().live.sample) {
+      let lastWork = s.workAt || 0;
+      liveOff = DB().live.sample(s.sampleId, (d) => {
+        if (!d || (d.workAt || 0) === lastWork) return;
+        lastWork = d.workAt || 0;
+        if (dirty || location.hash !== '#/library/' + s.sampleId) return;
+        api('tw_getSample', { sampleId: s.sampleId }).then((r) => { s = r.sample; work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }; draw(); }).catch(() => null);
+      });
+    }
   }
 
   // ───────── 主題設定（TW 講師） ─────────
@@ -2040,7 +2144,7 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
-    gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
+    gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapTitle2: '判斷標準可能有缺口', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
     gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
     gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
     tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
@@ -2064,7 +2168,7 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
-    gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
+    gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapTitle2: 'Possible gap in the criteria', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
     gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
     gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
     tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',

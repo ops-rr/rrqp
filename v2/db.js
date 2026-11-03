@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04e';
+const VERSION = 'V2-2026-11-04f';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -192,11 +192,16 @@ async function activeTopic(topicId) {
 }
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
   source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null,
-  gap: (x.suggest && x.suggest.criteriaGap && x.suggest.criteriaGap.situation) || '', gapSuggestion: String((x.suggest && x.suggest.criteriaGap && x.suggest.criteriaGap.suggestion) || '').slice(0, 500), gapState: x.gapState || '' });
+  ...gapOf(x), gapState: x.gapState || '', enPending: (x.enPending || []).length });
+/** 判斷標準缺口：講師修正後 AI 分析的結果（criteriaGap）優先於匯入時的回報（suggest.criteriaGap） */
+function gapOf(x) {
+  const g = (x.criteriaGap && x.criteriaGap.kind !== 'ai_misread' && x.criteriaGap.situation) ? x.criteriaGap : (x.suggest && x.suggest.criteriaGap) || null;
+  return { gap: (g && g.situation) || '', gapSuggestion: String((g && g.suggestion) || '').slice(0, 500) };
+}
 async function sampleFull(id) {
   const x = await S.get('samples/' + id) || fail('找不到範例 / Sample not found: ' + id);
   const req = x.requestId ? await S.get('sampleRequests/' + x.requestId).catch(() => null) : null;
-  return Object.assign({ sampleId: id, tags: [], changeHint: '', reviewNote: '', suggest: null }, x, {
+  return Object.assign({ sampleId: id, tags: [], changeHint: '', reviewNote: '', suggest: null, criteriaGap: null }, x, { _m: metaOut(x) }, {
     wantedTags: (req && req.wantedTags) || [], requestedBy: (req && req.requestedBy) || '', note: (req && req.note) || '',
     returnId: (req && req.returnId) || '', cutoffAt: (req && req.cutoffAt) || null, noCutoff: !!(req && req.noCutoff) });
 }
@@ -215,12 +220,13 @@ function leakScan(obj, returnId) {
     [/[\w.+-]+@[\w-]+\.[\w.-]+/, '疑似 Email'], [/https?:\/\/[^\s"]+/, '網址'], [/\b\d{14,}\b/, '疑似長數字編號']].forEach(([re, n]) => { if (re.test(text)) hits.push(n); });
   return hits;
 }
-function checkQuestion(q, reasons) {
+function checkQuestion(q, reasons, opt = {}) {
   const errs = [], warn = [];
   const need = (c, m) => { if (!c) errs.push(m); };
   const bi = (v, p) => {
     if (!v || typeof v !== 'object') { errs.push(p + ' must be {zh, en}'); return; }
     if (!String(v.zh || '').trim()) errs.push(p + '.zh empty');
+    if (opt.allowEmptyEn) return;                   // 講師編輯：英文可以留白，存檔後標成「待翻譯」
     if (!String(v.en || '').trim()) errs.push(p + '.en empty');
     if (/[㐀-鿿]/.test(String(v.en || ''))) warn.push(p + '.en contains Chinese');
   };
@@ -300,10 +306,46 @@ function checkQuestion(q, reasons) {
   return { errors: errs, warnings: warn };
 }
 
+// ───────── 英文同步：逐欄位比對講師改了哪裡 ─────────
+const CJK = /[㐀-鿿]/;
+/** 題目中所有 {zh, en} 欄位 → { 'chat.3.text': {zh, en}, ... } */
+function biLeaves(o, pre = '', out = {}) {
+  if (Array.isArray(o)) o.forEach((x, i) => biLeaves(x, pre + i + '.', out));
+  else if (o && typeof o === 'object') {
+    const ks = Object.keys(o);
+    if (ks.length && ks.every((k) => k === 'zh' || k === 'en') && ks.includes('zh')) out[pre.slice(0, -1)] = { zh: String(o.zh || ''), en: String(o.en || '') };
+    else ks.forEach((k) => biLeaves(o[k], pre + k + '.', out));
+  }
+  return out;
+}
+/**
+ * 存檔時決定哪些欄位的英文要重新翻譯：
+ *   只改中文 → 待翻譯；英文有改（講師自己同步）或兩邊都改 → 不翻；英文空白或還是中文 → 待翻譯；
+ *   沒改 → 維持原狀態；訊息上下移動時用「中文＋英文」對回原欄位，沿用原本的狀態。
+ */
+function enPendingAfter(oldQ, newQ, prev) {
+  const o = biLeaves(oldQ || {}), n = biLeaves(newQ || {}), was = new Set(prev || []), out = [];
+  const byPair = {}; Object.entries(o).forEach(([p, v]) => { byPair[v.zh + '\u0000' + v.en] = p; });
+  Object.entries(n).forEach(([p, v]) => {
+    if (!v.zh.trim()) return;
+    if (!v.en.trim() || CJK.test(v.en)) { out.push(p); return; }
+    const ol = o[p];
+    if (ol && ol.zh === v.zh && ol.en === v.en) { if (was.has(p)) out.push(p); return; }
+    const moved = byPair[v.zh + '\u0000' + v.en];
+    if (moved !== undefined) { if (was.has(moved)) out.push(p); return; }
+    if (ol && ol.en === v.en && ol.zh !== v.zh) out.push(p);
+  });
+  return out;
+}
+const sameQ = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
+/** 題目以外的處理狀態（英文待翻譯、修訂號、AI 審查）放在 _m，存檔時移除 */
+const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted });
+const STRIP = ['id', 'qid', 'seq', 'points', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'];
+
 // ───────── 草稿與題庫的共用處理 ─────────
 const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags: d.tags || [], target: d.target || 0, mix: d.mix || {}, imported: d.imported || 0,
   reviewed: d.reviewed || 0, status: d.status, createdBy: d.createdBy || '', updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : null, version: d.updatedAt || 0 });
-const questionOut = (q) => Object.assign({}, q.question || {}, { id: q.id, reviewed: !!q.reviewed, criteriaVersion: q.criteriaVersion || '', warnings: q.warnings || [] });
+const questionOut = (q) => Object.assign({}, q.question || {}, { id: q.id, reviewed: !!q.reviewed, criteriaVersion: q.criteriaVersion || '', warnings: q.warnings || [], _m: metaOut(q) });
 const bankIndexRow = (x) => {
   const j = x.question || {}, opt = (j.options || []).find((o) => o.id === j.answer);
   return { topicId: x.topicId, type: x.type, tags: x.tags || [], pointZh: x.pointZh || '', point: j.point || null, prompt: j.prompt || null, answer: opt ? opt.text : null,
@@ -426,13 +468,15 @@ const ACTIONS = {
     if (d.status === 'generating') fail('草稿生成中，請等生成完成再修改 / Draft is still generating');
     const path = 'drafts/' + b.draftId + '/questions/' + b.qid;
     const row = await S.get(path) || fail('找不到題目 / Question not found: ' + b.qid);
-    const q = Object.assign({}, b.question || {}); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete q[k]);
+    const q = Object.assign({}, b.question || {}); STRIP.forEach((k) => delete q[k]);
     const dms = await loadDms();
     normalizeReason(q, dms);
-    const chk = checkQuestion(q, dms);
+    const chk = checkQuestion(q, dms, { allowEmptyEn: true });
     if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
     if (q.type !== row.type) fail('不能變更題型 / Question type cannot be changed');
+    const changed = !sameQ(row.question, q);
     const patch = { question: q, answer: q.answer || '', pointZh: (q.point && q.point.zh) || '', warnings: chk.warnings, updatedAt: now(), updatedBy: m.email };
+    if (changed) Object.assign(patch, { enPending: enPendingAfter(row.question, q, row.enPending), rev: (row.rev || 0) + 1 });
     if (b.reviewed !== undefined) patch.reviewed = !!b.reviewed;
     await S.update(path, patch);
     const nd = await touchDraft(b.draftId, d);
@@ -445,7 +489,7 @@ const ACTIONS = {
     if (d.status === 'generating') fail('草稿生成中 / Draft is still generating');
     if (b.reviewed) {
       const row = await S.get('drafts/' + b.draftId + '/questions/' + b.qid) || fail('找不到題目 / Question not found');
-      const chk = checkQuestion(normalizeReason(Object.assign({}, row.question), await loadDms()), await loadDms());
+      const chk = checkQuestion(normalizeReason(Object.assign({}, row.question), await loadDms()), await loadDms(), { allowEmptyEn: true });
       if (chk.errors.length) fail('不符合目前的規則，請先修正 / Fix first: ' + chk.errors.slice(0, 4).join('; '));
     }
     await S.update('drafts/' + b.draftId + '/questions/' + b.qid, { reviewed: !!b.reviewed });
@@ -469,6 +513,17 @@ const ACTIONS = {
     await S.batch([{ op: 'del', path }, { op: 'update', path: 'drafts/' + b.draftId, data: patch }]);
     const nd = await touchDraft(b.draftId, Object.assign({}, d, patch));
     return { deleted: b.qid, draft: nd, command: b.refill ? '生成考題 ' + b.draftId : '' };
+  },
+
+  /** 要求 AI 檢查（下次「處理」指令時會審查這題）；草稿題目或範例 */
+  t_requestReview: async (b) => {
+    const m = await needTeacher();
+    const path = b.sampleId ? 'samples/' + b.sampleId : 'drafts/' + b.draftId + '/questions/' + b.qid;
+    if (b.sampleId && m.role !== 'tw') fail('TW teacher access only / 僅限 TW 講師');
+    if (!(await S.get(path))) fail('找不到題目 / Not found');
+    await S.update(path, { reviewWanted: b.wanted !== false });
+    if (!b.sampleId) await S.update('drafts/' + b.draftId, { updatedAt: now() });
+    return { reviewWanted: b.wanted !== false };
   },
 
   t_markReady: async (b) => {
@@ -498,6 +553,8 @@ const ACTIONS = {
     const rows = pick.filter((q) => q.reviewed);
     if (!rows.length) fail('沒有可入庫的題目（需已校對且尚未入庫） / Nothing to add');
     const dms = await loadDms();
+    const enQ = rows.filter((q) => (q.enPending || []).length);
+    if (enQ.length) fail('以下題目還有英文待翻譯，請先在 SeaTalk 傳「處理 ' + b.draftId + '」/ English pending: ' + enQ.map((q) => q.id).join(', '));
     const badQ = rows.filter((q) => checkQuestion(normalizeReason(JSON.parse(JSON.stringify(q.question || {})), dms), dms).errors.length);
     if (badQ.length) fail('以下題目不符合目前的規則，請先修正 / Fix first: ' + badQ.map((q) => q.id).join(', '));
     const first = await S.nextIds('Q', rows.length), t = now(), ops = [], idx = {};
@@ -587,14 +644,15 @@ const ACTIONS = {
     const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found: ' + b.sampleId);
     const patch = { updatedAt: now(), updatedBy: m.email };
     if (b.question) {
-      const q = Object.assign({}, b.question); ['id', 'qid', 'seq', 'points'].forEach((k) => delete q[k]);
+      const q = Object.assign({}, b.question); STRIP.forEach((k) => delete q[k]);
       const dms = await loadDms();
       normalizeReason(q, dms);
-      const chk = checkQuestion(q, dms);
+      const chk = checkQuestion(q, dms, { allowEmptyEn: true });
       if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
       const leak = leakScan(q, '');
       if (leak.length) fail('內容疑似含有真實資料，未儲存 / Possible real data: ' + leak.join('、'));
       patch.question = q;
+      if (!sameQ(cur.question, q)) Object.assign(patch, { enPending: enPendingAfter(cur.question, q, cur.enPending), rev: (cur.rev || 0) + 1 });
     }
     if (b.tags !== undefined) {
       const known = new Set((await S.list('tags')).filter((t) => t.topicId === cur.topicId).map((t) => t.id));
@@ -604,6 +662,7 @@ const ACTIONS = {
     }
     if (b.pointZh !== undefined) patch.pointZh = String(b.pointZh || '').slice(0, 200);
     if (b.answer !== undefined) patch.answer = String(b.answer || '').slice(0, 50);
+    if ((patch.answer !== undefined && patch.answer !== (cur.answer || '')) || (patch.pointZh !== undefined && patch.pointZh !== (cur.pointZh || ''))) patch.judgedBy = m.email;
     if (b.changeHint !== undefined) patch.changeHint = String(b.changeHint || '').slice(0, 1000);
     await saveSample(b.sampleId, cur, patch);
     return { sample: await sampleFull(b.sampleId) };
@@ -615,6 +674,7 @@ const ACTIONS = {
     const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found');
     if (!(cur.tags || []).length) fail('請至少選一個標籤 / Pick at least one tag');
     if (!String(cur.pointZh || '').trim() || !String(cur.answer || '').trim()) fail('請填寫判斷重點與正解 / Key point and answer are required');
+    if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
   },
@@ -867,13 +927,15 @@ async function api(action, payload = {}) {
     signOut: () => { ME = null; currentEmail = null; return S.auth.signOut(); },
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
-    check: (q, rules) => checkQuestion(q, rules),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    enPendingAfter, biLeaves,
     dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },
     /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {
       requests: (cb) => S.watchColl('sampleRequests', (rows) => cb(rows.map(reqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)))),
       drafts: (cb) => S.watchColl('drafts', (rows) => cb(rows.filter((d) => d.status !== 'deleted').map(draftOut).sort((a, b) => b.draftId.localeCompare(a.draftId)))),
       draft: (id, cb) => S.watchDoc('drafts/' + id, (d) => cb(d ? draftOut(Object.assign({ id }, d)) : null)),
+      sample: (id, cb) => S.watchDoc('samples/' + id, (d) => cb(d)),
       sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
     },
   };

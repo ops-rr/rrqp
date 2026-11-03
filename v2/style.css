@@ -315,3 +315,14 @@ table.dms td { vertical-align: middle; }
 .gaprow { padding: 8px 0; border-top: 1px solid #C3D3F7; }
 .gaprow .row { gap: 8px; }
 pre.gapsug { white-space: pre-wrap; font: inherit; font-size: 13px; background: #fff; border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; margin: 6px 0 0; }
+/* 處理狀態：指令、AI 檢查 */
+.wkbox { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.rvbox { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.rvbox.bad { border-color: var(--warn-line); background: var(--warn-bg); }
+.rvbox .row { gap: 8px; flex-wrap: wrap; }
+.rvitem { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
+.rvitem .chip { flex: none; }
+.chip.lv-must { color: var(--err); background: var(--err-bg); }
+.chip.lv-suggest { color: var(--warn); background: var(--warn-bg); }
+.chip.lv-note { color: var(--info); background: var(--info-bg); }
+.qitem .mk { padding: 0 5px; font-size: 11px; margin-left: 2px; }
