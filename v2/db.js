@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04i';
+const VERSION = 'V2-2026-11-04j';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1129,7 +1129,9 @@ const M4 = {
     const m = await whoAmI(), t = now();
     const rows = await S.query('sessions', 'assignees', 'array-contains', m.email);
     const atts = await Promise.all(rows.map((s) => S.get('sessions/' + s.id + '/attempts/' + m.email).catch(() => null)));
-    return { serverNow: t, sessions: rows.sort((a, b) => b.id.localeCompare(a.id)).map((s) => Object.assign(sessionOut(s.id, s, t), { attempt: attemptOut(s, atts[rows.indexOf(s)], t) })) };
+    const res = await Promise.all(rows.map((s) => (s.released ? S.get('results/' + s.id + '_' + m.email).catch(() => null) : null)));
+    return { serverNow: t, sessions: rows.map((s, i) => { const at = attemptOut(s, atts[i], t); if (res[i]) at.score = res[i].score; return Object.assign(sessionOut(s.id, s, t), { attempt: at }); })
+      .sort((a, b) => b.sessionId.localeCompare(a.sessionId)) };
   },
 
   s_get: async (b) => {
@@ -1183,6 +1185,197 @@ const M4 = {
 };
 Object.assign(ACTIONS, M4);
 
+// ───────── 閱卷與成績（M5）：grades/{email}（ai = AI 分數、teacher = 講師確認）；發佈時寫 results/{sid}_{email} 給專員看 ─────────
+const isTextQ = (t) => t === 'B' || t === 'C';
+const qMax = (q) => r2(((q.points || {}).choice || 0) + ((q.points || {}).text || 0));
+const resultId = (sid, email) => sid + '_' + email;
+const aidOf = (email, qid) => email + '|' + qid;
+function parseAid(aid) { const i = String(aid || '').lastIndexOf('|'); if (i < 1) fail('找不到答案 / Answer not found: ' + aid); return [aid.slice(0, i), aid.slice(i + 1)]; }
+async function settingValue(k, def) { const v = ((((await S.get('settings/app')) || {}).values || {})[k] || {}).value; return v === undefined || v === null ? def : Number(v); }
+/** 讀一場測驗的閱卷資料：題目（含答案）、作答、分數 */
+async function gradingData(sid) {
+  const [s, key, atts, grades] = await Promise.all([S.get('sessions/' + sid), S.get('sessions/' + sid + '/paper/key'), S.list('sessions/' + sid + '/attempts'), S.list('sessions/' + sid + '/grades')]);
+  if (!s) fail('找不到測驗 / Quiz not found: ' + sid);
+  const qs = ((key && key.questions) || []).slice().sort((a, b) => a.seq - b.seq);
+  const g = {}; grades.forEach((x) => { g[x.id] = x; });
+  return { s, qs, atts, g };
+}
+/** 每位交卷者、每一題一筆答案；空白的文字答案直接 0 分（不需要 AI） */
+function answerRows(qs, atts, g) {
+  const out = [];
+  atts.filter((a) => a.submittedAt).forEach((a) => {
+    const gr = g[a.id] || {};
+    qs.forEach((q) => {
+      const x = (a.answers || {})[q.qid] || {}, ai = (gr.ai || {})[q.qid], tc = (gr.teacher || {})[q.qid] || {};
+      const blank = isTextQ(q.type) && !String(x.text || '').trim();
+      out.push({ aid: aidOf(a.id, q.qid), email: a.id, qid: q.qid, choice: x.choice || '', text: x.text || '',
+        autoScore: q.type === 'A' || q.type === 'B' ? (x.choice && x.choice === q.answer ? (q.points || {}).choice || 0 : 0) : null,
+        aiScore: blank && !ai ? 0 : ai ? ai.score : null, aiConfidence: blank && !ai ? 1 : ai ? ai.confidence : null, aiReason: blank && !ai ? '未作答 / No answer' : ai ? ai.reason : '',
+        teacherScore: tc.score === undefined || tc.score === null ? null : tc.score, teacherComment: tc.comment || '', teacherBy: tc.by || '', teacherAt: tc.at || null });
+    });
+  });
+  return out;
+}
+const textScore = (r) => (r.teacherScore !== null ? r.teacherScore : r.aiScore !== null ? r.aiScore : null);
+const rowScore = (r) => (r.autoScore || 0) + (textScore(r) || 0);
+/** 一位專員的成績（發佈時寫進 results，專員只讀得到自己的） */
+function resultOf(sid, s, qs, a, rows) {
+  let choiceN = 0, choiceOk = 0, textGot = 0, textMax = 0;
+  const items = qs.map((q) => {
+    const r = rows.find((x) => x.qid === q.qid) || {}, max = qMax(q), got = r2(rowScore(r));
+    if (q.type === 'A' || q.type === 'B') { choiceN++; if (r.choice && r.choice === q.answer) choiceOk++; }
+    if (isTextQ(q.type)) { textMax += (q.points || {}).text || 0; textGot += textScore(r) || 0; }
+    const opt = (id) => { const o = (q.options || []).find((x) => x.id === id); return o ? o.text : null; };
+    return { qid: q.qid, seq: q.seq, type: q.type, max, got, prompt: q.prompt || null, point: q.point || null, myChoice: opt(r.choice), myText: r.text || '', correct: opt(q.answer),
+      choiceOk: r.choice ? r.choice === q.answer : false, explanation: q.explanation || null, modelAnswer: q.type === 'C' ? q.modelAnswer || null : null, comment: r.teacherComment || '' };
+  });
+  return { sessionId: sid, email: a.id, title: s.title, score: r2(items.reduce((t, x) => t + x.got, 0)), total: r2(items.reduce((t, x) => t + x.max, 0)), choiceOk, choiceN,
+    textGot: r2(textGot), textMax: r2(textMax), timeUsed: a.submittedAt - a.startedAt, submittedAt: a.submittedAt, startedAt: a.startedAt, autoSubmitted: !!a.autoSubmitted,
+    review: items.filter((x) => x.got < x.max - 1e-9), all: items.map((x) => ({ seq: x.seq, got: x.got, max: x.max, qid: x.qid, point: x.point })), releasedAt: now() };
+}
+/** 題庫得分率：發佈時把這場的「每題得分率」加進題庫索引；重新發佈時先扣掉上次加的 */
+function bankStatOps(s, qs, rows) {
+  const cur = {};
+  qs.forEach((q) => {
+    const mine = rows.filter((r) => r.qid === q.qid), m = qMax(q); if (!m || !mine.length) return;
+    cur[q.qid] = { sum: r2(mine.reduce((t, r) => t + rowScore(r) / m, 0)), n: mine.length };
+  });
+  return cur;
+}
+async function applyBankStats(sid, prev, cur) {
+  const idx = await bankRows(), upd = {};
+  new Set([...Object.keys(prev || {}), ...Object.keys(cur || {})]).forEach((q) => {
+    if (!idx[q]) return;
+    const p = (prev || {})[q] || { sum: 0, n: 0 }, c = (cur || {})[q] || { sum: 0, n: 0 };
+    upd['items.' + q + '.rateSum'] = r2((idx[q].rateSum || 0) - p.sum + c.sum);
+    upd['items.' + q + '.rateN'] = Math.max(0, (idx[q].rateN || 0) - p.n + c.n);
+  });
+  return Object.keys(upd).length ? [{ op: 'update', path: 'meta/bankIndex', data: upd }] : [];
+}
+/** 已發佈的測驗改分數時：重寫成績與題庫得分率 */
+async function republish(sid) {
+  const { s, qs, atts, g } = await gradingData(sid);
+  if (!s.released) return;
+  const rows = answerRows(qs, atts, g), cur = bankStatOps(s, qs, rows);
+  const ops = atts.filter((a) => a.submittedAt).map((a) => ({ op: 'set', path: 'results/' + resultId(sid, a.id), data: resultOf(sid, s, qs, a, rows.filter((r) => r.email === a.id)) }));
+  ops.push(...(await applyBankStats(sid, s.bankStats, cur)), { op: 'update', path: 'sessions/' + sid, data: { bankStats: cur } });
+  await S.batch(ops);
+}
+function requireClosed(s) { const st = sessionState(s, now()); if (st === 'open' || st === 'scheduled') fail('測驗尚未結束，請等結束時間到或在場次頁「提前結束測驗」 / The quiz has not ended yet'); }
+
+const M5 = {
+  t_grading: async (b) => {
+    await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId);
+    const { s, qs, atts, g } = await gradingData(sid), t = now();
+    return { serverNow: t, session: Object.assign(sessionOut(sid, s, t), { released: !!s.released }), threshold: await settingValue('confidenceThreshold', 0.7),
+      questions: qs, answers: answerRows(qs, atts, g),
+      attempts: atts.map((a) => ({ email: a.id, startedAt: a.startedAt, submittedAt: a.submittedAt || null, autoSubmitted: !!a.autoSubmitted, score: null })), command: '批改 ' + sid };
+  },
+
+  /** 講師確認分數（score = null 取消確認，改回 AI 分數）與評語；記錄是誰、什麼時候確認的 */
+  t_setScore: async (b) => {
+    const m = await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId);
+    const [email, qid] = parseAid(b.aid);
+    const key = (await S.get('sessions/' + sid + '/paper/key')) || {};
+    const q = (key.questions || []).find((x) => x.qid === qid) || fail('找不到題目 / Question not found: ' + qid);
+    const g = (await S.get('sessions/' + sid + '/grades/' + email)) || {};
+    const cur = Object.assign({}, (g.teacher || {})[qid]);
+    if (b.score !== undefined) {
+      if (b.score === null || b.score === '') cur.score = null;
+      else {
+        if (!isTextQ(q.type)) fail('只有 B / C 題可以調整文字分數 / Only B / C answers have a text score');
+        const max = (q.points || {}).text || 0, sc = Number(b.score);
+        if (!(sc >= 0 && sc <= max + 1e-9)) fail('分數需介於 0–' + max + ' / Score must be 0–' + max);
+        cur.score = r2(sc);
+      }
+    }
+    if (b.comment !== undefined) cur.comment = String(b.comment || '').slice(0, 1000);
+    Object.assign(cur, { by: m.email, at: now() });
+    await S.set('sessions/' + sid + '/grades/' + email, { teacher: { [qid]: cur } }, true);
+    await republish(sid);
+    const d = await gradingData(sid);
+    return { answer: answerRows(d.qs, d.atts, d.g).find((r) => r.aid === b.aid) };
+  },
+
+  /** 一次接受某題所有「未確認且非低信心」的 AI 分數 */
+  t_acceptAll: async (b) => {
+    const m = await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId);
+    const th = await settingValue('confidenceThreshold', 0.7);
+    const d = await gradingData(sid), t = now();
+    const pick = answerRows(d.qs, d.atts, d.g).filter((r) => r.qid === b.qid && r.teacherScore === null && r.aiScore !== null && r.aiConfidence >= th);
+    const ops = pick.map((r) => ({ op: 'set', path: 'sessions/' + sid + '/grades/' + r.email, merge: true,
+      data: { teacher: { [r.qid]: { score: r.aiScore, comment: r.teacherComment || '', by: m.email, at: t } } } }));
+    if (ops.length) await S.batch(ops);
+    await republish(sid);
+    const d2 = await gradingData(sid);
+    return { accepted: ops.length, answers: answerRows(d2.qs, d2.atts, d2.g).filter((r) => r.qid === b.qid) };
+  },
+
+  /** 發佈 / 取消發佈成績：文字答案都要有分數（AI 或講師）；未確認的使用 AI 分數 */
+  t_release: async (b) => {
+    const m = await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId);
+    const { s, qs, atts, g } = await gradingData(sid);
+    const done = atts.filter((a) => a.submittedAt);
+    if (b.release === false) {
+      const ops = done.map((a) => ({ op: 'del', path: 'results/' + resultId(sid, a.id) }));
+      ops.push(...(await applyBankStats(sid, s.bankStats, {})), { op: 'update', path: 'sessions/' + sid, data: { released: false, bankStats: {} } },
+        { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.released']: false } });
+      await S.batch(ops);
+      return { released: false };
+    }
+    requireClosed(s);
+    const rows = answerRows(qs, atts, g);
+    const text = rows.filter((r) => isTextQ((qs.find((q) => q.qid === r.qid) || {}).type));
+    const missing = text.filter((r) => textScore(r) === null).length;
+    if (missing) fail('還有 ' + missing + ' 筆文字答案沒有分數，請先在 SeaTalk 傳「批改 ' + sid + '」或手動給分 / ' + missing + ' answers have no score yet');
+    const cur = bankStatOps(s, qs, rows), t = now();
+    const ops = done.map((a) => ({ op: 'set', path: 'results/' + resultId(sid, a.id), data: resultOf(sid, s, qs, a, rows.filter((r) => r.email === a.id)) }));
+    ops.push(...(await applyBankStats(sid, s.bankStats, cur)), { op: 'update', path: 'sessions/' + sid, data: { released: true, releasedAt: t, releasedBy: m.email, bankStats: cur } },
+      { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.released']: true } });
+    await S.batch(ops);
+    return { released: true, unconfirmed: text.filter((r) => r.teacherScore === null).length };
+  },
+
+  /** 專員：成績公布後查看自己的分數與錯題 */
+  s_result: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await sessionDoc(b.sessionId); requireAssigned(s, m);
+    if (!s.released) fail('成績尚未公布 / Results have not been released yet');
+    const r = await S.get('results/' + resultId(sid, m.email)).catch(() => null) || fail('沒有你的成績紀錄 / No result found');
+    return Object.assign({}, r, { session: sessionOut(sid, s, now()) });
+  },
+
+  /** 延長結束時間（也可重新開放已提前結束的測驗） */
+  t_extendSession: async (b) => {
+    await needTeacher();
+    const [sid, s] = await sessionDoc(b.sessionId), endAt = Number(b.endAt);
+    if (s.released) fail('成績已公布，不能延長 / Results already released');
+    if (!(endAt > now() && endAt > s.startAt)) fail('新的結束時間需晚於現在 / New end time must be in the future');
+    await S.batch([{ op: 'update', path: 'sessions/' + sid, data: { endAt: S.ts(endAt), ended: false } },
+      { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.endAt']: endAt, ['items.' + sid + '.ended']: false } }]);
+    return { session: sessionOut(sid, Object.assign({}, s, { endAt, ended: false }), now()) };
+  },
+
+  /** 退回作答：原本的作答與分數搬到 returned 保存，專員可以在測驗開放期間重新作答 */
+  t_returnAttempt: async (b) => {
+    const m = await needTeacher();
+    const [sid, s] = await sessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
+    const a = await S.get('sessions/' + sid + '/attempts/' + email) || fail('這位專員還沒有作答紀錄 / No attempt to return');
+    if (s.released) fail('成績已公布，請先取消公布 / Withdraw the results first');
+    const g = await S.get('sessions/' + sid + '/grades/' + email), t = now();
+    await S.batch([
+      { op: 'set', path: 'sessions/' + sid + '/returned/' + email + '_' + t, data: { email, attempt: a, grades: g || null, reason: String(b.reason || '').slice(0, 200), by: m.email, at: t } },
+      { op: 'del', path: 'sessions/' + sid + '/attempts/' + email }, { op: 'del', path: 'sessions/' + sid + '/grades/' + email }]);
+    const open = sessionState(s, t) === 'open';
+    return { returned: email, sessionOpen: open, hint: open ? '' : '測驗已結束，專員無法重新作答；請延長結束時間 / The quiz is closed: extend it so the agent can retake it' };
+  },
+};
+Object.assign(ACTIONS, M5);
+
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];
   if (!fn) throw new Error('V2 開發中：這個功能還沒搬到 Firebase（' + action + '）/ Not available in V2 yet');
@@ -1215,6 +1408,7 @@ async function api(action, payload = {}) {
       drafts: (cb) => S.watchColl('drafts', (rows) => cb(rows.filter((d) => d.status !== 'deleted').map(draftOut).sort((a, b) => b.draftId.localeCompare(a.draftId)))),
       draft: (id, cb) => S.watchDoc('drafts/' + id, (d) => cb(d ? draftOut(Object.assign({ id }, d)) : null)),
       sample: (id, cb) => S.watchDoc('samples/' + id, (d) => cb(d)),
+      grades: (sid, cb) => S.watchColl('sessions/' + sid + '/grades', (rows) => cb(rows)),   // 多位講師同時閱卷：別人確認的分數即時出現
       sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
     },
   };

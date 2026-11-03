@@ -924,7 +924,7 @@
   };
 
   // ───────── 講師：測驗場次 ─────────
-  const M5_READY = false;   // 延長時間、退回重考（M5 搬到 V2 前先隱藏）
+  const M5_READY = true;    // 延長時間、退回重考
   async function viewSessions() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
@@ -1174,12 +1174,12 @@
     gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
     needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR AI Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
     releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
-    released: '成績已公布', unrelease: '取消公布', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
+    released: '成績已公布', unrelease: '取消公布', confirmedBy: '{who} · {t}', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
     overview: '總覽', lowN: '{n} 低信心', correctAns: '正解', ptsSplit: '選擇 {a} 分 + 原因 {b} 分', ptsText: '文字 {b} 分', modelAnswer2: '標準答案',
     colAgent: '專員', colChoice: '選擇', colReason: '原因', colAnswer: '答案', colAi: 'AI 判分', colTeacher: '講師確認',
     right: '對', wrong: '錯', noChoice: '未選', conf: '信心度 {n}%', lowConf: '低信心度 {n}%', notGraded: '尚未批改', accept: '接受', confirm: '確認',
     accepted: '已確認 · {n}', edit: '修改', unconfirm: '取消確認', addComment: '加評語', editComment: '評語', commentPh: '給專員的評語（成績公布後專員看得到）',
-    acceptRest: '本題未標記的全部接受', acceptedN: '已接受 {n} 筆', thresholdNote: '低信心度門檻：{n}%（可在 Settings 分頁調整）。標記不改變排列順序。',
+    acceptRest: '本題未標記的全部接受', acceptedN: '已接受 {n} 筆', thresholdNote: '低信心度門檻：{n}%（可在「主題設定 → 系統設定」調整）。標記不改變排列順序。',
     colChoicePts: '選擇', colTextPts: '文字', colTotal: '總分', colUnconfirmed: '未確認', notSubmitted: '未交卷',
     resultsOut: '成績已公布', yourScore: '你的分數', correctOf: '答對（選擇）', textPts: '原因與文字作答', timeUsed: '作答時間', minShort: '{n} 分鐘',
     toReview: '需要複習的題目（{n}）', allCorrect: '全部答對，做得好！', keyPoint: '判斷重點', yourAns: '你的選擇', yourReason2: '你的原因', yourText: '你的答案',
@@ -1190,12 +1190,12 @@
     gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
     needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR AI Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
     releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
-    released: 'Results released', unrelease: 'Withdraw results', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
+    released: 'Results released', unrelease: 'Withdraw results', confirmedBy: '{who} · {t}', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
     overview: 'Overview', lowN: '{n} low', correctAns: 'Answer', ptsSplit: 'Choice {a} + reason {b} points', ptsText: 'Written {b} points', modelAnswer2: 'Model answer',
     colAgent: 'Agent', colChoice: 'Choice', colReason: 'Reason', colAnswer: 'Answer', colAi: 'AI score', colTeacher: 'Trainer',
     right: 'correct', wrong: 'wrong', noChoice: 'none', conf: 'confidence {n}%', lowConf: 'Low confidence {n}%', notGraded: 'Not graded', accept: 'Accept', confirm: 'Confirm',
     accepted: 'Confirmed · {n}', edit: 'Edit', unconfirm: 'Unconfirm', addComment: 'Add note', editComment: 'Note', commentPh: 'Note for the agent (visible after results are released)',
-    acceptRest: 'Accept all unflagged in this question', acceptedN: 'Accepted {n}', thresholdNote: 'Low-confidence threshold: {n}% (change it in the Settings tab). Flags do not change the order.',
+    acceptRest: 'Accept all unflagged in this question', acceptedN: 'Accepted {n}', thresholdNote: 'Low-confidence threshold: {n}% (change it in Settings → System). Flags do not change the order.',
     colChoicePts: 'Choice', colTextPts: 'Written', colTotal: 'Total', colUnconfirmed: 'Unconfirmed', notSubmitted: 'Not submitted',
     resultsOut: 'Results released', yourScore: 'Your score', correctOf: 'Correct (choice)', textPts: 'Reasons & written', timeUsed: 'Time used', minShort: '{n} min',
     toReview: 'Questions to review ({n})', allCorrect: 'You got everything right. Well done!', keyPoint: 'Key point', yourAns: 'Your answer', yourReason2: 'Your reason', yourText: 'Your answer',
@@ -1261,7 +1261,7 @@
         : `${low ? `<span class="chip warn">${esc(t('lowConf', { n: Math.round(a.aiConfidence * 100) }))}</span><br>` : ''}<b style="font-size:18px">${r2(a.aiScore)}</b> <span class="soft">/ ${max}${!low ? ' · ' + esc(t('conf', { n: Math.round((a.aiConfidence || 0) * 100) })) : ''}</span><div class="small muted">${esc(a.aiReason || '')}</div>`;
       const cur = a.teacherScore !== null ? a.teacherScore : a.aiScore;
       const teacher = a.teacherScore !== null && !editing.has(a.aid)
-        ? `<span class="chip ok">✓ ${esc(t('accepted', { n: r2(a.teacherScore) }))}</span> <button class="btn sm ghost" data-edit="${esc(a.aid)}">${esc(t('edit'))}</button>`
+        ? `<span class="chip ok">✓ ${esc(t('accepted', { n: r2(a.teacherScore) }))}</span> <button class="btn sm ghost" data-edit="${esc(a.aid)}">${esc(t('edit'))}</button>${a.teacherBy ? `<div class="small soft">${esc(t('confirmedBy', { who: a.teacherBy.split('@')[0], t: fmtDT(a.teacherAt) }))}</div>` : ''}`
         : `<div class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" class="sc" data-sc="${esc(a.aid)}" min="0" max="${max}" step="0.5" value="${cur === null ? '' : r2(cur)}" aria-label="score"><span class="soft small">/ ${max}</span>
             <button class="btn sm ${a.aiScore !== null ? 'ok' : 'primary'}" data-acc="${esc(a.aid)}">${esc(a.teacherScore !== null || a.aiScore === null ? t('confirm') : t('accept'))}</button>
             ${a.teacherScore !== null ? `<button class="btn sm ghost" data-unc="${esc(a.aid)}">${esc(t('unconfirm'))}</button>` : ''}</div>`;
@@ -1326,6 +1326,16 @@
       };
     }
     draw();
+    // 多位講師同時閱卷：其他人確認的分數即時更新（自己正在輸入時先不打擾，停手後再更新）
+    if (DB().live && DB().live.grades) {
+      let first = true, pend = false, timer = null;
+      const refresh = async () => {
+        if (editing.size || (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) { pend = true; clearTimeout(timer); timer = setTimeout(refresh, 3000); return; }
+        pend = false;
+        try { d = await api('t_grading', { sessionId: d.session.sessionId }); if (location.hash.startsWith('#/grading/')) draw(); } catch (_) { /* 下次再試 */ }
+      };
+      liveOff = DB().live.grades(d.session.sessionId, () => { if (first) { first = false; return; } clearTimeout(timer); timer = setTimeout(refresh, 600); });
+    }
   }
 
   // ───────── 專員：成績 ─────────
@@ -1365,7 +1375,7 @@
     colTaken: '測驗次數', colAvg: '平均', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
     wrongPoints: '錯誤重點', notReleasedChip: '成績未公布',
     makeupTitle: '建立補考', makeupNote: '補考沿用原測驗的題目與配分，會建立一個新的測驗場次與連結。', create2: '建立補考', makeupDone: '補考 {id} 已建立',
-    returnBtn: '退回', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會保留在 Sheet 但不再計分，專員可以在測驗開放期間重新作答。', returnReason: '原因（選填，例如網路中斷）', returnDone: '已退回',
+    returnBtn: '退回', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會另外保存但不再計分，專員可以在測驗開放期間重新作答。', returnReason: '原因（選填，例如網路中斷）', returnDone: '已退回',
     extend: '延長結束時間', extendTitle: '延長 {id} 的結束時間', newEnd: '新的結束時間', extendDone: '已延長', noneSel: '請先勾選專員',
     attemptDetail: '作答明細', choiceLabel: '選擇', textLabel: '文字', aiLabel: 'AI', teacherLabel: '講師', notAnswered: '未作答',
   });
@@ -1377,7 +1387,7 @@
     colTaken: 'Quizzes', colAvg: 'Average', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
     wrongPoints: 'Missed points', notReleasedChip: 'Not released',
     makeupTitle: 'Create a makeup quiz', makeupNote: 'The makeup reuses the original questions and points, with a new session and link.', create2: 'Create makeup', makeupDone: 'Makeup {id} created',
-    returnBtn: 'Return', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers stay in the Sheet but no longer count. The agent can answer again while the quiz is open.', returnReason: 'Reason (optional, e.g. connection lost)', returnDone: 'Returned',
+    returnBtn: 'Return', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers are kept on file but no longer count. The agent can answer again while the quiz is open.', returnReason: 'Reason (optional, e.g. connection lost)', returnDone: 'Returned',
     extend: 'Extend end time', extendTitle: 'Extend {id}', newEnd: 'New end time', extendDone: 'Extended', noneSel: 'Select agents first',
     attemptDetail: 'Answer details', choiceLabel: 'Choice', textLabel: 'Written', aiLabel: 'AI', teacherLabel: 'Trainer', notAnswered: 'Not answered',
   });
