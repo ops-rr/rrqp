@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04k';
+const VERSION = 'V2-2026-11-04m';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -308,7 +308,7 @@ function checkQuestion(q, reasons, opt = {}) {
   if (fo && (fo.solution !== r.solution || fo.amount !== r.amount)) errs.push('drc.buyer first offer (' + fo.solution + ' $' + fo.amount + ') must equal request (' + r.solution + ' $' + r.amount + ')');
   if (q.type === 'A' || q.type === 'B') {
     const opts = Array.isArray(q.options) ? q.options : [];
-    need(opts.length >= 2 && opts.length <= 4, 'options must have 2–4 items');
+    need(opts.length >= 2 && opts.length <= 8, 'options must have 2–8 items');
     opts.forEach((o, j) => { need(o && o.id, 'options[' + j + '].id missing'); if (o) bi(o.text, 'options[' + j + '].text'); });
     need(opts.some((o) => o && o.id === q.answer), 'answer must be one of the option ids');
   }
@@ -836,6 +836,40 @@ const ACTIONS = {
     return { topic: Object.assign({ topicId }, doc) };
   },
 
+  /** 匯入主題（JSON）：主題、標籤、選項範本一次建立；已存在的主題或標籤不覆蓋 */
+  tw_importTopic: async (b) => {
+    const m = await needTW();
+    const d = b.data || fail('沒有資料 / No data');
+    const tp = d.topic || fail('檔案缺少 topic / Missing topic');
+    const topicId = slug(tp.topicId || '', 30);
+    if (!topicId) fail('topic.topicId 必填（英文小寫與 -） / topic.topicId is required');
+    if (!tp.name || !tp.name.zh || !tp.name.en) fail('topic.name 需要中英文 / topic.name needs zh and en');
+    if (!String(tp.criteria || '').trim()) fail('topic.criteria（判斷標準）必填 / topic.criteria is required');
+    if (await S.get('topics/' + topicId)) fail('已經有這個主題，不會覆蓋 / Topic already exists: ' + topicId);
+    const [tags, sets] = await Promise.all([S.list('tags'), S.list('optionSets')]);
+    const dupTags = (d.tags || []).filter((x) => tags.some((y) => y.id === x.tagId)).map((x) => x.tagId);
+    if (dupTags.length) fail('標籤代碼已被使用 / Tag id already used: ' + dupTags.join(', '));
+    const t = now(), ops = [];
+    (d.optionSets || []).forEach((o) => {
+      const ex = sets.find((y) => y.id === o.setId);
+      const opts = (o.options || []).map((x, i) => ({ id: String.fromCharCode(97 + i), text: { zh: String(x.text?.zh || '').trim(), en: String(x.text?.en || '').trim() } }));
+      if (opts.length < 2 || opts.length > 8 || opts.some((x) => !x.text.zh || !x.text.en)) fail('選項範本 ' + o.setId + '：需要 2–8 個中英文選項 / 2–8 options with zh and en');
+      if (ex) { if (JSON.stringify(ex.options) !== JSON.stringify(opts)) fail('選項範本代碼已被使用且內容不同 / Option set id already used: ' + o.setId); return; }
+      ops.push({ op: 'set', path: 'optionSets/' + o.setId, data: { name: o.name, options: opts, updatedAt: t, updatedBy: m.email } });
+    });
+    const setIds = new Set(sets.map((x) => x.id).concat((d.optionSets || []).map((x) => x.setId)));
+    if (tp.defaultOptionSet && !setIds.has(tp.defaultOptionSet)) fail('找不到預設選項範本 / Default option set not found: ' + tp.defaultOptionSet);
+    ops.push({ op: 'set', path: 'topics/' + topicId, data: { name: tp.name, prompt: tp.prompt || { zh: '', en: '' }, criteria: String(tp.criteria), criteriaVersion: tp.criteriaVersion || 'v1',
+      keyFactors: tp.keyFactors || [], rules: tp.rules || '', blocks: tp.blocks || [], defaultOptionSet: tp.defaultOptionSet || '', gradingGuide: tp.gradingGuide || '',
+      active: true, history: [], createdAt: t, createdBy: m.email, updatedAt: t, updatedBy: m.email } });
+    (d.tags || []).forEach((x) => {
+      if (!x.tagId || !x.name || !x.name.zh || !x.name.en) fail('標籤需要 tagId 與中英文名稱 / Tags need tagId and names');
+      ops.push({ op: 'set', path: 'tags/' + x.tagId, data: { topicId, name: x.name, desc: x.desc || '', active: true, updatedAt: t, updatedBy: m.email } });
+    });
+    await S.batch(ops);
+    return { topicId, tags: (d.tags || []).length, optionSets: ops.filter((o) => o.path.startsWith('optionSets/')).length };
+  },
+
   /** DMS 系統規則：申退原因 × 允許的申請方案，與給 AI 的文字規則 */
   tw_getDms: async () => { await needTeacher(); return { dms: await loadDms() }; },
   tw_saveDms: async (b) => {
@@ -983,7 +1017,7 @@ async function sessionDoc(id) {
 }
 function requireAssigned(s, m) { if (!(s.assignees || []).includes(m.email)) fail('這份測驗沒有指派給你 / This quiz is not assigned to you'); }
 const indexOfSession = (s) => ({ title: s.title, startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, questionCount: s.questionCount, assigned: (s.assignees || []).length,
-  ended: !!s.ended, released: !!s.released, createdBy: s.createdBy || '', createdAt: s.createdAt || 0, qids: s.qids || [], topicId: s.topicId || '' });
+  ended: !!s.ended, released: !!s.released, createdBy: s.createdBy || '', createdAt: s.createdAt || 0, qids: s.qids || [], topicId: s.topicId || '', parentSession: s.parentSession || '' });
 
 const M4 = {
   /** 題庫列表：只讀題庫索引一份文件；給 assignees 時計算「這些人中有幾位做過」 */
@@ -1395,6 +1429,93 @@ const M5 = {
   },
 };
 Object.assign(ACTIONS, M5);
+
+// ───────── 歷史成績（M6）：分數一律即時計算（講師確認優先，否則 AI 分數），未發佈的測驗也看得到 ─────────
+/** 一場測驗的成績摘要（與 V1 sessionResults_ 相同格式） */
+function sessionResults(sid, s, qs, atts, g, line) {
+  const t = now(), rows = answerRows(qs, atts, g);
+  const out = (s.assignees || []).map((email) => {
+    const a = atts.find((x) => x.id === email), st = attemptOut(s, a, t);
+    if (st.status !== 'submitted') return { email, status: st.status, score: null, wrong: [] };
+    const per = qs.map((q) => { const r = rows.find((x) => x.email === email && x.qid === q.qid) || {}; return { q, got: r2(rowScore(r)), max: qMax(q) }; });
+    const score = r2(per.reduce((n, x) => n + x.got, 0));
+    return { email, status: 'submitted', score, coaching: score < line, autoSubmitted: st.autoSubmitted, startedAt: st.startedAt, submittedAt: st.submittedAt,
+      wrong: per.filter((x) => x.got < x.max - 1e-9).map((x) => ({ seq: x.q.seq, partial: x.got > 0, point: x.q.point || null })) };
+  });
+  const done = out.filter((r) => r.status === 'submitted'), scores = done.map((r) => r.score).sort((a, b) => a - b);
+  const qstats = qs.map((q) => {
+    const got = rows.filter((r) => r.qid === q.qid && done.some((d) => d.email === r.email)).map((r) => rowScore(r) / (qMax(q) || 1));
+    return { qid: q.qid, seq: q.seq, type: q.type, point: q.point || null, rate: got.length ? r2(got.reduce((n, x) => n + x, 0) / got.length) : null };
+  });
+  const mid = scores.length % 2 ? scores[(scores.length - 1) / 2] : (scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2;
+  return { session: Object.assign(sessionOut(sid, s, t), { released: !!s.released, parentSession: s.parentSession || '' }), coachLine: line, rows: out, questions: qstats,
+    stats: { assigned: out.length, submitted: done.length, auto: done.filter((r) => r.autoSubmitted).length, coaching: done.filter((r) => r.coaching).length,
+      avg: scores.length ? r2(scores.reduce((n, x) => n + x, 0) / scores.length) : null, median: scores.length ? r2(mid) : null,
+      max: scores.length ? scores[scores.length - 1] : null, min: scores.length ? scores[0] : null } };
+}
+const coachLine = async () => Math.round((await settingValue('coachingThreshold', 0.7)) * 100);
+async function resultsOf(sid) { const { s, qs, atts, g } = await gradingData(sid); return sessionResults(sid, s, qs, atts, g, await coachLine()); }
+
+const M6 = {
+  /** 成績首頁：各場次摘要 + 各專員摘要（尚未開始的測驗不列） */
+  t_resultsIndex: async () => {
+    await needTeacher();
+    const items = ((await S.get('meta/sessionIndex')) || {}).items || {}, t = now(), line = await coachLine();
+    const ids = Object.keys(items).filter((id) => sessionState(items[id], t) !== 'scheduled').sort();
+    const list = await Promise.all(ids.map(async (id) => { const { s, qs, atts, g } = await gradingData(id); return sessionResults(id, s, qs, atts, g, line); }));
+    const agents = {};
+    list.forEach((r) => r.rows.filter((x) => x.status === 'submitted').forEach((x) => {
+      const a = agents[x.email] || (agents[x.email] = { email: x.email, taken: 0, total: 0, coaching: 0, last: null });
+      a.taken++; a.total += x.score; if (x.coaching) a.coaching++;
+      if (!a.last || x.submittedAt > a.last.submittedAt) a.last = { sessionId: r.session.sessionId, title: r.session.title, score: x.score, submittedAt: x.submittedAt };
+    }));
+    return { coachLine: line, sessions: list.map((r) => Object.assign({}, r.session, r.stats)).reverse(),
+      agents: Object.values(agents).map((a) => ({ email: a.email, taken: a.taken, avg: r2(a.total / a.taken), coaching: a.coaching, last: a.last })).sort((a, b) => a.avg - b.avg) };
+  },
+
+  t_results: async (b) => { await needTeacher(); const [sid] = await sessionDoc(b.sessionId); return resultsOf(sid); },
+
+  /** 某位專員的歷次成績與錯誤重點 */
+  t_agentHistory: async (b) => {
+    await needTeacher();
+    const email = String(b.email || '').trim().toLowerCase();
+    const rows = await S.query('sessions', 'assignees', 'array-contains', email), line = await coachLine();
+    const items = await Promise.all(rows.map(async (s) => { const { qs, atts, g } = await gradingData(s.id); const r = sessionResults(s.id, s, qs, atts, g, line); return { session: r.session, row: r.rows.find((x) => x.email === email) }; }));
+    return { email, coachLine: line, items: items.sort((x, y) => x.session.startAt - y.session.startAt) };
+  },
+
+  /** 某位專員在某場測驗的作答明細 */
+  t_attemptDetail: async (b) => {
+    await needTeacher();
+    const [sid] = await sessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
+    const { s, qs, atts, g } = await gradingData(sid), t = now();
+    return { session: sessionOut(sid, s, t), email, attempt: attemptOut(s, atts.find((a) => a.id === email), t), questions: qs,
+      answers: answerRows(qs, atts, g).filter((r) => r.email === email) };
+  },
+
+  /** 補考：沿用原測驗的試卷快照與配分，建立新的場次（新的連結） */
+  t_createMakeup: async (b) => {
+    const m = await needTeacher();
+    const [pid, p] = await sessionDoc(b.sessionId);
+    const assignees = validEmails(b.assignees);
+    const startAt = Number(b.startAt), endAt = Number(b.endAt), minutes = Number(b.minutes || p.minutes);
+    if (!(startAt > 0 && endAt > startAt && endAt > now())) fail('時間設定有誤 / Check the start and end time');
+    if (!(minutes >= 1 && minutes <= 300)) fail('作答時間需介於 1–300 分鐘 / Duration must be 1–300 minutes');
+    const [pub, key] = await Promise.all([S.get('sessions/' + pid + '/paper/public'), S.get('sessions/' + pid + '/paper/key')]);
+    const sid = 'E' + String(await S.nextIds('E', 1)).padStart(3, '0'), t = now();
+    const title = { zh: String(b.titleZh || (p.title.zh + '（補考）')).trim(), en: String(b.titleEn || (p.title.en + ' (Makeup)')).trim() };
+    const sess = { title, startAt: S.ts(startAt), endAt: S.ts(endAt), minutes, graceMin: p.graceMin || GRACE_MIN, assignees, qids: p.qids || [], questionCount: p.questionCount || (p.qids || []).length,
+      topicId: p.topicId || '', parentSession: pid, ended: false, released: false, createdBy: m.email, createdAt: t };
+    const seen = await seenMap(assignees);
+    const ops = [{ op: 'set', path: 'sessions/' + sid, data: sess }, { op: 'set', path: 'sessions/' + sid + '/paper/public', data: pub || { questions: [] } },
+      { op: 'set', path: 'sessions/' + sid + '/paper/key', data: key || { questions: [] } },
+      { op: 'set', path: 'meta/sessionIndex', merge: true, data: { items: { [sid]: Object.assign(indexOfSession(Object.assign({}, sess, { startAt, endAt })), { parentSession: pid }) } } }];
+    assignees.forEach((e) => ops.push({ op: 'set', path: 'seen/' + e, data: { qids: [...new Set([...seen[e], ...(p.qids || [])])], updatedAt: t } }));
+    await S.batch(ops);
+    return { sessionId: sid };
+  },
+};
+Object.assign(ACTIONS, M6);
 
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];

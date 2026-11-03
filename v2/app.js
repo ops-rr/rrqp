@@ -460,7 +460,7 @@
         <div>${lab('qeType')}<select data-type="drc.${side}.${i}" style="${fld}">${[['offer', t('qeOffer')], ['text', t('qeDrcText')]].map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div><span class="spacer"></span>${ctl('drc.' + side, i, q.drc[side].length)}</div>
         ${d.type === 'offer' ? `<div class="qe-row"><div>${lab('qeSolution')}${sel(`drc.${side}.${i}.solution`, solOpts)}</div><div>${lab('qeAmount')}${inp(`drc.${side}.${i}.amount`, '', '120px', true)}</div></div>` : bi(`drc.${side}.${i}.text`, 2)}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="drc.${side}">${esc(t('qeAddDrc'))}</button>`;
     const optHtml = () => (q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
-        ${(q.options || []).length < 4 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
+        ${(q.options || []).length < 8 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
 
     const rlist = (rules.reasons || []).map((x) => x.en);
     const reasonOpts = (rlist.includes(q.request.reason) ? [] : [[q.request.reason || '', (q.request.reason || '—') + ' ⚠']]).concat(rlist.map((r) => [r, reasonLabel(r)]));
@@ -1555,7 +1555,7 @@
   // ═════════════════════════ 題庫 ═════════════════════════
   Object.assign(I18N.zh, {
     navBank: '可用題庫', bank: '可用題庫', delDraft: '刪除草稿', st_deleted: '已刪除', delDraftDone: '草稿 {id} 已刪除',
-    delDraftAll: '刪除草稿 {id}？題目都已入庫，題庫與已發佈的測驗不受影響。', delDraftSome: '刪除草稿 {id}？還有 {n} 題尚未入庫，會一併移除（Sheet 仍保留紀錄）。',
+    delDraftAll: '刪除草稿 {id}？題目都已入庫，題庫與已發佈的測驗不受影響。', delDraftSome: '刪除草稿 {id}？還有 {n} 題尚未入庫，會一併移除（草稿紀錄仍保留）。',
     deletedNote: '這份草稿已刪除，只能檢視。', st_banked: '已入庫', addToBank: '加入題庫（{n} 題）', bankedAs: '已入庫為 {id}', bankAdded: '已加入題庫：{ids}',
     bankedNote: '這題已入庫為 {id}，之後請到題庫修改（草稿不再影響題庫）。', goBank: '前往題庫',
     bankEmpty: '題庫還沒有題目。到草稿頁校對完成後按「加入題庫」。', allTypes: '全部題型', allTags: '全部標籤', allStatus: '全部狀態', active: '啟用中', retired: '已停用',
@@ -1570,7 +1570,7 @@
   });
   Object.assign(I18N.en, {
     navBank: 'Bank', bank: 'Question Bank', delDraft: 'Delete draft', st_deleted: 'Deleted', delDraftDone: 'Draft {id} deleted',
-    delDraftAll: 'Delete draft {id}? All questions are in the bank; the bank and published quizzes are not affected.', delDraftSome: 'Delete draft {id}? {n} question(s) are not in the bank and will be removed (the Sheet keeps a record).',
+    delDraftAll: 'Delete draft {id}? All questions are in the bank; the bank and published quizzes are not affected.', delDraftSome: 'Delete draft {id}? {n} question(s) are not in the bank and will be removed (the draft record is kept).',
     deletedNote: 'This draft was deleted and is read-only.', st_banked: 'In bank', addToBank: 'Add to bank ({n})', bankedAs: 'In bank as {id}', bankAdded: 'Added to bank: {ids}',
     bankedNote: 'This question is in the bank as {id}. Edit it in the bank from now on (the draft no longer affects it).', goBank: 'Open in bank',
     bankEmpty: 'The bank is empty. Review a draft and click "Add to bank".', allTypes: 'All types', allTags: 'All tags', allStatus: 'All statuses', active: 'Active', retired: 'Retired',
@@ -2175,6 +2175,7 @@
     gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
     gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
     tGrading: '批改原則（給 AI 批改用）', tGradingHint: 'AI 批改文字答案時優先依這裡的原則，其次才是每題的評分標準。例如：點出判斷關鍵就給滿分、不要求引用條文。',
+    tImport: '匯入主題', tImportConfirm: '匯入主題「{n}」：標籤 {g} 個、選項範本 {o} 組。已存在的主題或標籤不會被覆蓋。確定匯入？', tImported: '已匯入主題 {n}',
     tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
     tDisable: '停用主題', tEnable: '重新啟用', tDisableConfirm: '停用「{n}」？停用後不能用它建立草稿或申請範例；已有的範例、草稿與題目不受影響。', tDisabled: '主題已停用', tEnabled: '主題已啟用',
     tInactiveNote: '這個主題已停用：不能用它建立草稿或申請範例。', tReasonsMoved: '申退原因與允許的申請方案是 DMS 系統規則，所有主題共用，請到',
@@ -2200,6 +2201,7 @@
     gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
     gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
     tGrading: 'Grading principles (for AI grading)', tGradingHint: 'When grading written answers, the AI follows these principles first, then each question’s rubric. E.g. full marks for naming the deciding factor; no need to cite rule numbers.',
+    tImport: 'Import topic', tImportConfirm: 'Import topic "{n}" with {g} tags and {o} option sets? Existing topics and tags are never overwritten.', tImported: 'Topic {n} imported',
     tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',
     tDisable: 'Deactivate topic', tEnable: 'Reactivate', tDisableConfirm: 'Deactivate "{n}"? It can no longer be used for new drafts or sample requests. Existing samples, drafts and questions are not affected.', tDisabled: 'Topic deactivated', tEnabled: 'Topic reactivated',
     tInactiveNote: 'This topic is inactive: it cannot be used for new drafts or sample requests.', tReasonsMoved: 'Return reasons and allowed solutions are DMS system rules shared by all topics. Edit them in',
@@ -2264,7 +2266,7 @@
   /** 設定頁的主題選擇列（主題與判斷標準、標籤共用）；選擇記在網址 ?topic= */
   function topicPicker(meta, cur, tab) {
     return `<div class="row topic-pick"><b class="small">${esc(t('topic'))}</b>${meta.topics.map((x) => `<a class="tp ${x.topicId === cur ? 'on' : ''} ${x.active ? '' : 'off'}" href="#/settings?tab=${tab}&topic=${esc(x.topicId)}">${esc(L(x.name))}${x.active ? '' : ` <span class="chip warn">${esc(t('tagInactive'))}</span>`}</a>`).join('')}
-      ${tab === 'topic' ? `<span class="spacer"></span><button class="btn sm" id="tp_new" type="button">＋ ${esc(t('tAdd'))}</button>` : ''}</div>`;
+      ${tab === 'topic' ? `<span class="spacer"></span><label class="btn sm" style="display:inline-flex;align-items:center">${esc(t('tImport'))}<input type="file" id="tp_imp" accept=".json,application/json" hidden></label><button class="btn sm" id="tp_new" type="button">＋ ${esc(t('tAdd'))}</button>` : ''}</div>`;
   }
   const pickedTopic = (meta) => {
     const want = new URLSearchParams(location.hash.split('?')[1] || '').get('topic');
@@ -2329,6 +2331,14 @@
     }));
     const wantGap = new URLSearchParams(location.hash.split('?')[1] || '').get('gap');
     if (wantGap) setTimeout(() => appendGap(wantGap), 0);
+    $('#tp_imp').onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      let data; try { data = JSON.parse(await f.text()); } catch (_) { toast(t('seedBad'), 4000); return; }
+      const tp = data.topic || {};
+      if (!(await confirmBox(t('tImportConfirm', { n: (tp.name && tp.name.zh) || tp.topicId || '?', g: (data.tags || []).length, o: (data.optionSets || []).length }), t('tImport')))) { e.target.value = ''; return; }
+      try { const r = await api('tw_importTopic', { data }); topicsCache = null; libMeta = null; toast(t('tImported', { n: r.topicId }), 4000); location.hash = '#/settings?tab=topic&topic=' + r.topicId; }
+      catch (err) { toast(err.message, 6000); e.target.value = ''; }
+    };
     $('#tp_new').onclick = () => addTopicDialog(meta).then((tp) => { if (tp) { topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; location.hash = '#/settings?tab=topic&topic=' + tp.topicId; } });
     $('#t_act').onclick = async () => {
       if (dirty && !window.confirm(t('unsavedLeave'))) return;
