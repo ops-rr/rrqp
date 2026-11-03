@@ -18,22 +18,28 @@ async function firestoreStore() {
   try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
   catch (_) { db = F.getFirestore(app); }          // 無痕視窗等不支援本機快取時
   const ref = (path) => F.doc(db, path);
+  /** Firestore 的 Timestamp 一律轉成毫秒數字，畫面程式不用處理 */
+  const norm = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : Array.isArray(v) ? v.map(norm) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, norm(x)])) : v);
   const toOps = (b, ops) => ops.forEach((o) => {
     if (o.op === 'set') b.set(ref(o.path), o.data, o.merge ? { merge: true } : {});
     else if (o.op === 'update') b.update(ref(o.path), o.data);
     else if (o.op === 'del') b.delete(ref(o.path));
   });
   return {
-    async get(path) { const s = await F.getDoc(ref(path)); return s.exists() ? s.data() : null; },
-    async list(coll) { const s = await F.getDocs(F.collection(db, coll)); return s.docs.map((d) => Object.assign({ id: d.id }, d.data())); },
+    async get(path) { const s = await F.getDoc(ref(path)); return s.exists() ? norm(s.data()) : null; },
+    async list(coll) { const s = await F.getDocs(F.collection(db, coll)); return s.docs.map((d) => Object.assign({ id: d.id }, norm(d.data()))); },
+    /** 查詢（例如 assignees array-contains 自己的 Email） */
+    async query(coll, field, op, value) { const s = await F.getDocs(F.query(F.collection(db, coll), F.where(field, op, value))); return s.docs.map((d) => Object.assign({ id: d.id }, norm(d.data()))); },
+    ts: (ms) => F.Timestamp.fromMillis(Number(ms)),
+    serverTime: () => F.serverTimestamp(),
     async set(path, data, merge) { await F.setDoc(ref(path), data, merge ? { merge: true } : {}); },
     async update(path, data) { await F.updateDoc(ref(path), data); },
     async del(path) { await F.deleteDoc(ref(path)); },
     async batch(ops) { for (let i = 0; i < ops.length; i += 450) { const b = F.writeBatch(db); toOps(b, ops.slice(i, i + 450)); await b.commit(); } },
     deleteField: () => F.deleteField(),
     /** 即時監聽：資料有變動就呼叫 cb；回傳取消監聽的函式 */
-    watchDoc(path, cb) { return F.onSnapshot(ref(path), (s) => cb(s.exists() ? s.data() : null), (e) => console.warn('watch', path, e.code)); },
-    watchColl(coll, cb) { return F.onSnapshot(F.collection(db, coll), (s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), (e) => console.warn('watch', coll, e.code)); },
+    watchDoc(path, cb) { return F.onSnapshot(ref(path), (s) => cb(s.exists() ? norm(s.data()) : null), (e) => console.warn('watch', path, e.code)); },
+    watchColl(coll, cb) { return F.onSnapshot(F.collection(db, coll), (s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, norm(d.data())))), (e) => console.warn('watch', coll, e.code)); },
     /** 流水號：用交易保證兩位講師同時申請也不會拿到同一個號碼；回傳第一個號碼 */
     async nextIds(kind, count) {
       return F.runTransaction(db, async (tx) => {
@@ -81,6 +87,11 @@ function memoryStore() {
     async update(path, d) { apply({ op: 'update', path, data: d }); save(); },
     async del(path) { apply({ op: 'del', path }); save(); },
     async batch(ops) { ops.forEach(apply); save(); },
+    async query(coll, field, op, value) {
+      return (await this.list(coll)).filter((d) => (op === 'array-contains' ? (d[field] || []).includes(value) : op === '==' ? d[field] === value : true));
+    },
+    ts: (ms) => Number(ms),
+    serverTime: () => Date.now(),
     deleteField: () => DEL,
     async nextIds(kind, count) { const c = data['meta/counters'] || (data['meta/counters'] = {}); const first = Number(c[kind] || 0) + 1; c[kind] = first + count - 1; save(); return first; },
     auth: {
@@ -95,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04g';
+const VERSION = 'V2-2026-11-04i';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -339,8 +350,14 @@ function enPendingAfter(oldQ, newQ, prev) {
 }
 const sameQ = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 /** 題目以外的處理狀態（英文待翻譯、修訂號、AI 審查）放在 _m，存檔時移除 */
-const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted });
+const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null });
 const STRIP = ['id', 'qid', 'seq', 'points', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'];
+
+/** 題目的判斷重點（中文）與正解（選項中文文字） */
+function judgementOf(q) {
+  const o = ((q && q.options) || []).find((x) => x && x.id === q.answer);
+  return { pointZh: String((q && q.point && q.point.zh) || '').slice(0, 200), answer: o ? String((o.text && o.text.zh) || '') : '' };
+}
 
 // ───────── 草稿與題庫的共用處理 ─────────
 const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags: d.tags || [], target: d.target || 0, mix: d.mix || {}, imported: d.imported || 0,
@@ -660,23 +677,8 @@ const ACTIONS = {
       if (unknown.length) fail('未知的標籤 / Unknown tags: ' + unknown.join(', '));
       patch.tags = tags;
     }
-    if (b.pointZh !== undefined) patch.pointZh = String(b.pointZh || '').slice(0, 200);
-    if (b.answer !== undefined) patch.answer = String(b.answer || '').slice(0, 50);
-    // 判斷重點雙向同步：表單改了 → 題目內的中文跟著改（英文標成待翻譯）；只在編輯器改了題目內的 → 表單跟著改
-    {
-      const baseQ = patch.question || cur.question || {};
-      const qPoint = String((baseQ.point && baseQ.point.zh) || '');
-      const formChanged = patch.pointZh !== undefined && patch.pointZh !== (cur.pointZh || '');
-      if (formChanged && patch.pointZh.trim() && patch.pointZh !== qPoint) {
-        const nq = JSON.parse(JSON.stringify(baseQ));
-        nq.point = Object.assign({ en: '' }, nq.point, { zh: patch.pointZh });
-        patch.enPending = enPendingAfter(baseQ, nq, patch.enPending || cur.enPending);
-        patch.question = nq;
-        if (patch.rev === undefined) patch.rev = (cur.rev || 0) + 1;
-      } else if (!formChanged && patch.question && qPoint && qPoint !== String((cur.question && cur.question.point && cur.question.point.zh) || '')) {
-        patch.pointZh = qPoint.slice(0, 200);
-      }
-    }
+    // 判斷重點與正解只存在題目內；範例的 pointZh / answer 由題目推出（列表與「講師改了 AI 的判斷」用）
+    if (patch.question) Object.assign(patch, judgementOf(patch.question));
     if ((patch.answer !== undefined && patch.answer !== (cur.answer || '')) || (patch.pointZh !== undefined && patch.pointZh !== (cur.pointZh || ''))) patch.judgedBy = m.email;
     if (b.changeHint !== undefined) patch.changeHint = String(b.changeHint || '').slice(0, 1000);
     await saveSample(b.sampleId, cur, patch);
@@ -688,7 +690,8 @@ const ACTIONS = {
     const m = await needTW();
     const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found');
     if (!(cur.tags || []).length) fail('請至少選一個標籤 / Pick at least one tag');
-    if (!String(cur.pointZh || '').trim() || !String(cur.answer || '').trim()) fail('請填寫判斷重點與正解 / Key point and answer are required');
+    const jd = judgementOf(cur.question || {});
+    if (!jd.pointZh.trim() || ((cur.question || {}).type !== 'C' && !jd.answer)) fail('請填寫判斷重點與正解 / Key point and answer are required');
     if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
@@ -918,6 +921,267 @@ const ACTIONS = {
     return { key: b.key, value: v };
   },
 };
+
+// ───────── 題庫（M4）：草稿 = 生產線、題庫 = 倉庫；發佈測驗一律從題庫組卷，試卷是發佈當下的快照 ─────────
+const AGENT_FIELDS = ['type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options', 'cutoff'];
+const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const r2 = (n) => Math.round(n * 100) / 100;
+function shuffle(a) { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
+function validEmails(list) {
+  const emails = [...new Set((list || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+  const bad = emails.filter((e) => !EMAIL_RE.test(e));
+  if (bad.length) fail('Email 格式錯誤 / Invalid email: ' + bad.join(', '));
+  if (!emails.length) fail('請至少指派一位 / Assign at least one person');
+  return emails;
+}
+/** 預設配分：總分 100 依題數平均；B 題選擇與原因各半 */
+function pointsOf(type, n) {
+  const each = r2(100 / n);
+  if (type === 'A') return { choice: each };
+  if (type === 'C') return { text: each };
+  const half = r2(each / 2);
+  return { choice: half, text: r2(each - half) };
+}
+async function topicVersions() { const m = {}; (await S.list('topics')).forEach((t) => { m[t.id] = t.criteriaVersion; }); return m; }
+/** 誰做過哪些題（以「曾被指派」計）：seen/{email}.qids */
+async function seenMap(emails) {
+  const out = {};
+  await Promise.all((emails || []).map(async (e) => { const d = await S.get('seen/' + e).catch(() => null); out[e] = new Set((d && d.qids) || []); }));
+  return out;
+}
+function bankOut(qid, r, tv, seen) {
+  const emails = seen ? Object.keys(seen) : null;
+  return Object.assign({}, r, { qid, tags: r.tags || [], outdated: !!tv[r.topicId] && tv[r.topicId] !== r.criteriaVersion, avgRate: r.rateN ? r2(r.rateSum / r.rateN) : null,
+    answered: r.rateN || 0, used: r.used || 0, seenTotal: r.seenN || 0, seenBy: emails ? emails.filter((e) => seen[e].has(qid)).length : null });
+}
+async function bankRows() { const idx = (await S.get('meta/bankIndex')) || {}; return idx.items || {}; }
+
+// ───────── 測驗（M4）：sessions/{E001}、paper/public（不含答案）、paper/key、attempts/{email} ─────────
+const GRACE_MIN = 5;
+function sessionState(s, now) {
+  if (s.released) return 'released';
+  if (s.ended || now > s.endAt) return 'closed';
+  if (now < s.startAt) return 'scheduled';
+  return 'open';
+}
+function sessionOut(id, s, now) {
+  return { sessionId: id, draftId: 'BANK', title: s.title || { zh: id, en: id }, startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, state: sessionState(s, now),
+    questionCount: s.questionCount || (s.qids || []).length, createdBy: s.createdBy || '', parentSession: s.parentSession || '', topicId: s.topicId || '' };
+}
+function attemptOut(s, a, now) {
+  if (!a) return { status: 'not_started' };
+  const dl = Math.min(a.startedAt + s.minutes * 60000, s.endAt);
+  const status = a.submittedAt ? 'submitted' : now > dl + (s.graceMin || GRACE_MIN) * 60000 ? 'expired' : 'in_progress';
+  return { status, startedAt: a.startedAt, submittedAt: a.submittedAt || null, deadline: dl, autoSubmitted: !!a.autoSubmitted };
+}
+async function sessionDoc(id) {
+  const sid = String(id || '').trim().toUpperCase();
+  const s = await S.get('sessions/' + sid);
+  if (!s) fail('找不到測驗 / Quiz not found: ' + id);
+  return [sid, s];
+}
+function requireAssigned(s, m) { if (!(s.assignees || []).includes(m.email)) fail('這份測驗沒有指派給你 / This quiz is not assigned to you'); }
+const indexOfSession = (s) => ({ title: s.title, startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, questionCount: s.questionCount, assigned: (s.assignees || []).length,
+  ended: !!s.ended, released: !!s.released, createdBy: s.createdBy || '', createdAt: s.createdAt || 0, qids: s.qids || [], topicId: s.topicId || '' });
+
+const M4 = {
+  /** 題庫列表：只讀題庫索引一份文件；給 assignees 時計算「這些人中有幾位做過」 */
+  t_bankList: async (b) => {
+    await needTeacher();
+    const [items, tv, meta] = await Promise.all([bankRows(), topicVersions(), ACTIONS.t_topics()]);
+    const emails = Array.isArray(b.assignees) ? b.assignees.map((e) => String(e).trim().toLowerCase()).filter(Boolean) : null;
+    const seen = emails ? await seenMap(emails) : null;
+    return { questions: Object.keys(items).sort().reverse().map((q) => bankOut(q, items[q], tv, seen)),
+      topics: meta.topics, tags: meta.tags, inactiveTags: meta.inactiveTags };
+  },
+
+  t_bankGet: async (b) => {
+    await needTeacher();
+    const qid = String(b.qid || '').toUpperCase();
+    const [r, tv, sidx, rows] = await Promise.all([S.get('bank/' + qid), topicVersions(), S.get('meta/sessionIndex'), bankRows()]);
+    if (!r) fail('找不到題庫題目 / Bank question not found: ' + qid);
+    const items = (sidx && sidx.items) || {};
+    return { question: Object.assign({}, r.question, { id: qid }), info: bankOut(qid, Object.assign({}, rows[qid] || {}, bankIndexRow(Object.assign({}, rows[qid] || {}, r))), tv, null), currentVersion: tv[r.topicId] || '',
+      sessions: Object.keys(items).filter((k) => (items[k].qids || []).includes(qid)).map((k) => ({ sessionId: k, title: items[k].title, startAt: items[k].startAt })) };
+  },
+
+  /** 修改題庫題目：完整檢查（題庫要給專員作答，英文不能缺）；版本 +1；標記為符合目前的判斷標準 */
+  t_bankUpdate: async (b) => {
+    const m = await needTeacher();
+    const qid = String(b.qid || '').toUpperCase();
+    const r = await S.get('bank/' + qid) || fail('找不到題庫題目 / Bank question not found: ' + qid);
+    const q = Object.assign({}, b.question || {}); STRIP.forEach((k) => delete q[k]);
+    const dms = await loadDms();
+    normalizeReason(q, dms);
+    const chk = checkQuestion(q, dms);
+    if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
+    if (q.type !== r.type) fail('不能變更題型 / Question type cannot be changed');
+    const topic = (await S.get('topics/' + r.topicId)) || {};
+    const next = Object.assign({}, r, { question: q, answer: q.answer || '', pointZh: (q.point && q.point.zh) || '', tags: q.tags || r.tags || [],
+      criteriaVersion: topic.criteriaVersion || r.criteriaVersion, updatedAt: now(), updatedBy: m.email, version: (r.version || 1) + 1 });
+    const row = bankIndexRow(next); ['used', 'rateSum', 'rateN'].forEach((k) => delete row[k]);   // 使用統計保留索引上的數字
+    await S.batch([{ op: 'set', path: 'bank/' + qid, data: next }, { op: 'set', path: 'meta/bankIndex', merge: true, data: { items: { [qid]: row } } }]);
+    return M4.t_bankGet({ qid });
+  },
+
+  t_bankSetStatus: async (b) => {
+    const m = await needTeacher();
+    const qid = String(b.qid || '').toUpperCase(), st = b.status === 'retired' ? 'retired' : 'active';
+    if (!(await S.get('bank/' + qid))) fail('找不到題庫題目 / Bank question not found: ' + qid);
+    await S.batch([{ op: 'update', path: 'bank/' + qid, data: { status: st, updatedAt: now(), updatedBy: m.email } },
+      { op: 'update', path: 'meta/bankIndex', data: { ['items.' + qid + '.status']: st } }]);
+    return { qid, status: st };
+  },
+
+  /** 自動抽題：依題型配比；優先符合標籤、較少被使用；可避開受測者做過的題目 */
+  t_bankPick: async (b) => {
+    await needTeacher();
+    const [items, tv] = await Promise.all([bankRows(), topicVersions()]);
+    const emails = (b.assignees || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean);
+    const seen = await seenMap(emails);
+    const tags = (b.tags || []).map(String), exclude = (b.exclude || []).map(String), avoid = b.avoidSeen !== false;
+    const mix = { A: Number((b.mix || {}).A) || 0, B: Number((b.mix || {}).B) || 0, C: Number((b.mix || {}).C) || 0 };
+    const all = Object.keys(items).filter((q) => { const r = items[q]; return r.status === 'active' && (!b.topicId || r.topicId === b.topicId) && !exclude.includes(q) && (b.includeOutdated || tv[r.topicId] === r.criteriaVersion); });
+    const seenAny = (q) => emails.some((e) => seen[e].has(q));
+    const picked = [], shortage = {}, available = {};
+    ['A', 'B', 'C'].forEach((k) => {
+      const pool = all.filter((q) => items[q].type === k), fresh = pool.filter((q) => !seenAny(q));
+      available[k] = { total: pool.length, fresh: fresh.length };
+      const ranked = shuffle(avoid ? fresh : pool).map((q) => ({ q, m: (items[q].tags || []).filter((x) => tags.includes(x)).length, u: items[q].used || 0 })).sort((x, y) => (y.m - x.m) || (x.u - y.u));
+      ranked.slice(0, mix[k]).forEach((x) => picked.push(x.q));
+      if (ranked.length < mix[k]) shortage[k] = mix[k] - ranked.length;
+    });
+    return { picked: picked.map((q) => bankOut(q, items[q], tv, seen)), shortage, available };
+  },
+
+  /** 發佈測驗：題目來自題庫（qids 依順序），建立試卷快照與配分；專員讀得到的試卷不含答案 */
+  t_createSession: async (b) => {
+    const m = await needTeacher();
+    const title = { zh: String(b.titleZh || '').trim(), en: String(b.titleEn || '').trim() };
+    if (!title.zh || !title.en) fail('請填寫中英文測驗名稱 / Title (zh and en) is required');
+    const startAt = Number(b.startAt), endAt = Number(b.endAt), minutes = Number(b.minutes);
+    if (!(startAt > 0 && endAt > startAt)) fail('結束時間需晚於開始時間 / End must be after start');
+    if (endAt < now()) fail('結束時間已過 / End time is in the past');
+    if (!(minutes >= 1 && minutes <= 300)) fail('作答時間需介於 1–300 分鐘 / Duration must be 1–300 minutes');
+    const assignees = validEmails(b.assignees);
+    const ids = [...new Set((b.qids || []).map((x) => String(x).trim().toUpperCase()).filter(Boolean))];
+    if (!ids.length) fail('請從題庫選擇題目 / Pick questions from the bank');
+    const settings = ((await S.get('settings/app')) || {}).values || {};
+    const maxQ = Number((settings.maxQuestions || {}).value) || 20;
+    if (ids.length > maxQ) fail('每份試卷最多 ' + maxQ + ' 題 / At most ' + maxQ + ' questions per quiz');
+    const rows = await Promise.all(ids.map((id) => S.get('bank/' + id)));
+    rows.forEach((r, i) => { if (!r) fail('找不到題庫題目 / Not in bank: ' + ids[i]); if (r.status !== 'active') fail(ids[i] + ' 已停用 / is retired'); });
+    const key = rows.map((r, i) => Object.assign({}, r.question, { qid: ids[i], seq: i + 1, points: pointsOf(r.type, ids.length), criteriaVersion: r.criteriaVersion }));
+    const total = key.reduce((t, j) => t + (j.points.choice || 0) + (j.points.text || 0), 0);   // 尾差由最後一題吸收，總分固定 100
+    const last = key[key.length - 1].points, k = last.text !== undefined ? 'text' : 'choice';
+    last[k] = r2(last[k] + 100 - total);
+    const pub = key.map((q) => { const o = { qid: q.qid, seq: q.seq }; AGENT_FIELDS.forEach((f) => { if (q[f] !== undefined) o[f] = q[f]; }); return o; });
+    const sid = 'E' + String(await S.nextIds('E', 1)).padStart(3, '0'), t = now();
+    const sess = { title, startAt: S.ts(startAt), endAt: S.ts(endAt), minutes, graceMin: Number((settings.autoSubmitGraceMin || {}).value) || GRACE_MIN, assignees,
+      qids: ids, questionCount: ids.length, topicId: rows[0].topicId, ended: false, released: false, createdBy: m.email, createdAt: t };
+    // 做過的題目（以指派計）與使用次數
+    const seen = await seenMap(assignees), idx = await bankRows();
+    const ops = [
+      { op: 'set', path: 'sessions/' + sid, data: sess },
+      { op: 'set', path: 'sessions/' + sid + '/paper/public', data: { questions: pub } },
+      { op: 'set', path: 'sessions/' + sid + '/paper/key', data: { questions: key } },
+      { op: 'set', path: 'meta/sessionIndex', merge: true, data: { items: { [sid]: indexOfSession(Object.assign({}, sess, { startAt, endAt })) } } },
+    ];
+    assignees.forEach((e) => ops.push({ op: 'set', path: 'seen/' + e, data: { qids: [...new Set([...seen[e], ...ids])], updatedAt: t } }));
+    const upd = {};
+    ids.forEach((q) => {
+      upd['items.' + q + '.used'] = ((idx[q] || {}).used || 0) + 1;
+      upd['items.' + q + '.seenN'] = ((idx[q] || {}).seenN || 0) + assignees.filter((e) => !seen[e].has(q)).length;
+    });
+    ops.push({ op: 'update', path: 'meta/bankIndex', data: upd });
+    await S.batch(ops);
+    return { sessionId: sid, session: sessionOut(sid, Object.assign({}, sess, { startAt, endAt }), now()) };
+  },
+
+  /** 測驗列表：索引一份文件 + 各場次的作答紀錄 */
+  t_listSessions: async () => {
+    await needTeacher();
+    const items = ((await S.get('meta/sessionIndex')) || {}).items || {}, t = now();
+    const ids = Object.keys(items).sort().reverse();
+    const atts = await Promise.all(ids.map((id) => S.list('sessions/' + id + '/attempts').catch(() => [])));
+    return { sessions: ids.map((id, i) => Object.assign(sessionOut(id, items[id], t), { assigned: items[id].assigned || 0, started: atts[i].length, submitted: atts[i].filter((a) => a.submittedAt).length })) };
+  },
+
+  t_getSession: async (b) => {
+    await needTeacher();
+    const [sid, s] = await sessionDoc(b.sessionId), t = now();
+    const [atts, key] = await Promise.all([S.list('sessions/' + sid + '/attempts'), S.get('sessions/' + sid + '/paper/key')]);
+    const roster = (s.assignees || []).map((email) => Object.assign({ email }, attemptOut(s, atts.find((a) => a.id === email), t)));
+    return { session: Object.assign(sessionOut(sid, s, t), { assignees: s.assignees || [] }), roster, questions: (key && key.questions) || [], serverNow: t };
+  },
+
+  /** 提前結束：結束時間改成現在；作答中的人在緩衝時間內由瀏覽器自動交卷 */
+  t_endSession: async (b) => {
+    await needTeacher();
+    const [sid, s] = await sessionDoc(b.sessionId), t = now();
+    await S.batch([{ op: 'update', path: 'sessions/' + sid, data: { ended: true, endAt: S.ts(t) } },
+      { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.ended']: true, ['items.' + sid + '.endAt']: t } }]);
+    return { session: sessionOut(sid, Object.assign({}, s, { ended: true, endAt: t }), t) };
+  },
+
+  // ── 專員（只看得到指派給自己的測驗；權限由規則把關） ──
+  s_list: async () => {
+    const m = await whoAmI(), t = now();
+    const rows = await S.query('sessions', 'assignees', 'array-contains', m.email);
+    const atts = await Promise.all(rows.map((s) => S.get('sessions/' + s.id + '/attempts/' + m.email).catch(() => null)));
+    return { serverNow: t, sessions: rows.sort((a, b) => b.id.localeCompare(a.id)).map((s) => Object.assign(sessionOut(s.id, s, t), { attempt: attemptOut(s, atts[rows.indexOf(s)], t) })) };
+  },
+
+  s_get: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await sessionDoc(b.sessionId); requireAssigned(s, m);
+    const t = now(), a = await S.get('sessions/' + sid + '/attempts/' + m.email), att = attemptOut(s, a, t);
+    const out = { serverNow: t, session: sessionOut(sid, s, t), attempt: att, graceMin: s.graceMin || GRACE_MIN };
+    if (att.status === 'in_progress') out.questions = ((await S.get('sessions/' + sid + '/paper/public')) || {}).questions || [];
+    return out;
+  },
+
+  /** 開始作答：開始時間由伺服器記錄（規則強制），不能從瀏覽器竄改 */
+  s_start: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await sessionDoc(b.sessionId); requireAssigned(s, m);
+    const path = 'sessions/' + sid + '/attempts/' + m.email;
+    let a = await S.get(path);
+    if (!a) {
+      const st = sessionState(s, now());
+      if (st === 'scheduled') fail('測驗尚未開始 / The quiz has not started yet');
+      if (st !== 'open') fail('測驗已結束 / The quiz has ended');
+      await S.set(path, { email: m.email, startedAt: S.serverTime(), submittedAt: null, answers: {}, autoSubmitted: false });
+      a = await S.get(path);
+    }
+    const t = now(), att = attemptOut(s, a, t);
+    if (att.status !== 'in_progress') return { serverNow: t, attempt: att };
+    return { serverNow: t, attempt: att, questions: ((await S.get('sessions/' + sid + '/paper/public')) || {}).questions || [] };
+  },
+
+  /** 交卷：只寫一次（作答過程存在瀏覽器）；時間限制由規則檢查 */
+  s_submit: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await sessionDoc(b.sessionId); requireAssigned(s, m);
+    const path = 'sessions/' + sid + '/attempts/' + m.email;
+    const a = await S.get(path) || fail('尚未開始作答 / You have not started this quiz');
+    if (a.submittedAt) return { attempt: attemptOut(s, a, now()), already: true };
+    const answers = {};
+    Object.entries(b.answers || {}).forEach(([q, x]) => { if ((s.qids || []).includes(q)) answers[q] = { choice: String((x && x.choice) || '').slice(0, 10), text: String((x && x.text) || '').slice(0, 3000) }; });
+    try { await S.update(path, { answers, submittedAt: S.serverTime(), autoSubmitted: !!b.auto }); }
+    catch (e) { if (/permission/i.test(String(e.code || e.message))) fail('已超過交卷時間 / The submission window has closed'); throw e; }
+    return { attempt: attemptOut(s, await S.get(path), now()) };
+  },
+
+  /** 作答中定期檢查：講師提前結束時，前端會自動交卷 */
+  s_status: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await sessionDoc(b.sessionId); requireAssigned(s, m);
+    const t = now();
+    return { serverNow: t, state: sessionState(s, t), attempt: attemptOut(s, await S.get('sessions/' + sid + '/attempts/' + m.email), t) };
+  },
+};
+Object.assign(ACTIONS, M4);
 
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];

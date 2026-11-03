@@ -555,10 +555,10 @@
   Object.assign(I18N.zh, {
     wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RR AI Quiz Assistant Beta；完成後這裡會自動更新。',
     wkEnQ: '英文待翻譯 {n} 題', wkRvQ: '待 AI 檢查 {n} 題', wkEnF: '英文待翻譯 {n} 個欄位', wkRv1: '待 AI 檢查', wkGap1: '待分析判斷標準',
-    enPendingTitle: '英文待翻譯', enPendingHint: '你只改了中文，這些欄位的英文會在「處理」時重新翻譯（你自己改過的英文不會被覆蓋）。把英文清空也會重新翻譯。',
-    enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
+    enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。傳上方的「處理」指令會自動翻譯；也可以直接自己改英文，改過就不會再自動翻譯。',
+    enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查（前後矛盾＋盲答）', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
     rvAsk: '要求 AI 檢查', rvAsked: '已排入 AI 檢查，請傳「{cmd}」', rvWanted: '已排入 AI 檢查',
-    lv_must: '必改', lv_suggest: '建議', lv_note: '提醒', mkEn: '譯', mkRv: 'AI',
+    lv_must: '必改', lv_suggest: '建議', lv_note: '提醒', blindOk: '盲答與正解一致', blindDiff: '盲答與正解不同', blindPicked: 'AI 沒看答案時選了 {a}：', blindHint: '請確認正解，或題目內容是否足以支持正解。', mkEn: '譯', mkRv: 'AI',
     gk_missing: '判斷標準缺少條文', gk_ambiguous: '判斷標準條文模糊', gk_ai_misread: 'AI 讀錯（標準已足夠）', gapFromTrainer: '依你修改的判斷分析',
     pl_chat: '聊聊第 {n} 則', pl_chatDesc: '聊聊第 {n} 則（照片 / 影片描述）', pl_drcB: '買家 DRC 第 {n} 則', pl_drcS: '賣家 DRC 第 {n} 則', pl_remark: '申請備註',
     pl_oName: '訂單商品 {n} 名稱', pl_oVar: '訂單商品 {n} 規格', pl_rName: '申退商品 {n} 名稱', pl_rVar: '申退商品 {n} 規格', pl_payM: '付款方式', pl_payS: '付款狀態',
@@ -567,10 +567,10 @@
   Object.assign(I18N.en, {
     wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RR AI Quiz Assistant Beta on SeaTalk; this page updates automatically when done.',
     wkEnQ: 'English pending: {n} question(s)', wkRvQ: 'AI check pending: {n} question(s)', wkEnF: '{n} English field(s) pending', wkRv1: 'AI check pending', wkGap1: 'Criteria analysis pending',
-    enPendingTitle: 'English pending', enPendingHint: 'You changed only the Chinese, so the English of these fields will be re-translated when processed (English you edited yourself is kept). Clearing an English field also re-translates it.',
-    enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
+    enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. Send the Process command above to translate them automatically, or edit the English yourself — fields you edit are not translated again.',
+    enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check (consistency + blind answer)', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
     rvAsk: 'Request AI check', rvAsked: 'AI check requested. Send "{cmd}"', rvWanted: 'AI check requested',
-    lv_must: 'Must fix', lv_suggest: 'Suggestion', lv_note: 'Note', mkEn: 'EN', mkRv: 'AI',
+    lv_must: 'Must fix', lv_suggest: 'Suggestion', lv_note: 'Note', blindOk: 'Blind answer matches the key', blindDiff: 'Blind answer differs from the key', blindPicked: 'Without seeing the key, the AI chose {a}: ', blindHint: 'Check the key, or whether the case supports it.', mkEn: 'EN', mkRv: 'AI',
     gk_missing: 'Missing rule in the criteria', gk_ambiguous: 'Ambiguous rule in the criteria', gk_ai_misread: 'AI misread (criteria are sufficient)', gapFromTrainer: 'Based on your corrected judgement',
     pl_chat: 'Chat #{n}', pl_chatDesc: 'Chat #{n} (photo / video)', pl_drcB: 'Buyer DRC #{n}', pl_drcS: 'Seller DRC #{n}', pl_remark: 'Request remark',
     pl_oName: 'Order item {n} name', pl_oVar: 'Order item {n} variation', pl_rName: 'Requested item {n} name', pl_rVar: 'Requested item {n} variation', pl_payM: 'Payment method', pl_payS: 'Payment status',
@@ -606,14 +606,23 @@
     if (!m.enPending.length) return '';
     return `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('enPendingTitle'))}</b>：${m.enPending.map((p) => esc(pathLabel(p))).join('、')}<div class="small" style="margin-top:2px">${esc(t('enPendingHint'))}</div></div>`;
   }
-  function reviewHtml(m, canAsk) {
+  /** 盲答：AI 沒看答案自己作答的結果（只顯示目前版本的） */
+  function blindHtml(m, q) {
+    const b = m.blind; if (!b || b.rev !== m.rev) return '';
+    const opt = ((q && q.options) || []).find((o) => o.id === b.answer);
+    return b.match ? `<div class="rvitem"><span class="chip ok">${esc(t('blindOk'))}</span><div class="small muted">${esc(b.reason || '')}</div></div>`
+      : `<div class="rvitem"><span class="chip lv-must">${esc(t('blindDiff'))}</span><div class="small"><b>${esc(t('blindPicked', { a: b.answer + (opt ? '. ' + L(opt.text) : '') }))}</b> ${esc(b.reason || '')}<div class="muted">${esc(t('blindHint'))}</div></div></div>`;
+  }
+  function reviewHtml(m, canAsk, q) {
     const r = m.review, stale = r && m.rev > (r.rev || 0);
     const ask = canAsk ? (m.reviewWanted ? `<span class="chip info">${esc(t('rvWanted'))}</span>` : `<button class="btn sm ghost" type="button" id="rvAsk">${esc(t('rvAsk'))}</button>`) : '';
     if (!r) return ask ? `<div class="rvbox"><div class="row"><b>🤖 ${esc(t('rvTitle'))}</b><span class="spacer"></span>${ask}</div></div>` : '';
-    return `<div class="rvbox ${r.verdict === 'issues' && !stale ? 'bad' : ''}"><div class="row"><b>🤖 ${esc(t('rvTitle'))}</b>
+    const bad = !stale && (r.verdict === 'issues' || (m.blind && m.blind.rev === m.rev && m.blind.match === false));
+    return `<div class="rvbox ${bad ? 'bad' : ''}"><div class="row"><b>🤖 ${esc(t('rvTitle'))}</b>
         <span class="chip ${r.verdict === 'ok' ? 'ok' : 'warn'}">${esc(r.verdict === 'ok' ? t('rvOk') : t('rvIssues', { n: (r.items || []).length }))}</span>
         <span class="small soft">${esc(fmtDT(r.at))}</span>${stale ? `<span class="chip">${esc(t('rvStale'))}</span>` : ''}<span class="spacer"></span>${ask}</div>
       ${r.summary ? `<div class="small" style="margin-top:4px">${esc(r.summary)}</div>` : ''}
+      ${blindHtml(m, q)}
       ${(r.items || []).map((x) => `<div class="rvitem"><span class="chip lv-${esc(x.level)}">${esc(t('lv_' + x.level))}</span><div><b class="small">${esc(x.where || '')}</b> <span class="small">${esc(x.issue)}</span>${x.fix ? `<div class="small muted">→ ${esc(x.fix)}</div>` : ''}</div></div>`).join('')}</div>`;
   }
 
@@ -658,7 +667,7 @@
         return `<div class="qitem ${i === idx ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
           <span class="dot ${q.reviewed ? 'on' : ''}" title="${esc(q.reviewed ? t('reviewedTag') : t('notReviewed'))}">${q.reviewed ? '✓' : ''}</span>
           <span class="id">${esc(q.id.split('-').pop())}</span><span class="chip" style="padding:0 7px">${esc(q.type)}</span>
-          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; return r && r.rev === m.rev ? `<span class="chip ${r.verdict === 'ok' ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${r.verdict === 'ok' ? '✓' : '!'}</span>` : ''; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
+          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; if (!r || r.rev !== m.rev) return ''; const ok = r.verdict === 'ok' && !(m.blind && m.blind.rev === m.rev && m.blind.match === false); return `<span class="chip ${ok ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${ok ? '✓' : '!'}</span>`; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
     function biField(key, label, short) {
@@ -686,7 +695,7 @@
         ${(() => { const er = ruleErrs(q); return er.length ? `<div class="banner err" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('ruleErrTitle'))}</b>${esc(t('ruleErrHint'))}<br>${er.slice(0, 6).map(esc).join('<br>')}</div>` : ''; })()}
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
         ${enPendingHtml(metaOf(src))}
-        ${(() => { const h = reviewHtml(metaOf(src), editable); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
+        ${(() => { const h = reviewHtml(metaOf(src), editable, src); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
           ${biField('point', t('point'), true)}
@@ -915,6 +924,7 @@
   };
 
   // ───────── 講師：測驗場次 ─────────
+  const M5_READY = false;   // 延長時間、退回重考（M5 搬到 V2 前先隱藏）
   async function viewSessions() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
@@ -965,7 +975,7 @@
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}<span class="spacer"></span>
           <button class="btn" id="reload">${esc(t('refresh'))}</button><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
-          ${s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
+          ${M5_READY && s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
           ${s.state === 'open' || s.state === 'scheduled' ? `<button class="btn danger" id="endNow">${esc(t('endNow'))}</button>` : `<a class="btn brand" style="display:inline-grid;place-items:center;text-decoration:none" href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))}</a>`}</div>
         <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button></div>
         <div class="stats">
@@ -976,7 +986,7 @@
         </div>
         <div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
           d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${attChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td><td class="small muted">${esc(fmtDT(r.startedAt))}</td><td class="small muted">${esc(fmtDT(r.submittedAt))}</td>
-            <td style="text-align:right">${r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+            <td style="text-align:right">${M5_READY && r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
       $('#cpl').onclick = () => copyText(link);
       $('#reload').onclick = load;
       const ex = $('#extend'); if (ex) ex.onclick = () => extendModal(s, load);
@@ -1984,16 +1994,12 @@
     const main = shell('library', `<div class="empty-state"><span class="spin"></span></div>`);
     let meta, s;
     try { [meta, { sample: s }] = await Promise.all([getLibMeta(), api('tw_getSample', { sampleId: id })]); } catch (e) { showError(e); return; }
-    let work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
+    let work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
     const tagName = (x) => L((meta.tags.concat(meta.inactiveTags || []).find((y) => y.tagId === x) || {}).name) || x;
-    /** 正解選項：主題的預設選項範本（範例的正解存中文文字） */
-    const ansChoices = () => {
-      const tp = meta.topics.find((x) => x.topicId === s.topicId) || {};
-      const set = meta.optionSets.find((o) => o.setId === tp.defaultOptionSet);
-      const list = set ? set.options.map((o) => ({ zh: o.text.zh, en: o.text.en })) : [{ zh: '已達成協議', en: t('agreedYes') }, { zh: '未達成協議', en: t('agreedNo') }];
-      return work.answer && !list.some((o) => o.zh === work.answer) ? [{ zh: work.answer, en: work.answer }].concat(list) : list;
-    };
+    /** 判斷重點與正解只存在題目內：表單直接改 work.question */
+    const qPointZh = () => String((work.question.point && work.question.point.zh) || '');
+    const qOptions = () => (work.question.options || []);
     function draw() {
       const sg = s.suggest, q = work.question, { left, req } = caseHtml(q);
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
@@ -2018,7 +2024,7 @@
           return a || rv || gp ? cmdBox('處理 ' + s.sampleId, [a && t('wkEnF', { n: a }), rv && t('wkRv1'), gp && t('wkGap1')].filter(Boolean).join(' · ')) : '';
         })()}
         ${(() => { const m = metaOf(s); return m.enPending.length ? `<div class="card" style="overflow:hidden">${enPendingHtml(m)}</div>` : ''; })()}
-        ${reviewHtml(metaOf(s), true)}
+        ${reviewHtml(metaOf(s), true, s.question)}
         ${s.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t(s.criteriaGap.kind === 'ai_misread' ? 'gk_ai_misread' : 'gapTitle2'))}</b><span class="chip">${esc(t('gk_' + s.criteriaGap.kind))}</span><span class="small soft">${esc(t('gapFromTrainer'))}</span>
             ${s.criteriaGap.kind !== 'ai_misread' ? (s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span><span class="spacer"></span><button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<span class="spacer"></span><button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
           <div class="small" style="margin-top:6px">${esc(s.criteriaGap.situation)}</div>${s.criteriaGap.suggestion ? `<pre class="gapsug">${esc(s.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
@@ -2028,21 +2034,26 @@
         <div class="card pad libedit">
           <div class="form">
             <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
-            <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(work.pointZh)}" maxlength="100">
-            <label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${ansChoices().map((o) => `<option value="${esc(o.zh)}" ${work.answer === o.zh ? 'selected' : ''}>${esc(lang === 'zh' ? o.zh : o.en)}</option>`).join('')}</select>
+            <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(qPointZh())}" maxlength="100">
+            ${qOptions().length ? `<label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${qOptions().map((o) => `<option value="${esc(o.id)}" ${work.question.answer === o.id ? 'selected' : ''}>${esc(o.id + '. ' + L(o.text))}</option>`).join('')}</select>` : ''}
             <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
           </div><div id="e_err" class="banner err" hidden></div></div>
         <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
-          ${q.explanation ? `<h4>${esc(t('explanation'))}</h4><div class="box">${esc(L(q.explanation))}</div>` : ''}</div></div></div>`;
+          ${[['point', 'qPointIn'], ['modelAnswer', 'modelAnswer'], ['rubric', 'rubric'], ['explanation', 'explanation']].map(([k, lab]) => (q[k] && L(q[k]) ? `<h4>${esc(t(lab))}</h4><div class="box" style="white-space:pre-wrap">${esc(L(q[k]))}</div>` : '')).join('')}</div></div></div>`;
       bind();
     }
     function mark() { dirty = true; const b = $('#save'); if (b) b.disabled = false; }
     function bind() {
       $$('#e_tags input').forEach((c) => c.addEventListener('change', () => { c.parentElement.classList.toggle('on', c.checked); work.tags = $$('#e_tags input:checked').map((x) => x.value); mark(); }));
-      $('#e_point').oninput = (e) => { work.pointZh = e.target.value; mark(); };
-      $('#e_ans').onchange = (e) => { work.answer = e.target.value; mark(); };
+      $('#e_point').oninput = (e) => { work.question.point = Object.assign({ en: '' }, work.question.point, { zh: e.target.value }); qDirty = true; mark(); };
+      const ea = $('#e_ans'); if (ea) ea.onchange = (e) => { work.question.answer = e.target.value; qDirty = true; mark(); };
       $('#e_hint').oninput = (e) => { work.changeHint = e.target.value; mark(); };
-      const ap = $('#applyAi'); if (ap) ap.onclick = () => { const sg = s.suggest; work.tags = (sg.tags || []).slice(); work.pointZh = sg.pointZh || work.pointZh; work.answer = sg.answer || work.answer; dirty = true; draw(); };
+      const ap = $('#applyAi'); if (ap) ap.onclick = () => {
+        const sg = s.suggest; work.tags = (sg.tags || []).slice();
+        if (sg.pointZh) work.question.point = Object.assign({ en: '' }, work.question.point, { zh: sg.pointZh });
+        const o = qOptions().find((x) => x.text && x.text.zh === sg.answer); if (o) work.question.answer = o.id;
+        qDirty = true; dirty = true; draw();
+      };
       $('#save').onclick = () => save();
       $('#qedit').onclick = async () => {
         const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId });
@@ -2110,10 +2121,10 @@
     async function save() {
       $('#e_err').hidden = true;
       try {
-        const payload = { sampleId: s.sampleId, tags: work.tags, pointZh: work.pointZh, answer: work.answer, changeHint: work.changeHint };
+        const payload = { sampleId: s.sampleId, tags: work.tags, changeHint: work.changeHint };
         if (qDirty) payload.question = work.question;
         const r = await api('tw_updateSample', payload);
-        s = r.sample; work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
+        s = r.sample; work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
         toast(t('saved')); draw(); return true;
       } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; return false; }
     }
@@ -2125,7 +2136,7 @@
         if (!d || (d.workAt || 0) === lastWork) return;
         lastWork = d.workAt || 0;
         if (dirty || location.hash !== '#/library/' + s.sampleId) return;
-        api('tw_getSample', { sampleId: s.sampleId }).then((r) => { s = r.sample; work = { tags: s.tags.slice(), pointZh: s.pointZh, answer: s.answer, changeHint: s.changeHint, question: clone(s.question) }; draw(); }).catch(() => null);
+        api('tw_getSample', { sampleId: s.sampleId }).then((r) => { s = r.sample; work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }; draw(); }).catch(() => null);
       });
     }
   }
@@ -2144,7 +2155,7 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
-    gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapTitle2: '判斷標準可能有缺口', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
+    qPointIn: '判斷重點（題目內）', gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapTitle2: '判斷標準可能有缺口', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
     gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
     gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
     tAdd: '新增主題', tCopyFrom: '複製設定自', tAddHint: '會複製該主題的出題規則、判斷關鍵、題目問句與預設選項；判斷標準請在建立後填寫。標籤不會複製。', tAdded: '已新增主題「{n}」',
@@ -2168,7 +2179,7 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
-    gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapTitle2: 'Possible gap in the criteria', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
+    qPointIn: 'Key point (in the question)', gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapTitle2: 'Possible gap in the criteria', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
     gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
     gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
     tAdd: 'Add topic', tCopyFrom: 'Copy settings from', tAddHint: "Copies the generation rules, deciding factors, prompt and default option set. Fill in the criteria after creating it. Tags are not copied.", tAdded: 'Topic "{n}" added',
