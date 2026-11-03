@@ -95,7 +95,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-04a';
+const VERSION = 'V2-2026-11-04c';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -196,7 +196,8 @@ async function sampleFull(id) {
   const x = await S.get('samples/' + id) || fail('找不到範例 / Sample not found: ' + id);
   const req = x.requestId ? await S.get('sampleRequests/' + x.requestId).catch(() => null) : null;
   return Object.assign({ sampleId: id, tags: [], changeHint: '', reviewNote: '', suggest: null }, x, {
-    wantedTags: (req && req.wantedTags) || [], requestedBy: (req && req.requestedBy) || '', note: (req && req.note) || '' });
+    wantedTags: (req && req.wantedTags) || [], requestedBy: (req && req.requestedBy) || '', note: (req && req.note) || '',
+    returnId: (req && req.returnId) || '', cutoffAt: (req && req.cutoffAt) || null, noCutoff: !!(req && req.noCutoff) });
 }
 /** 範例與範例索引在同一批寫入 */
 async function saveSample(id, cur, patch) {
@@ -441,6 +442,11 @@ const ACTIONS = {
     await needTeacher();
     const d = await S.get('drafts/' + b.draftId) || fail('找不到草稿 / Draft not found');
     if (d.status === 'generating') fail('草稿生成中 / Draft is still generating');
+    if (b.reviewed) {
+      const row = await S.get('drafts/' + b.draftId + '/questions/' + b.qid) || fail('找不到題目 / Question not found');
+      const chk = checkQuestion(normalizeReason(Object.assign({}, row.question), await loadDms()), await loadDms());
+      if (chk.errors.length) fail('不符合目前的規則，請先修正 / Fix first: ' + chk.errors.slice(0, 4).join('; '));
+    }
     await S.update('drafts/' + b.draftId + '/questions/' + b.qid, { reviewed: !!b.reviewed });
     return { qid: b.qid, reviewed: !!b.reviewed, draft: await touchDraft(b.draftId, d) };
   },
@@ -490,6 +496,9 @@ const ACTIONS = {
     if (want && notRev.length) fail('只有已校對的題目可以入庫 / Only reviewed questions can be added: ' + notRev.map((q) => q.id).join(', '));
     const rows = pick.filter((q) => q.reviewed);
     if (!rows.length) fail('沒有可入庫的題目（需已校對且尚未入庫） / Nothing to add');
+    const dms = await loadDms();
+    const badQ = rows.filter((q) => checkQuestion(normalizeReason(JSON.parse(JSON.stringify(q.question || {})), dms), dms).errors.length);
+    if (badQ.length) fail('以下題目不符合目前的規則，請先修正 / Fix first: ' + badQ.map((q) => q.id).join(', '));
     const first = await S.nextIds('Q', rows.length), t = now(), ops = [], idx = {};
     const out = rows.map((q, i) => {
       const qid = 'Q' + String(first + i).padStart(4, '0'), j = q.question || {};
@@ -616,6 +625,29 @@ const ACTIONS = {
     const st = cur.status === 'active' ? 'inactive' : 'rejected';
     await saveSample(b.sampleId, cur, { status: st, approvedBy: m.email, updatedAt: now(), reviewNote: String(b.reason || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: st };
+  },
+
+  /** 刪除範例（同一個 Return ID 之後可以重新申請）；requeue 時直接用新的判斷時點重新申請 */
+  tw_deleteSample: async (b) => {
+    const m = await needTW();
+    const id = String(b.sampleId || '');
+    const cur = await S.get('samples/' + id) || fail('找不到範例 / Sample not found: ' + id);
+    const req = cur.requestId ? await S.get('sampleRequests/' + cur.requestId).catch(() => null) : null;
+    const t = now();
+    const ops = [{ op: 'del', path: 'samples/' + id }, { op: 'update', path: 'meta/sampleIndex', data: { ['items.' + id]: S.deleteField() } }];
+    if (req) ops.push({ op: 'update', path: 'sampleRequests/' + cur.requestId, data: { status: 'deleted', reason: '範例 ' + id + ' 已刪除（' + m.email + '）', updatedAt: t } });
+    let newReq = '';
+    if (b.requeue) {
+      if (!req || !req.returnId) fail('找不到原本的 Return ID，無法重新申請 / Original Return ID not found');
+      const rq = b.requeue, at = rq.cutoffAt ? Number(rq.cutoffAt) : null;
+      if (at !== null && !(at > 1.5e12 && at < t + 864e5)) fail('判斷時點不正確 / Invalid cutoff');
+      if (at === null && !rq.noCutoff) fail('請填判斷時點，或勾選「不截斷」 / Enter a cutoff or choose no cutoff');
+      newReq = 'R' + String(await S.nextIds('R', 1)).padStart(4, '0');
+      ops.push({ op: 'set', path: 'sampleRequests/' + newReq, data: { requestedBy: m.email, requestedAt: t, returnId: req.returnId, topicId: req.topicId || cur.topicId,
+        wantedTags: req.wantedTags || [], note: req.note || '', status: 'queued', reason: '', sampleId: '', updatedAt: t, cutoffAt: at, noCutoff: at === null, replaces: id } });
+    }
+    await S.batch(ops);
+    return { deleted: id, requestId: newReq };
   },
 
   /** 重建範例索引：讀一次所有範例重新產生（意外時的保險） */

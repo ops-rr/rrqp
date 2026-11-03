@@ -396,7 +396,7 @@
     qeQuestion: '題目與解析', qePrompt: '題目問句', qeQType: '題型', qeTypeA: 'A：選擇', qeTypeB: 'B：選擇 + 原因', qeTypeC: 'C：文字作答', qeOptions: '選項（點圓圈設為正解）', qeAddOpt: '＋ 新增選項',
     qePoint: '判斷重點', qeModel: '參考答案', qeRubric: '評分標準', qeExpl: '解析',
     qeUp: '上移', qeDown: '下移', qeDel: '刪除', qeErrors: '還有以下問題需要修正：', qeOrderHint: '申退商品要從訂單商品中挑選，名稱與規格需完全相同、單價相同。',
-    qeSolOnly: 'DMS 規則：此原因只能申請 {s}', qeCutoff: '判斷時點（資訊截至）', qeCutoffHint: '題目只呈現到這個時間；聊聊、DRC、物流都不能晚於此時間。空白表示不截斷。',
+    qeSolOnly: 'DMS 規則：此原因只能申請 {s}', ruleErrTitle: '不符合目前的規則', ruleErrHint: '（可能是規則加入前生成的題目）。請用「編輯題目內容」修正，修正前不能標記已校對或加入題庫。', qeCutoff: '判斷時點（資訊截至）', qeCutoffHint: '題目只呈現到這個時間；聊聊、DRC、物流都不能晚於此時間。空白表示不截斷。',
     cutoffBanner: '資訊截至 {t}（請依此時點判斷）',
   });
   Object.assign(I18N.en, {
@@ -413,7 +413,7 @@
     qeQuestion: 'Question & explanation', qePrompt: 'Prompt', qeQType: 'Type', qeTypeA: 'A: Choice', qeTypeB: 'B: Choice + reason', qeTypeC: 'C: Written', qeOptions: 'Options (click the circle to set the answer)', qeAddOpt: '＋ Add option',
     qePoint: 'Key point', qeModel: 'Model answer', qeRubric: 'Rubric', qeExpl: 'Explanation',
     qeUp: 'Up', qeDown: 'Down', qeDel: 'Delete', qeErrors: 'Please fix the following:', qeOrderHint: 'Requested items must come from the order items, with the same name, variation and unit price.',
-    qeSolOnly: 'DMS rule: this reason only allows {s}', qeCutoff: 'Information cutoff', qeCutoffHint: 'The case only shows information up to this time; chat, DRC and logistics cannot be later. Leave blank for no cutoff.',
+    qeSolOnly: 'DMS rule: this reason only allows {s}', ruleErrTitle: 'Does not meet the current rules', ruleErrHint: ' (possibly generated before the rule existed). Fix it with Edit content; it cannot be marked reviewed or added to the bank until fixed.', qeCutoff: 'Information cutoff', qeCutoffHint: 'The case only shows information up to this time; chat, DRC and logistics cannot be later. Leave blank for no cutoff.',
     cutoffBanner: 'Information as of {t} (judge at this point)',
   });
 
@@ -555,7 +555,9 @@
   async function viewDraft(draftId) {
     const main = shell('drafts', `<div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div>`);
     let data;
-    try { data = await api('t_getDraft', { draftId }); } catch (e) { showError(e); return; }
+    try { [data] = await Promise.all([api('t_getDraft', { draftId }), getTopics().catch(() => null)]); } catch (e) { showError(e); return; }
+    /** 依目前的 DMS 規則重新檢查（規則加入前生成的題目也會標出來） */
+    const ruleErrs = (q) => { if (!DB() || !DB().check) return []; const x = clone(q); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs'].forEach((k) => delete x[k]); return DB().check(x, dmsNow()).errors; };
     let { draft, questions } = data;
     const params = new URLSearchParams((location.hash.split('?')[1]) || '');
     let idx = Math.max(0, questions.findIndex((q) => q.id === params.get('q')));
@@ -585,7 +587,7 @@
         return `<div class="qitem ${i === idx ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
           <span class="dot ${q.reviewed ? 'on' : ''}" title="${esc(q.reviewed ? t('reviewedTag') : t('notReviewed'))}">${q.reviewed ? '✓' : ''}</span>
           <span class="id">${esc(q.id.split('-').pop())}</span><span class="chip" style="padding:0 7px">${esc(q.type)}</span>
-          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
+          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
     function biField(key, label, short) {
@@ -610,6 +612,7 @@
           <button class="btn sm" id="prev" ${idx === 0 ? 'disabled' : ''}>${esc(t('prev'))}</button>
           <button class="btn sm" id="next" ${idx === questions.length - 1 ? 'disabled' : ''}>${esc(t('next'))}</button></div>
         ${src.bankedAs ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('bankedNote', { id: src.bankedAs }))} <a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a></div>` : ''}
+        ${(() => { const er = ruleErrs(q); return er.length ? `<div class="banner err" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('ruleErrTitle'))}</b>${esc(t('ruleErrHint'))}<br>${er.slice(0, 6).map(esc).join('<br>')}</div>` : ''; })()}
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
@@ -1677,7 +1680,10 @@
     cutoffHelp: '每行一筆：Return ID，後面接判斷時點（台北時間，例如 2026-10-20 14:30，通常是案件判決前）。抓取 DMS 資料時，這個時間之後的聊聊、DRC、物流都會被移除。',
     noCutoff: '沒有填時間的案件不截斷（使用完整資料）', noCutoffShort: '不截斷', cutoffCount: '{n} 筆，{c} 筆有判斷時點', cutoffMissing: '{n} 筆沒有時間', cutoffBad: '無法解析的行',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
-    r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', retry: '重試', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
+    r_queued: '等待中', r_processing: '處理中', r_done: '已完成', r_failed: '失敗', r_cancelled: '已取消', r_deleted: '範例已刪除', retry: '重試',
+    delSample: '刪除範例', delSampleNote: '刪除後無法復原。已用這個範例生成的考題不受影響。刪除後同一個 Return ID 可以重新申請。',
+    delRequeue: '刪除後重新申請', delRequeueHint: '會用同樣的主題、預期分類與說明建立新申請，排程下次執行時重新抓取。', delNoRid: '這個範例沒有對應的申請（例如初始資料），刪除後無法自動重新申請。',
+    delNeedCut: '請填判斷時點，或勾選「不截斷」', delDone: '已刪除 {id}', delRequeued: '已刪除 {id}，並建立新申請 {r}', colReq: '申請', colRid: 'Return ID', colBy: '申請人', colSample: '範例',
     libTopicTags: '主題與標籤', libTag: '標籤', libAll: '全部範例', libAllInTopic: '全部', libUntagged: '未分類', libSearchPh: '搜尋範例代碼、判斷重點、標籤…', libCount: '{n} / {all} 筆', libNoMatch: '沒有符合條件的範例。',
     addTagTitle: '新增標籤', tagNameZh: '中文名稱', tagNameZhPh: '例如：賣家反悔', tagNameEn: '英文名稱', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: '說明（選填）', tagDescPh: '給 AI 參考的判斷說明，例如：賣家先同意後又改口', tagHint: '新標籤會立即出現在申請、範例審核與草稿的標籤選項中，AI 出題與分類也會參考。', add: '新增', tagNeedNames: '請填寫中文與英文名稱', tagAdded: '已新增標籤「{name}」',
     editTagTitle: '編輯標籤', editTagHint: '修改名稱或說明不會影響已使用這個標籤的範例與題目，所有地方會直接顯示新名稱。', tagSaved: '已儲存標籤「{name}」', tagInactive: '已停用',
@@ -1694,7 +1700,10 @@
     cutoffHelp: 'One per line: Return ID followed by the cutoff (Taipei time, e.g. 2026-10-20 14:30, usually just before the case was judged). Chat, DRC and logistics after this time are removed when fetching from DMS.',
     noCutoff: 'Use the full data for lines without a time (no cutoff)', noCutoffShort: 'No cutoff', cutoffCount: '{n} case(s), {c} with a cutoff', cutoffMissing: '{n} without a time', cutoffBad: 'Could not read',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
-    r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', retry: 'Retry', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
+    r_queued: 'Queued', r_processing: 'Processing', r_done: 'Done', r_failed: 'Failed', r_cancelled: 'Cancelled', r_deleted: 'Sample deleted', retry: 'Retry',
+    delSample: 'Delete sample', delSampleNote: 'This cannot be undone. Questions already generated from this sample are not affected. The same Return ID can be requested again afterwards.',
+    delRequeue: 'Request again after deleting', delRequeueHint: 'Creates a new request with the same topic, expected tags and note; the scheduler fetches it again on its next run.', delNoRid: 'This sample has no request (e.g. seed data), so it cannot be requested again automatically.',
+    delNeedCut: 'Enter a cutoff or choose No cutoff', delDone: '{id} deleted', delRequeued: '{id} deleted; new request {r} created', colReq: 'Request', colRid: 'Return ID', colBy: 'Requested by', colSample: 'Sample',
     libTopicTags: 'Topics & tags', libTag: 'Tag', libAll: 'All samples', libAllInTopic: 'All', libUntagged: 'Untagged', libSearchPh: 'Search sample ID, key point, tag…', libCount: '{n} / {all}', libNoMatch: 'No matching samples.',
     addTagTitle: 'Add tag', tagNameZh: 'Chinese name', tagNameZhPh: '例如：賣家反悔', tagNameEn: 'English name', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: 'Description (optional)', tagDescPh: 'Guidance for the AI, e.g. the seller agreed and then changed their mind', tagHint: 'The new tag appears right away in requests, sample review and drafts, and the AI uses it when generating and classifying.', add: 'Add', tagNeedNames: 'Enter both the Chinese and English names', tagAdded: 'Tag "{name}" added',
     editTagTitle: 'Edit tag', editTagHint: 'Renaming or changing the description does not affect samples or questions that use this tag; the new name shows everywhere.', tagSaved: 'Tag "{name}" saved', tagInactive: 'Disabled',
@@ -1912,6 +1921,7 @@
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
           <span class="spacer"></span><button class="btn sm ghost" id="json">${esc(t('qeJsonAdv'))}</button><button class="btn" id="qedit">✎ ${esc(t('qeOpen'))}</button>
+          <button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
           <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
           ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
@@ -1952,6 +1962,7 @@
         if (dirty && !(await save())) return;
         try { await api('tw_approveSample', { sampleId: s.sampleId }); toast(t('approved'), 4000); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
       };
+      $('#delS').onclick = () => deleteSampleDialog();
       const rj = $('#rej'); if (rj) rj.onclick = () => modal(`<h2>${esc(s.status === 'active' ? t('deactivate') : t('reject'))} ${esc(s.sampleId)}</h2>
           <input type="text" id="rj_r" placeholder="${esc(t('rejectReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
           <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rj_go">${esc(s.status === 'active' ? t('deactivate') : t('reject'))}</button></div>`,
@@ -1959,6 +1970,43 @@
       $('#json').onclick = () => modal(`<h2>${esc(t('editJson'))} · ${esc(s.sampleId)}</h2><textarea class="json" spellcheck="false">${esc(JSON.stringify(work.question, null, 2))}</textarea><div id="jerr" class="banner err" hidden></div>
           <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
         { wide: true, onMount: (el, close) => { $('#japply', el).onclick = () => { try { work.question = JSON.parse($('textarea', el).value); qDirty = true; dirty = true; close('ok'); draw(); } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; } }; } });
+    }
+    /** 刪除範例；可勾選用新的判斷時點重新申請同一個 Return ID */
+    function deleteSampleDialog() {
+      const p2 = (n) => String(n).padStart(2, '0');
+      const old = s.cutoffAt ? new Date(s.cutoffAt + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ') : '';
+      const fld = 'height:36px;border:1px solid var(--line2);border-radius:8px;padding:0 10px';
+      return modal(`<h2>${esc(t('delSample'))} ${esc(s.sampleId)}</h2>
+        <div class="small" style="margin-top:8px">${esc(t('delSampleNote'))}</div>
+        ${s.returnId ? `<label class="row" style="margin-top:14px;gap:8px"><input type="checkbox" id="ds_re" checked> <b>${esc(t('delRequeue'))}</b> <span class="mono small">${esc(s.returnId)}</span></label>
+        <div id="ds_box" style="margin:8px 0 0 26px;display:flex;flex-direction:column;gap:6px">
+          <div class="row" style="gap:8px"><span class="small">${esc(t('qeCutoff'))}</span><input id="ds_cut" class="mono" value="${esc(old)}" placeholder="2026-10-20 14:30" style="${fld};width:180px"></div>
+          <label class="small row" style="gap:6px"><input type="checkbox" id="ds_none"> ${esc(t('noCutoffShort'))}</label>
+          <div class="small muted">${esc(t('delRequeueHint'))}</div></div>` : `<div class="small muted" style="margin-top:10px">${esc(t('delNoRid'))}</div>`}
+        <div id="ds_err" class="banner err" hidden style="margin-top:10px"></div>
+        <div class="row" style="margin-top:16px"><span class="spacer"></span><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn danger" id="ds_go">${esc(t('delSample'))}</button></div>`,
+      { onMount: (el, close) => {
+        const re = $('#ds_re', el); if (re) re.onchange = () => { $('#ds_box', el).style.display = re.checked ? 'flex' : 'none'; };
+        $('#ds_go', el).onclick = async () => {
+          const er = $('#ds_err', el); er.hidden = true;
+          let requeue = null;
+          if (re && re.checked) {
+            const v = $('#ds_cut', el).value.trim(), none = $('#ds_none', el).checked;
+            const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})[\sT]+(\d{1,2}):(\d{2})$/.exec(v);
+            if (v && !m) { er.textContent = t('cutoffBad') + '：' + v; er.hidden = false; return; }
+            const at = m ? Date.parse(`${m[1]}-${p2(m[2])}-${p2(m[3])}T${p2(m[4])}:${m[5]}:00+08:00`) : null;
+            if (!at && !none) { er.textContent = t('delNeedCut'); er.hidden = false; return; }
+            requeue = { cutoffAt: at, noCutoff: !at };
+          }
+          $('#ds_go', el).disabled = true;
+          try {
+            const r = await api('tw_deleteSample', { sampleId: s.sampleId, requeue });
+            dirty = false; leaveGuard = null; close('ok');
+            toast(r.requestId ? t('delRequeued', { id: s.sampleId, r: r.requestId }) : t('delDone', { id: s.sampleId }), 4500);
+            location.hash = r.requestId ? '#/library?tab=requests' : '#/library';
+          } catch (e) { er.textContent = e.message; er.hidden = false; $('#ds_go', el).disabled = false; }
+        };
+      } });
     }
     async function save() {
       $('#e_err').hidden = true;
