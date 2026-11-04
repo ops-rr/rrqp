@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05j';
+const VERSION = 'V2-2026-11-05k';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -322,7 +322,9 @@ function checkQuestion(q, reasons, opt = {}) {
     else if (SOLUTIONS.includes(r.solution) && !(e.solutions || []).includes(r.solution)) errs.push('DMS rule: reason "' + e.en + '" only allows ' + (e.solutions || []).join(' / ') + ' as the request solution, but request.solution is "' + r.solution + '"');
   }
   cutoffErrors(q).forEach((x) => errs.push(x));
-  bi(r.remark, 'request.remark');
+  // 買家沒寫備註時可以是空的（{zh:'', en:''}）
+  if (!r.remark || typeof r.remark !== 'object') errs.push('request.remark must be {zh, en} (both can be empty when the buyer wrote no remark)');
+  else if (String(r.remark.zh || '').trim()) bi(r.remark, 'request.remark');
   // 買家 DRC 第一筆 = 申請時的 System Info（DMS 把同一份申請內容顯示在 DRC 與退貨退款申請兩處）
   const fo = (drc.buyer || [])[0];
   if (!fo || fo.type !== 'offer') errs.push('drc.buyer[0] must be the request offer (System Info, same solution and amount as request)');

@@ -377,7 +377,7 @@
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
       ${r.deduction ? `<span>${esc(t('deduction'))}</span><span>−$${esc(r.deduction)}</span>` : ''}
-      <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${esc(t('remark'))}</span><span>${esc(L(r.remark))}</span></div>
+      <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${esc(t('remark'))}</span><span>${L(r.remark) ? esc(L(r.remark)) : '<span class="soft">—</span>'}</span></div>
       ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items)}` : ''}`;
     return { left, req };
   }
