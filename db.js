@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05g';
+const VERSION = 'V2-2026-11-05j';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -124,6 +124,8 @@ const friendly = (e) => {
 };
 
 // ───────── 刪除權限（管理員可在「管理 → 刪除權限」設定哪些身分看得到刪除按鈕；管理員一律可以）─────────
+const STUCK_MIN = 15;              // 「處理中」超過幾分鐘可以在網站上按重試
+const REQ_DELETABLE = ['queued', 'failed', 'cancelled', 'deleted'];
 const PERM_KEYS = ['bankQ', 'draft', 'draftQ', 'session', 'sample', 'request'];
 const PERM_TW_ONLY = ['sample', 'request'];            // 範例生成只有 TW 講師能進
 const DEFAULT_PERMS = { bankQ: [], draft: [], draftQ: ['tw', 'bpo'], session: [], sample: [], request: [] };
@@ -262,7 +264,7 @@ function checkQuestion(q, reasons, opt = {}) {
   need(['A', 'B', 'C'].includes(q.type), 'type must be A / B / C');
   bi(q.prompt, 'prompt');
   ['buyer', 'seller'].forEach((s) => need(q[s] && q[s].id && q[s].username, s + '.id / ' + s + '.username missing'));
-  need(Array.isArray(q.chat) && q.chat.length, 'chat must be a non-empty array');
+  need(Array.isArray(q.chat), 'chat must be an array (can be empty when the buyer and seller never chatted)');
   (q.chat || []).forEach((m, j) => {
     const p = 'chat[' + j + ']';
     if (!m) { errs.push(p + ' missing'); return; }
@@ -655,12 +657,15 @@ const ACTIONS = {
 
   /** 刪除申請紀錄（管理員）：只能刪「等待中、失敗、已取消」的；已完成的申請連著範例，請刪除範例 */
   tw_deleteRequests: async (b) => {
+    // REQ_DELETABLE：等待中、失敗、已取消、範例已刪除
     await needDelete('request');
     const ids = [...new Set((b.requestIds || []).map(String).filter(Boolean))];
     if (!ids.length) fail('請選擇申請 / Select requests');
     const rows = await Promise.all(ids.map((id) => S.get('sampleRequests/' + id)));
-    const bad = ids.filter((id, i) => !rows[i] || !['queued', 'failed', 'cancelled'].includes(rows[i].status));
-    if (bad.length) fail('只能刪除等待中、失敗或已取消的申請；已完成的請刪除範例 / Only queued, failed or cancelled requests: ' + bad.join(', '));
+    // 已完成但範例已經不在（舊版刪除範例留下的「範例已刪除」紀錄）也可以刪
+    const gone = await Promise.all(rows.map((r) => (r && r.sampleId && !['queued', 'failed', 'cancelled'].includes(r.status) ? S.get('samples/' + r.sampleId).then((x) => !x).catch(() => false) : false)));
+    const bad = ids.filter((id, i) => !rows[i] || !(REQ_DELETABLE.includes(rows[i].status) || gone[i]));
+    if (bad.length) fail('只能刪除等待中、失敗、已取消，或範例已刪除的申請；已完成的請刪除範例 / Only queued, failed, cancelled or orphaned requests: ' + bad.join(', '));
     await S.batch(ids.map((id) => ({ op: 'del', path: 'sampleRequests/' + id })));
     return { deleted: ids };
   },
@@ -668,7 +673,8 @@ const ACTIONS = {
   tw_retryRequest: async (b) => {
     await needTW();
     const r = await S.get('sampleRequests/' + b.requestId) || fail('找不到申請 / Request not found');
-    if (r.status !== 'failed') fail('只能重試失敗的申請 / Only failed requests can be retried');
+    const stuck = r.status === 'processing' && now() - (r.updatedAt || 0) > STUCK_MIN * 60000;
+    if (r.status !== 'failed' && !stuck) fail('只能重試失敗、或處理中超過 ' + STUCK_MIN + ' 分鐘的申請 / Only failed or stuck requests can be retried');
     await S.update('sampleRequests/' + b.requestId, { status: 'queued', reason: '', updatedAt: now() });
     return { requestId: b.requestId };
   },
@@ -983,6 +989,39 @@ const ACTIONS = {
     await S.set('settings/permissions', { delete: perms, updatedAt: now(), updatedBy: m.email });
     ME = null;
     return { perms };
+  },
+
+  // ─── 重置資料（管理員）：清掉測試用的草稿、題庫、測驗、成績、範例，編號從頭開始 ───
+  // 保留：主題、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單
+  ad_resetData: async (b) => {
+    const m = await needAdmin();
+    const [drafts, bank, sessions, results, samples, reqs, seen] = await Promise.all(['drafts', 'bank', 'sessions', 'results', 'samples', 'sampleRequests', 'seen'].map((c) => S.list(c)));
+    const counts = { drafts: drafts.length, bank: bank.length, sessions: sessions.length, results: results.length, samples: samples.length, requests: reqs.length };
+    if (b.dryRun) return { counts };
+    if (b.confirm !== 'RESET') fail('請輸入 RESET 確認 / Type RESET to confirm');
+    const ops = [];
+    for (const d of drafts) {
+      const [qs, ts] = await Promise.all([S.list('drafts/' + d.id + '/questions'), S.list('drafts/' + d.id + '/tasks').catch(() => [])]);
+      qs.forEach((x) => ops.push({ op: 'del', path: 'drafts/' + d.id + '/questions/' + x.id }));
+      ts.forEach((x) => ops.push({ op: 'del', path: 'drafts/' + d.id + '/tasks/' + x.id }));
+      ops.push({ op: 'del', path: 'drafts/' + d.id });
+    }
+    for (const x of sessions) {
+      const kids = await Promise.all(['attempts', 'grades', 'returned'].map((c) => S.list('sessions/' + x.id + '/' + c).catch(() => [])));
+      ['attempts', 'grades', 'returned'].forEach((c, i) => kids[i].forEach((k) => ops.push({ op: 'del', path: 'sessions/' + x.id + '/' + c + '/' + k.id })));
+      ops.push({ op: 'del', path: 'sessions/' + x.id + '/paper/public' }, { op: 'del', path: 'sessions/' + x.id + '/paper/key' }, { op: 'del', path: 'sessions/' + x.id });
+    }
+    bank.forEach((x) => ops.push({ op: 'del', path: 'bank/' + x.id }));
+    results.forEach((x) => ops.push({ op: 'del', path: 'results/' + x.id }));
+    samples.forEach((x) => ops.push({ op: 'del', path: 'samples/' + x.id }));
+    reqs.forEach((x) => ops.push({ op: 'del', path: 'sampleRequests/' + x.id }));
+    seen.forEach((x) => ops.push({ op: 'del', path: 'seen/' + x.id }));
+    const t = now();
+    ops.push({ op: 'set', path: 'meta/bankIndex', data: { items: {}, resetAt: t } }, { op: 'set', path: 'meta/sessionIndex', data: { items: {}, resetAt: t } },
+      { op: 'set', path: 'meta/sampleIndex', data: { items: {}, resetAt: t } }, { op: 'set', path: 'meta/counters', data: { resetAt: t, resetBy: m.email } },
+      { op: 'del', path: 'settings/v1import' });
+    await S.batch(ops);
+    return { counts, writes: ops.length };
   },
 
   // ─── 系統設定 ───

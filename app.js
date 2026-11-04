@@ -35,7 +35,7 @@
       genAuto: '此頁每 15 秒自動更新。', markReady: '標記為可發佈', unready: '退回校對', readyDone: '草稿已標記為可發佈',
       readyNeed: '還有 {n} 題未校對', prev: '上一題', next: '下一題', save: '儲存', saved: '已儲存', saving: '儲存中…',
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
-      editJson: '編輯 JSON', apply: '套用', jsonBad: 'JSON 格式錯誤：', del: '刪除', delRefill: '刪除並請 Agent 補一題', delOnly: '刪除，題數減 1',
+      noChat: '（買賣雙方沒有聊聊）', editJson: '編輯 JSON', apply: '套用', jsonBad: 'JSON 格式錯誤：', del: '刪除', delRefill: '刪除並請 Agent 補一題', delOnly: '刪除，題數減 1',
       delConfirm: '確定刪除 {id}？', delRefillDone: '已刪除。請到 SeaTalk 再傳一次「{cmd}」補題。', delDone: '已刪除',
       unsaved: '這題有未儲存的修改，要放棄嗎？', discard: '放棄修改', keep: '繼續編輯',
       answerHint: '點選項可改正解', correct: '正解', setAnswer: '設為正解',
@@ -61,7 +61,7 @@
       genAuto: 'This page refreshes every 15 seconds.', markReady: 'Mark as ready', unready: 'Back to review', readyDone: 'Draft marked as ready',
       readyNeed: '{n} question(s) not reviewed', prev: 'Previous', next: 'Next', save: 'Save', saved: 'Saved', saving: 'Saving…',
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
-      editJson: 'Edit JSON', apply: 'Apply', jsonBad: 'Invalid JSON: ', del: 'Delete', delRefill: 'Delete and let the agent add one', delOnly: 'Delete, reduce count by 1',
+      noChat: '(No chat between buyer and seller)', editJson: 'Edit JSON', apply: 'Apply', jsonBad: 'Invalid JSON: ', del: 'Delete', delRefill: 'Delete and let the agent add one', delOnly: 'Delete, reduce count by 1',
       delConfirm: 'Delete {id}?', delRefillDone: 'Deleted. Send "{cmd}" in SeaTalk again to add a replacement.', delDone: 'Deleted',
       unsaved: 'This question has unsaved changes. Discard them?', discard: 'Discard', keep: 'Keep editing',
       answerHint: 'Click an option to change the answer', correct: 'Answer', setAnswer: 'Set as answer',
@@ -372,7 +372,7 @@
       ${q.order ? `<h4>${esc(t('orderItems'))}</h4>${itemTable(q.order.items)}` : ''}
       ${q.payment ? `<h4>${esc(t('payment'))}</h4><div class="box kv"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
       ${q.logistics ? `<h4>${esc(t('logistics'))} · ${esc(L(q.logistics.carrier))}</h4><div class="box">${(q.logistics.events || []).map((e) => `<span class="soft">${esc(e.t)}</span> ${esc(L(e.status))}`).join('<br>')}</div>` : ''}
-      <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).map(chatMsg).join('')}</div>
+      <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).length ? q.chat.map(chatMsg).join('') : `<div class="small soft">${esc(t('noChat'))}</div>`}</div>
       <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller)}</div></div>`;
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
@@ -1846,7 +1846,7 @@
     addTagTitle: '新增標籤', tagNameZh: '中文名稱', tagNameZhPh: '例如：賣家反悔', tagNameEn: '英文名稱', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: '說明（選填）', tagDescPh: '給 AI 參考的判斷說明，例如：賣家先同意後又改口', tagHint: '新標籤會立即出現在申請、範例審核與草稿的標籤選項中，AI 出題與分類也會參考。', add: '新增', tagNeedNames: '請填寫中文與英文名稱', tagAdded: '已新增標籤「{name}」',
     editTagTitle: '編輯標籤', editTagHint: '修改名稱或說明不會影響已使用這個標籤的範例與題目，所有地方會直接顯示新名稱。', tagSaved: '已儲存標籤「{name}」', tagInactive: '已停用',
     tagDisable: '停用標籤', tagEnable: '重新啟用', tagDisableConfirm: '停用「{name}」？停用後不會出現在申請、審核、草稿與抽題的標籤選項中，AI 也不會再使用；已標記的範例與題目會保留這個標籤，之後可以重新啟用。', tagDisabled: '已停用「{name}」', tagEnabled: '已重新啟用「{name}」',
-    reqDelHint: '已完成的申請連著範例，要移除請到範例頁「刪除範例」。', reqDelAll: '刪除所有失敗與已取消的申請（{n} 筆）', reqDelConfirm: '刪除申請紀錄 {ids}？刪除後無法復原，同一個 Return ID 之後可以重新申請。', reqDelDone: '已刪除 {n} 筆申請',
+    stuckHint: '處理中超過 15 分鐘，可能是排程中斷，按重試重新排入', reqDelHint: '已完成的申請連著範例，要移除請到範例頁「刪除範例」。', reqDelAll: '刪除所有失敗、已取消、範例已刪除的申請（{n} 筆）', reqDelConfirm: '刪除申請紀錄 {ids}？刪除後無法復原，同一個 Return ID 之後可以重新申請。', reqDelDone: '已刪除 {n} 筆申請',
     ridCleared: '（已清除）', noReq: '還沒有申請紀錄。', noPending: '目前沒有待審範例。', noActive: '範例庫還沒有範例。',
     sm_pending: '待審', sm_active: '已核准', sm_rejected: '已退回', sm_inactive: '已停用', colSampleId: '範例', colAnswer2: '正解', colStatus2: '狀態',
     aiSuggest: 'AI 建議', yourExpect: '申請時的預期', diffWarn: 'AI 建議的分類與申請時的預期不同，請特別確認。', applyAi: '套用 AI 建議',
@@ -1867,7 +1867,7 @@
     addTagTitle: 'Add tag', tagNameZh: 'Chinese name', tagNameZhPh: '例如：賣家反悔', tagNameEn: 'English name', tagNameEnPh: 'e.g. Seller changed mind', tagDesc: 'Description (optional)', tagDescPh: 'Guidance for the AI, e.g. the seller agreed and then changed their mind', tagHint: 'The new tag appears right away in requests, sample review and drafts, and the AI uses it when generating and classifying.', add: 'Add', tagNeedNames: 'Enter both the Chinese and English names', tagAdded: 'Tag "{name}" added',
     editTagTitle: 'Edit tag', editTagHint: 'Renaming or changing the description does not affect samples or questions that use this tag; the new name shows everywhere.', tagSaved: 'Tag "{name}" saved', tagInactive: 'Disabled',
     tagDisable: 'Disable tag', tagEnable: 'Enable again', tagDisableConfirm: 'Disable "{name}"? It will no longer appear in tag options for requests, review, drafts or quiz picking, and the AI will stop using it. Samples and questions keep the tag, and you can enable it again later.', tagDisabled: '"{name}" disabled', tagEnabled: '"{name}" enabled again',
-    reqDelHint: 'Done requests are linked to a sample; delete the sample to remove them.', reqDelAll: 'Delete all failed and cancelled ({n})', reqDelConfirm: 'Delete request record(s) {ids}? This cannot be undone; the Return ID can be requested again later.', reqDelDone: '{n} request(s) deleted',
+    stuckHint: 'Processing for over 15 minutes; the scheduler may have stopped. Retry to queue it again.', reqDelHint: 'Done requests are linked to a sample; delete the sample to remove them.', reqDelAll: 'Delete all failed, cancelled and sample-deleted ({n})', reqDelConfirm: 'Delete request record(s) {ids}? This cannot be undone; the Return ID can be requested again later.', reqDelDone: '{n} request(s) deleted',
     ridCleared: '(cleared)', noReq: 'No requests yet.', noPending: 'Nothing to review.', noActive: 'The library is empty.',
     sm_pending: 'Pending', sm_active: 'Approved', sm_rejected: 'Rejected', sm_inactive: 'Inactive', colSampleId: 'Sample', colAnswer2: 'Answer', colStatus2: 'Status',
     aiSuggest: 'AI suggestion', yourExpect: 'Expected at request', diffWarn: 'The AI suggestion differs from what was expected. Please check carefully.', applyAi: 'Apply AI suggestion',
@@ -2036,8 +2036,8 @@
         reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}<div class="soft" style="font-family:inherit">${r.cutoffAt ? esc(t('cutoffAtLabel', { t: fmtTW(r.cutoffAt) })) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td>
           <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
           <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
-          <td style="text-align:right;white-space:nowrap">${r.status === 'failed' && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}">${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}${me.can.request && ['queued', 'failed', 'cancelled'].includes(r.status) ? ` <button class="btn sm ghost danger" data-rdel="${esc(r.requestId)}">${esc(t('del'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
-        ${me.can.request && reqs.some((r) => ['failed', 'cancelled'].includes(r.status)) ? `<div class="row" style="padding:10px 14px"><span class="small muted">${esc(t('reqDelHint'))}</span><span class="spacer"></span><button class="btn sm ghost danger" id="rdelAll">${esc(t('reqDelAll', { n: reqs.filter((r) => ['failed', 'cancelled'].includes(r.status)).length }))}</button></div>` : ''}`;
+          <td style="text-align:right;white-space:nowrap">${(r.status === 'failed' || (r.status === 'processing' && Date.now() - (r.updatedAt || 0) > 15 * 60000)) && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}" ${r.status === 'processing' ? `title="${esc(t('stuckHint'))}"` : ''}>${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}${me.can.request && ['queued', 'failed', 'cancelled', 'deleted'].includes(r.status) ? ` <button class="btn sm ghost danger" data-rdel="${esc(r.requestId)}">${esc(t('del'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        ${me.can.request && reqs.some((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)) ? `<div class="row" style="padding:10px 14px"><span class="small muted">${esc(t('reqDelHint'))}</span><span class="spacer"></span><button class="btn sm ghost danger" id="rdelAll">${esc(t('reqDelAll', { n: reqs.filter((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)).length }))}</button></div>` : ''}`;
       $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_retryRequest', { requestId: b.dataset.retry }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
       $$('[data-cancel]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_cancelRequest', { requestId: b.dataset.cancel }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
       const delReqs = async (ids) => {
@@ -2045,7 +2045,7 @@
         try { await api('tw_deleteRequests', { requestIds: ids }); toast(t('reqDelDone', { n: ids.length })); viewLibrary(); } catch (e) { toast(e.message, 5000); }
       };
       $$('[data-rdel]').forEach((b) => b.addEventListener('click', () => delReqs([b.dataset.rdel])));
-      const ra = $('#rdelAll'); if (ra) ra.onclick = () => delReqs(reqs.filter((r) => ['failed', 'cancelled'].includes(r.status)).map((r) => r.requestId));
+      const ra = $('#rdelAll'); if (ra) ra.onclick = () => delReqs(reqs.filter((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)).map((r) => r.requestId));
     }
     drawReqs(d.requests);
     // 申請狀態有變動（排程處理中、完成、失敗）就自動更新列表
@@ -2233,7 +2233,10 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleAdmin: '管理員', roleAdminHint: '管理員：TW 講師的全部功能，加上這個「管理」頁（講師名單、刪除權限、系統設定、V1 資料搬移），而且一律可以刪除。', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（固定是管理員，寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
-    setPerms: '刪除權限', setV1: 'V1 資料搬移', adminHint: '只有管理員看得到這一頁',
+    setPerms: '刪除權限', setV1: 'V1 資料搬移', setReset: '重置資料',
+    resetTitle: '重置資料（清除測試資料、編號從頭開始）', resetWarn: '會永久刪除下列所有資料，無法復原。編號（D、Q、E、S、R）全部從 001 重新開始，V1 資料搬移也可以重新執行。正式上線、匯入 V1 之前使用；上線後請勿使用。',
+    resetResults: '公布的成績', resetSamples: '範例', resetRequests: '範例申請紀錄', resetKeep: '會保留：主題與判斷標準、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單。',
+    resetBtn: '重置資料', resetConfirm: '確定要刪除所有草稿、題庫、測驗、成績、範例與申請紀錄？無法復原。', resetRunning: '重置中…', resetDone: '已重置，編號從頭開始', adminHint: '只有管理員看得到這一頁',
     permPage: '頁面', permAction: '刪除項目', permAdminAlways: '管理員一律可以刪除', permTwOnly: '這個頁面只有 TW 講師能進', permSaved: '刪除權限已儲存',
     permHint: '勾選的身分會在該頁面看到刪除按鈕；沒勾的看不到，也無法透過其他方式刪除（由 Firebase 權限規則把關）。', permLast: '最後修改：{by}（{at}）',
     perm_bankQ: '刪除題庫題目', permd_bankQ: '已發佈的測驗保留試卷副本，成績不受影響；題目的統計會消失',
@@ -2241,7 +2244,7 @@
     perm_draftQ: '校對時刪除單題', permd_draftQ: '含「刪除並請 Agent 補一題」，屬於日常校對',
     perm_session: '刪除測驗', permd_session: '作答、分數、公布的成績一起刪除，專員的歷史成績也會消失；正式測驗請用「封存」',
     perm_sample: '刪除範例', permd_sample: '連同申請紀錄；同一個 Return ID 之後可以重新申請',
-    perm_request: '刪除範例申請紀錄', permd_request: '只限等待中、失敗、已取消的申請',
+    perm_request: '刪除範例申請紀錄', permd_request: '只限等待中、失敗、已取消、範例已刪除的申請',
     v1Title: '從 V1 搬移資料', v1Hint: '在 V1 的 Apps Script 執行 exportForV2，把產生的 JSON 檔選進來。會先顯示預計匯入的內容，確認後才寫入。編號會重新配發（題庫 Q、範例 S、測驗 E），舊的 V1 測驗連結會自動導到新編號。只能匯入一次。',
     v1Pick: '選擇 V1 匯出檔', v1Plan: '預計匯入：題庫 {b} 題、範例 {s} 筆、測驗 {e} 場（作答 {a} 份，已公布成績 {r} 場）、新標籤 {g} 個',
     v1Done: '匯入完成：題庫 {b} 題、範例 {s} 筆、測驗 {e} 場（作答 {a} 份，已公布成績 {r} 場）、新標籤 {g} 個',
@@ -2274,7 +2277,10 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleAdmin: 'Admin', roleAdminHint: 'Admin: everything a TW trainer can do, plus this Admin page (trainers, delete permissions, system settings, V1 migration), and can always delete.', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (always admin, set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
-    setPerms: 'Delete permissions', setV1: 'V1 migration', adminHint: 'Only admins can see this page',
+    setPerms: 'Delete permissions', setV1: 'V1 migration', setReset: 'Reset data',
+    resetTitle: 'Reset data (remove test data, restart IDs)', resetWarn: 'Permanently deletes everything listed below. IDs (D, Q, E, S, R) restart from 001 and the V1 migration can run again. Use before going live and before importing V1; do not use after go-live.',
+    resetResults: 'Released results', resetSamples: 'Samples', resetRequests: 'Sample requests', resetKeep: 'Kept: topics and criteria, tags, option sets, DMS rules, system settings, delete permissions, trainers.',
+    resetBtn: 'Reset data', resetConfirm: 'Delete all drafts, bank questions, quizzes, results, samples and requests? This cannot be undone.', resetRunning: 'Resetting…', resetDone: 'Reset done; IDs restart from 001', adminHint: 'Only admins can see this page',
     permPage: 'Page', permAction: 'Delete action', permAdminAlways: 'Admins can always delete', permTwOnly: 'Only TW trainers can open this page', permSaved: 'Delete permissions saved',
     permHint: 'Ticked roles see the delete button on that page; others do not, and cannot delete any other way (enforced by the Firebase rules).', permLast: 'Last changed by {by} ({at})',
     perm_bankQ: 'Delete bank questions', permd_bankQ: 'Published quizzes keep their own copy; the question stats are lost',
@@ -2282,7 +2288,7 @@
     perm_draftQ: 'Delete a question while reviewing', permd_draftQ: 'Including "delete and let the agent add one"; part of normal review',
     perm_session: 'Delete quizzes', permd_session: 'Attempts, scores and released results are deleted, including agents\' history; archive real quizzes instead',
     perm_sample: 'Delete samples', permd_sample: 'Including the request record; the Return ID can be requested again',
-    perm_request: 'Delete sample request records', permd_request: 'Queued, failed or cancelled requests only',
+    perm_request: 'Delete sample request records', permd_request: 'Queued, failed, cancelled or sample-deleted requests only',
     v1Title: 'Move data from V1', v1Hint: 'Run exportForV2 in the V1 Apps Script and pick the JSON file it creates. You will see what will be imported before anything is written. IDs are reassigned (bank Q, samples S, quizzes E); old V1 quiz links redirect automatically. One-time import.',
     v1Pick: 'Choose V1 export file', v1Plan: 'To import: {b} bank questions, {s} samples, {e} quizzes ({a} attempts, {r} with released results), {g} new tags',
     v1Done: 'Imported: {b} bank questions, {s} samples, {e} quizzes ({a} attempts, {r} with released results), {g} new tags',
@@ -2580,8 +2586,8 @@
   // ───────── 管理（只有管理員）：講師名單、刪除權限、系統設定、V1 資料搬移 ─────────
   async function viewAdmin() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    const TABS = ['roles', 'perms', 'system', 'v1'];
-    const NAMES = { roles: 'setRoles', perms: 'setPerms', system: 'setSystem', v1: 'setV1' };
+    const TABS = ['roles', 'perms', 'system', 'v1', 'reset'];
+    const NAMES = { roles: 'setRoles', perms: 'setPerms', system: 'setSystem', v1: 'setV1', reset: 'setReset' };
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'roles';
     shell('admin', `<div class="row"><h1>${esc(t('navAdmin'))}</h1><span class="small muted">${esc(t('adminHint'))}</span></div>
       <div class="tabs">${TABS.map((k) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/admin?tab=${k}">${esc(t(NAMES[k]))}</a>`).join('')}</div><div id="sp" style="margin-top:14px"><div class="empty-state"><span class="spin"></span></div></div>`);
@@ -2590,6 +2596,7 @@
       if (tab === 'roles') await setRolesTab(box);
       else if (tab === 'perms') await setPermsTab(box);
       else if (tab === 'system') await setSystemTab(box);
+      else if (tab === 'reset') await setResetTab(box);
       else setV1Tab(box);
     } catch (e) { showError(e, box); }
   }
@@ -2616,6 +2623,22 @@
     $('#pm_save').onclick = async () => {
       $('#pm_save').disabled = true;
       try { await api('ad_savePerms', { perms }); me = await api('me'); toast(t('permSaved')); viewAdmin(); } catch (e) { toast(e.message, 5000); $('#pm_save').disabled = false; }
+    };
+  }
+
+  async function setResetTab(box) {
+    const r = await api('ad_resetData', { dryRun: true }), c = r.counts;
+    box.innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:12px;max-width:820px"><h2>${esc(t('resetTitle'))}</h2>
+      <div class="banner err">${esc(t('resetWarn'))}</div>
+      <table class="list"><tbody>${[['drafts', 'navDrafts'], ['bank', 'navBank'], ['sessions', 'navSessions'], ['results', 'resetResults'], ['samples', 'resetSamples'], ['requests', 'resetRequests']].map(([k, l]) => `<tr><td>${esc(t(l))}</td><td style="text-align:right"><b>${c[k]}</b></td></tr>`).join('')}</tbody></table>
+      <div class="small muted">${esc(t('resetKeep'))}</div>
+      <div class="row" style="gap:8px"><input id="rs_in" placeholder="RESET" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px;width:160px"><button class="btn danger" id="rs_go" disabled>${esc(t('resetBtn'))}</button></div></div>`;
+    $('#rs_in').oninput = () => { $('#rs_go').disabled = $('#rs_in').value.trim() !== 'RESET'; };
+    $('#rs_go').onclick = async () => {
+      if (!(await confirmBox(t('resetConfirm'), t('resetBtn'), t('cancel'), true))) return;
+      $('#rs_go').disabled = true; $('#rs_go').innerHTML = `<span class="spin"></span> ${esc(t('resetRunning'))}`;
+      try { await api('ad_resetData', { confirm: 'RESET' }); topicsCache = null; libMeta = null; toast(t('resetDone'), 5000); viewAdmin(); }
+      catch (e) { toast(e.message, 8000); $('#rs_go').disabled = false; $('#rs_go').textContent = t('resetBtn'); }
     };
   }
 
