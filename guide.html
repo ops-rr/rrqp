@@ -198,7 +198,7 @@
     <li>可以看到每位專員的狀態（未開始、作答中、已交卷）；<span class="btnlike">以專員畫面預覽</span> 可以看專員實際看到的畫面（不會留下作答紀錄）。</li>
     <li>需要時可以 <span class="btnlike">延長結束時間</span> 或 <span class="btnlike">提前結束測驗</span>（作答中的人會自動交卷）。</li>
     <li>開始時間由伺服器記錄，專員無法透過改電腦時間延長作答。</li>
-    <li>有刪除權限的講師（預設只有管理員）可以 <span class="btnlike">刪除測驗</span>（清除測試用的測驗）：作答、分數、公布的成績一起刪除，題庫的使用次數與得分率會扣回。</li>
+    <li>有刪除權限的講師（預設只有管理員）可以 <span class="btnlike">刪除測驗</span>（只用來清除測試測驗）：作答、分數、公布的成績一起刪除，專員的歷史成績也會消失。正式測驗請用閱卷發佈後的「封存」。</li>
   </ul>
 </section>
 
@@ -213,6 +213,7 @@
     <li>按 <span class="btnlike">發佈成績</span>，專員就能看到分數、錯題與解析。未確認的答案會直接使用 AI 分數。</li>
   </ol>
   <div class="note">選擇題由系統自動計分。發佈後若發現給錯分，仍可修改，專員的成績會自動更新；必要時可以按 <span class="btnlike">取消公布</span>。</div>
+  <p class="foot">已公布成績的測驗可以在測驗頁按 <span class="btnlike">封存</span>：從「測驗管理」與「閱卷發佈」列表隱藏（列表下方「顯示已封存的測驗」可找回），成績與歷史成績不受影響。V1 搬過來的已公布測驗會直接封存。</p>
   <h3>批改原則</h3>
   <p>在「主題設定 → 主題與判斷標準」的 <b>批改原則</b> 設定，AI 批改時一律遵守。預設原則：</p>
   <ul>
@@ -385,7 +386,7 @@
     <li>See each agent's status (not started, in progress, submitted). <span class="btnlike">Preview as agent</span> shows exactly what agents see (nothing is recorded).</li>
     <li>Use <span class="btnlike">Extend end time</span> or <span class="btnlike">End quiz now</span> (agents still answering are submitted automatically).</li>
     <li>The start time is recorded by the server, so changing the computer clock does not give extra time.</li>
-    <li>Trainers with delete permission (admins by default) can <span class="btnlike">Delete quiz</span> (to remove test quizzes): attempts, scores and released results are deleted, and bank usage and score rates are reverted.</li>
+    <li>Trainers with delete permission (admins by default) can <span class="btnlike">Delete quiz</span> (for test quizzes only): attempts, scores and released results are deleted, including agents' history. Archive real quizzes instead (after release).</li>
   </ul>
 </section>
 
@@ -400,6 +401,7 @@
     <li>Press <span class="btnlike">Release results</span>. Agents see their score, missed questions and explanations. Unconfirmed answers use the AI score.</li>
   </ol>
   <div class="note">Choice answers are scored automatically. You can still change scores after release; agents' results update automatically. Use <span class="btnlike">Withdraw results</span> if needed.</div>
+  <p class="foot">Once results are released you can <span class="btnlike">Archive</span> the quiz on its page: it is hidden from the Quizzes and Grading lists (use "Show archived quizzes" at the bottom to find it); results and history are not affected. Released quizzes moved from V1 are archived automatically.</p>
   <h3>Grading principles</h3>
   <p>Set under <b>Settings → Topic &amp; criteria → Grading principles</b>; the AI always follows them. Defaults:</p>
   <ul>

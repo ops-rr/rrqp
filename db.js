@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05f';
+const VERSION = 'V2-2026-11-05g';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1046,7 +1046,7 @@ function sessionState(s, now) {
 }
 function sessionOut(id, s, now) {
   return { sessionId: id, draftId: 'BANK', title: s.title || { zh: id, en: id }, startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, state: sessionState(s, now),
-    questionCount: s.questionCount || (s.qids || []).length, createdBy: s.createdBy || '', parentSession: s.parentSession || '', topicId: s.topicId || '', v1Id: s.v1Id || '' };
+    questionCount: s.questionCount || (s.qids || []).length, createdBy: s.createdBy || '', parentSession: s.parentSession || '', topicId: s.topicId || '', v1Id: s.v1Id || '', archived: !!s.archived };
 }
 function attemptOut(s, a, now) {
   if (!a) return { status: 'not_started' };
@@ -1062,7 +1062,7 @@ async function sessionDoc(id) {
 }
 function requireAssigned(s, m) { if (!(s.assignees || []).includes(m.email)) fail('這份測驗沒有指派給你 / This quiz is not assigned to you'); }
 const indexOfSession = (s) => ({ title: s.title, startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, questionCount: s.questionCount, assigned: (s.assignees || []).length,
-  ended: !!s.ended, released: !!s.released, createdBy: s.createdBy || '', createdAt: s.createdAt || 0, qids: s.qids || [], topicId: s.topicId || '', parentSession: s.parentSession || '' });
+  ended: !!s.ended, released: !!s.released, archived: !!s.archived, createdBy: s.createdBy || '', createdAt: s.createdAt || 0, qids: s.qids || [], topicId: s.topicId || '', parentSession: s.parentSession || '' });
 
 const M4 = {
   /** 題庫列表：只讀題庫索引一份文件；給 assignees 時計算「這些人中有幾位做過」 */
@@ -1179,12 +1179,23 @@ const M4 = {
   },
 
   /** 測驗列表：索引一份文件 + 各場次的作答紀錄 */
-  t_listSessions: async () => {
+  t_listSessions: async (b = {}) => {
     await needTeacher();
     const items = ((await S.get('meta/sessionIndex')) || {}).items || {}, t = now();
-    const ids = Object.keys(items).sort().reverse();
+    const all = Object.keys(items).sort().reverse(), archivedCount = all.filter((id) => items[id].archived).length;
+    const ids = b.includeArchived ? all : all.filter((id) => !items[id].archived);   // 封存的不讀作答，省讀取
     const atts = await Promise.all(ids.map((id) => S.list('sessions/' + id + '/attempts').catch(() => [])));
-    return { sessions: ids.map((id, i) => Object.assign(sessionOut(id, items[id], t), { assigned: items[id].assigned || 0, started: atts[i].length, submitted: atts[i].filter((a) => a.submittedAt).length })) };
+    return { archivedCount, sessions: ids.map((id, i) => Object.assign(sessionOut(id, items[id], t), { assigned: items[id].assigned || 0, started: atts[i].length, submitted: atts[i].filter((a) => a.submittedAt).length })) };
+  },
+
+  /** 封存：已公布成績的測驗從測驗管理、閱卷發佈列表隱藏；成績、歷史成績、專員的「我的測驗」都不受影響 */
+  t_setArchived: async (b) => {
+    const m = await needTeacher();
+    const [sid, s] = await sessionDoc(b.sessionId), on = b.archived !== false;
+    if (on && !s.released) fail('成績公布後才能封存 / Release the results before archiving');
+    await S.batch([{ op: 'update', path: 'sessions/' + sid, data: { archived: on, archivedBy: m.email, archivedAt: now() } },
+      { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.archived']: on } }]);
+    return { sessionId: sid, archived: on };
   },
 
   t_getSession: async (b) => {
@@ -1421,8 +1432,8 @@ const M5 = {
     const done = atts.filter((a) => a.submittedAt);
     if (b.release === false) {
       const ops = done.map((a) => ({ op: 'del', path: 'results/' + resultId(sid, a.id) }));
-      ops.push(...(await applyBankStats(sid, s.bankStats, {})), { op: 'update', path: 'sessions/' + sid, data: { released: false, bankStats: {} } },
-        { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.released']: false } });
+      ops.push(...(await applyBankStats(sid, s.bankStats, {})), { op: 'update', path: 'sessions/' + sid, data: { released: false, archived: false, bankStats: {} } },
+        { op: 'update', path: 'meta/sessionIndex', data: { ['items.' + sid + '.released']: false, ['items.' + sid + '.archived']: false } });
       await S.batch(ops);
       return { released: false };
     }
@@ -1707,7 +1718,7 @@ const M7 = {
       const sess = { title: { zh: (s.title && s.title.zh) || s.sessionId, en: (s.title && s.title.en) || s.sessionId }, startAt: S.ts(startAt), endAt: S.ts(endAt), minutes: s.minutes || 30, graceMin,
         assignees, qids: ids, questionCount: ids.length, topicId: s.topicId || 'agreement', ended: !!s.ended, released: !!s.released, createdBy: s.createdBy || m.email, createdAt: s.createdAt || t,
         parentSession: s.parentSession ? (eMap[s.parentSession] || '') : '', v1Id: s.sessionId, importedAt: t };
-      if (s.released) Object.assign(sess, { releasedAt: t, releasedBy: m.email });
+      if (s.released) Object.assign(sess, { releasedAt: t, releasedBy: m.email, archived: true });   // V1 已公布成績的測驗直接封存
       ops.push({ op: 'set', path: 'sessions/' + sid, data: sess },
         { op: 'set', path: 'sessions/' + sid + '/paper/public', data: { questions: pub } },
         { op: 'set', path: 'sessions/' + sid + '/paper/key', data: { questions: key } });

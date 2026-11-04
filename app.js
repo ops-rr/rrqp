@@ -861,7 +861,9 @@
     colSession: '測驗', colWindow: '期間', colMinutes: '時限', colSubmitted: '交卷', noSessions: '還沒有發佈的測驗。',
     s_scheduled: '尚未開始', s_open: '進行中', s_closed: '已結束', s_released: '成績已公布',
     a_not_started: '未開始', a_in_progress: '作答中', a_submitted: '已交卷', a_expired: '逾時未交', autoSub: '自動交卷',
-    submittedN: '{a} / {b} 已交卷', sessDel: '刪除測驗', sessDelConfirm: '刪除 {id}「{t}」？場次、作答、分數、公布的成績都會刪除，無法復原；題庫的使用次數與得分率會扣回。（用來清除測試測驗）', sessDelDone: '{id} 已刪除', remaining: '剩餘', previewAgent: '以專員畫面預覽', endNow: '提前結束測驗',
+    submittedN: '{a} / {b} 已交卷', archive: '封存', unarchive: '取消封存', archivedChip: '已封存', archivedDone: '已封存', unarchived: '已取消封存',
+    archiveConfirm: '封存 {id}？測驗會從「測驗管理」與「閱卷發佈」列表隱藏（可用「顯示已封存」找回）；成績、歷史成績、專員的「我的測驗」都不受影響。',
+    archShow: '顯示已封存的測驗（{n}）', archHide: '隱藏已封存的測驗（{n}）', sessDel: '刪除測驗', sessDelConfirm: '刪除 {id}「{t}」？場次、作答、分數、公布的成績都會刪除，專員的歷史成績也會消失，無法復原；題庫的使用次數與得分率會扣回。只用來清除測試測驗；正式測驗請用「封存」。', sessDelDone: '{id} 已刪除', remaining: '剩餘', previewAgent: '以專員畫面預覽', endNow: '提前結束測驗',
     endConfirm: '確定要提前結束 {id}？作答中的人會在 2 分鐘內由瀏覽器自動交卷。', ended: '測驗已結束', roster: '受測名單',
     colEmail: 'Email', colStarted: '開始作答', colSubmittedAt: '交卷時間', minUnit: '{n} 分鐘', qUnit: '{n} 題 · 100 分',
     myQuizzes: '我的測驗', window: '測驗期間', timeLimit: '作答時限', questionsLabel: '題數', startsWhen: '按下「開始作答」後開始計時',
@@ -889,7 +891,9 @@
     colSession: 'Quiz', colWindow: 'Window', colMinutes: 'Limit', colSubmitted: 'Submitted', noSessions: 'No quizzes published yet.',
     s_scheduled: 'Scheduled', s_open: 'Open now', s_closed: 'Closed', s_released: 'Results released',
     a_not_started: 'Not started', a_in_progress: 'In progress', a_submitted: 'Submitted', a_expired: 'Not submitted', autoSub: 'Auto-submitted',
-    submittedN: '{a} / {b} submitted', sessDel: 'Delete quiz', sessDelConfirm: 'Delete {id} "{t}"? The quiz, attempts, scores and released results are deleted and cannot be restored; bank usage and score rates are reverted. (For removing test quizzes)', sessDelDone: '{id} deleted', remaining: 'Remaining', previewAgent: 'Preview as agent', endNow: 'End quiz now',
+    submittedN: '{a} / {b} submitted', archive: 'Archive', unarchive: 'Unarchive', archivedChip: 'Archived', archivedDone: 'Archived', unarchived: 'Unarchived',
+    archiveConfirm: 'Archive {id}? It is hidden from the Quizzes and Grading lists (use "Show archived" to find it). Results, history and agents\' My quizzes are not affected.',
+    archShow: 'Show archived quizzes ({n})', archHide: 'Hide archived quizzes ({n})', sessDel: 'Delete quiz', sessDelConfirm: 'Delete {id} "{t}"? The quiz, attempts, scores and released results are deleted, agents lose it from their history, and this cannot be undone; bank usage and score rates are reverted. For test quizzes only; archive real quizzes instead.', sessDelDone: '{id} deleted', remaining: 'Remaining', previewAgent: 'Preview as agent', endNow: 'End quiz now',
     endConfirm: 'End {id} now? Anyone still answering will be auto-submitted by their browser within 2 minutes.', ended: 'Quiz ended', roster: 'Assignees',
     colEmail: 'Email', colStarted: 'Started', colSubmittedAt: 'Submitted at', minUnit: '{n} min', qUnit: '{n} questions · 100 points',
     myQuizzes: 'My quizzes', window: 'Exam window', timeLimit: 'Time limit', questionsLabel: 'Questions', startsWhen: 'Starts when you press Start',
@@ -928,25 +932,33 @@
 
   // ───────── 講師：測驗場次 ─────────
   const M5_READY = true;    // 延長時間、退回重考
+  /** 列表下方的「顯示已封存」切換 */
+  function archToggle(n, on, cb) {
+    return { html: n ? `<div class="row" style="padding:10px 14px"><span class="spacer"></span><button class="btn sm ghost" data-arch-tog>${esc(t(on ? 'archHide' : 'archShow', { n }))}</button></div>` : '',
+      bind: (box) => { const b = $('[data-arch-tog]', box); if (b) b.onclick = cb; } };
+  }
   async function viewSessions() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
         <button class="btn" id="refresh">${esc(t('refresh'))}</button><button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>
       <div id="createBox"></div><div id="doneBox"></div>
       <div class="card scroll-x" id="listBox"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
+    let showArch = params.get('archived') === '1';
     async function loadList() {
       try {
-        const { sessions } = await api('t_listSessions');
+        const { sessions, archivedCount } = await api('t_listSessions', { includeArchived: showArch });
         const box = $('#listBox'); if (!box) return;
-        if (!sessions.length) { box.innerHTML = `<div class="empty-state">${esc(t('noSessions'))}</div>`; return; }
+        const tog = archToggle(archivedCount, showArch, () => { showArch = !showArch; loadList(); });
+        if (!sessions.length) { box.innerHTML = `<div class="empty-state">${esc(t('noSessions'))}</div>${tog.html}`; tog.bind(box); return; }
         box.innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th class="hide-sm">${esc(t('colMinutes'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
           sessions.map((s) => {
             const pct = s.assigned ? Math.round((s.submitted / s.assigned) * 100) : 0;
             return `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}<div class="small soft">${s.draftId && s.draftId !== 'BANK' ? esc(s.draftId) + ' · ' : ''}${esc(t('qUnit', { n: s.questionCount }))}</div></td>
               <td class="small">${esc(fmtDT(s.startAt))}<br>– ${esc(fmtDT(s.endAt))}</td><td class="hide-sm small">${esc(t('minUnit', { n: s.minutes }))}</td>
               <td><div class="bar ok"><i style="width:${pct}%"></i></div><div class="small muted">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</div></td>
-              <td>${sessChip(s.state)}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`;
-          }).join('')}</tbody></table>`;
+              <td>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`;
+          }).join('')}</tbody></table>${tog.html}`;
+        tog.bind(box);
         $$('[data-open]', box).forEach((r) => r.addEventListener('click', () => { location.hash = '#/session/' + r.dataset.open; }));
       } catch (e) { showError(e, $('#listBox')); }
     }
@@ -976,9 +988,10 @@
       const s = d.session, link = quizLink(s.sessionId), offset = d.serverNow - Date.now();
       const sub = d.roster.filter((r) => r.status === 'submitted').length, inp = d.roster.filter((r) => r.status === 'in_progress').length, nst = d.roster.filter((r) => r.status === 'not_started').length;
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
-      main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}<span class="spacer"></span>
+      main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}<span class="spacer"></span>
           <button class="btn" id="reload">${esc(t('refresh'))}</button><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
           ${M5_READY && s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
+          ${s.state === 'released' ? `<button class="btn" id="arch">${esc(t(s.archived ? 'unarchive' : 'archive'))}</button>` : ''}
           ${me.can.session ? `<button class="btn ghost danger" id="sessDel">${esc(t('sessDel'))}</button>` : ''}
           ${s.state === 'open' || s.state === 'scheduled' ? `<button class="btn danger" id="endNow">${esc(t('endNow'))}</button>` : `<a class="btn brand" style="display:inline-grid;place-items:center;text-decoration:none" href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))}</a>`}</div>
         <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button></div>
@@ -995,6 +1008,10 @@
       $('#reload').onclick = load;
       const ex = $('#extend'); if (ex) ex.onclick = () => extendModal(s, load);
       $$('[data-ret]').forEach((b) => b.addEventListener('click', () => returnModal(s, b.dataset.ret, load)));
+      const ar = $('#arch'); if (ar) ar.onclick = async () => {
+        if (!s.archived && !(await confirmBox(t('archiveConfirm', { id: s.sessionId }), t('archive')))) return;
+        try { await api('t_setArchived', { sessionId: s.sessionId, archived: !s.archived }); toast(t(s.archived ? 'unarchived' : 'archivedDone')); load(); } catch (e) { toast(e.message, 4000); }
+      };
       const sd = $('#sessDel'); if (sd) sd.onclick = async () => {
         if (!(await confirmBox(t('sessDelConfirm', { id: s.sessionId, t: L(s.title) }), t('sessDel'), t('cancel'), true))) return;
         try { await api('tw_deleteSession', { sessionId: s.sessionId }); toast(t('sessDelDone', { id: s.sessionId })); location.hash = '#/sessions'; } catch (e) { toast(e.message, 5000); }
@@ -1222,15 +1239,19 @@
 
   async function viewGradingList() {
     const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1></div><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div>`);
-    try {
-      const { sessions } = await api('t_listSessions');
+    let showArch = false;
+    async function load() { try {
+      const { sessions, archivedCount } = await api('t_listSessions', { includeArchived: showArch });
       const list = sessions.filter((s) => s.state === 'closed' || s.state === 'released');
-      if (!list.length) { $('#gl').innerHTML = `<div class="empty-state">${esc(t('noGradable'))}</div>`; return; }
+      const tog = archToggle(archivedCount, showArch, () => { showArch = !showArch; load(); });
+      if (!list.length) { $('#gl').innerHTML = `<div class="empty-state">${esc(t('noGradable'))}</div>${tog.html}`; tog.bind($('#gl')); return; }
       $('#gl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
         list.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}</td><td class="small">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</td>
-          <td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td>${sessChip(s.state)}</td><td style="text-align:right"><button class="btn sm">${esc(t('goGrading'))}</button></td></tr>`).join('')}</tbody></table>`;
+          <td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('goGrading'))}</button></td></tr>`).join('')}</tbody></table>${tog.html}`;
+      tog.bind($('#gl'));
       $$('[data-open]', $('#gl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/grading/' + r.dataset.open; }));
-    } catch (e) { showError(e, $('#gl')); }
+    } catch (e) { showError(e, $('#gl')); } }
+    await load();
   }
 
   async function viewGrading(id) {
@@ -2218,7 +2239,7 @@
     perm_bankQ: '刪除題庫題目', permd_bankQ: '已發佈的測驗保留試卷副本，成績不受影響；題目的統計會消失',
     perm_draft: '刪除草稿', permd_draft: '題庫與已發佈的測驗不受影響；未入庫的題目一併移除',
     perm_draftQ: '校對時刪除單題', permd_draftQ: '含「刪除並請 Agent 補一題」，屬於日常校對',
-    perm_session: '刪除測驗', permd_session: '作答、分數、公布的成績一起刪除；題庫統計扣回',
+    perm_session: '刪除測驗', permd_session: '作答、分數、公布的成績一起刪除，專員的歷史成績也會消失；正式測驗請用「封存」',
     perm_sample: '刪除範例', permd_sample: '連同申請紀錄；同一個 Return ID 之後可以重新申請',
     perm_request: '刪除範例申請紀錄', permd_request: '只限等待中、失敗、已取消的申請',
     v1Title: '從 V1 搬移資料', v1Hint: '在 V1 的 Apps Script 執行 exportForV2，把產生的 JSON 檔選進來。會先顯示預計匯入的內容，確認後才寫入。編號會重新配發（題庫 Q、範例 S、測驗 E），舊的 V1 測驗連結會自動導到新編號。只能匯入一次。',
@@ -2259,7 +2280,7 @@
     perm_bankQ: 'Delete bank questions', permd_bankQ: 'Published quizzes keep their own copy; the question stats are lost',
     perm_draft: 'Delete drafts', permd_draft: 'The bank and published quizzes are not affected; questions not in the bank are removed',
     perm_draftQ: 'Delete a question while reviewing', permd_draftQ: 'Including "delete and let the agent add one"; part of normal review',
-    perm_session: 'Delete quizzes', permd_session: 'Attempts, scores and released results are deleted; bank stats are reverted',
+    perm_session: 'Delete quizzes', permd_session: 'Attempts, scores and released results are deleted, including agents\' history; archive real quizzes instead',
     perm_sample: 'Delete samples', permd_sample: 'Including the request record; the Return ID can be requested again',
     perm_request: 'Delete sample request records', permd_request: 'Queued, failed or cancelled requests only',
     v1Title: 'Move data from V1', v1Hint: 'Run exportForV2 in the V1 Apps Script and pick the JSON file it creates. You will see what will be imported before anything is written. IDs are reassigned (bank Q, samples S, quizzes E); old V1 quiz links redirect automatically. One-time import.',
