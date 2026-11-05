@@ -359,7 +359,9 @@
     const who = m.from === 'seller' ? 'seller' : 'buyer';
     return `<div class="msg ${who}"><div class="t">${esc(t(who))} · ${esc(m.t)}</div>${inner}</div>`;
   }
-  function drcItems(arr) {
+  /** skipFirstOffer：買家 DRC 第一筆是申請時的 System Info，和右邊的申請資訊重複，不顯示（資料仍保留，檢查規則要用） */
+  function drcItems(arr, skipFirstOffer) {
+    if (skipFirstOffer && arr && arr.length && arr[0] && arr[0].type === 'offer') arr = arr.slice(1);
     if (!arr || !arr.length) return `<div class="soft small">${t('none')}</div>`;
     return arr.map((d) => `<div class="item"><span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
   }
@@ -377,7 +379,7 @@
       ${q.payment ? `<h4>${esc(t('payment'))}</h4><div class="box kv"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
       ${q.logistics ? `<h4>${esc(t('logistics'))} · ${esc(L(q.logistics.carrier))}</h4><div class="box">${(q.logistics.events || []).map((e) => `<span class="soft">${esc(e.t)}</span> ${esc(L(e.status))}`).join('<br>')}</div>` : ''}
       <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).length ? q.chat.map(chatMsg).join('') : `<div class="small soft">${esc(t('noChat'))}</div>`}</div>
-      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller)}</div></div>`;
+      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer, true)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller)}</div></div>`;
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
       ${r.deduction ? `<span>${esc(t('deduction'))}</span><span>−$${esc(r.deduction)}</span>` : ''}
@@ -388,6 +390,8 @@
 
   // ───────── 題組（G 題）：一題多個小題，全對得滿分，否則每對一小題得 滿分 ÷（2 × 小題數） ─────────
   Object.assign(I18N.zh, {
+    impNotesTitle: '匯入提醒（審核時請確認）', impErrs: '不符合格式規則，修正後才能核准：', impMasked: '已自動遮蔽疑似真實資料：', impFreeO: '訂單商品第 {n} 項單價是 0，是否為贈品？', impFreeR: '申退商品第 {n} 項單價是 0，是否為贈品？',
+    enFromDms: '聊聊／DRC／備註的英文有 {n} 欄來自 DMS 翻譯（和專員在 DMS 英文介面看到的相同）',
     grpConvert: '轉成題組', grpTitle: '題組（{n} 小題）', grpKeyHint: '點選每個小題的正解', grpNoAns: '未設定正解', grpScoring: '計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × {n}）',
     grpMine: '你的答案', grpKey: '正解', grpOkN: '答對 {a} / {b} 小題', grpTopicOnly: '這個主題使用題組：全部出 G 題（{n} 小題）', qeTypeG: 'G：題組',
     grpToG: '改成題組後，原本的選項、正解、參考答案與評分標準會移除，請重新點選每個小題的正解。', grpNone: '這個主題沒有題組範本',
@@ -395,6 +399,8 @@
     blindSubs: 'AI 沒看答案時，以下小題和正解不同：', tImportUpdate: '已經有主題「{n}」。要用檔案內容更新它嗎？判斷標準有改時版本號會 +1 並保留舊版；已有的標籤不會被修改。', tUpdated: '已更新主題 {n}',
   });
   Object.assign(I18N.en, {
+    impNotesTitle: 'Import notes (check when reviewing)', impErrs: 'Does not meet the format rules; fix before approving:', impMasked: 'Possible real data was masked automatically:', impFreeO: 'Order item {n} has a unit price of 0 — a free gift?', impFreeR: 'Requested item {n} has a unit price of 0 — a free gift?',
+    enFromDms: '{n} chat / DRC / remark field(s) use the DMS translation (same as agents see in DMS)',
     grpConvert: 'Convert to question set', grpTitle: 'Question set ({n} parts)', grpKeyHint: 'Pick the correct answer for each part', grpNoAns: 'No answer set', grpScoring: 'Scoring: all correct = full points; otherwise each correct part earns full ÷ (2 × {n})',
     grpMine: 'Your answer', grpKey: 'Correct', grpOkN: '{a} / {b} parts correct', grpTopicOnly: 'This topic uses question sets: all questions are type G ({n} parts)', qeTypeG: 'G: Question set',
     grpToG: 'Switching to a question set removes the options, answer, model answer and rubric. Pick the answer for each part again.', grpNone: 'This topic has no question set template',
@@ -725,7 +731,8 @@
       ${(() => {
         if (draft.status === 'generating' || draft.status === 'deleted') return '';
         const live = questions.filter((q) => !q.bankedAs), a = live.filter((q) => metaOf(q).enPending.length).length, b = live.filter((q) => needsReview(metaOf(q))).length;
-        return a || b ? cmdBox('處理 ' + draft.draftId, [a && t('wkEnQ', { n: a }), b && t('wkRvQ', { n: b })].filter(Boolean).join(' · ')) : '';
+        const c = live.filter((q) => DB().gap.draftBasis(q, metaOf(q), q.reviewed)).length;
+        return a || b || c ? cmdBox('處理 ' + draft.draftId, [a && t('wkEnQ', { n: a }), b && t('wkRvQ', { n: b }), c && t('wkGapQ', { n: c })].filter(Boolean).join(' · ')) : '';
       })()}
       ${draft.status === 'generating' ? `<div class="banner info row"><span>${esc(t('genBanner', { a: draft.imported, b: draft.target }))}</span>
         <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" id="cpy2">${esc(t('copy'))}</button></span><span class="small">${esc(t('genAuto'))}</span></div>` : ''}`;
@@ -765,6 +772,14 @@
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
         ${enPendingHtml(metaOf(src))}
         ${(() => { const h = reviewHtml(metaOf(src), editable, src); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
+        ${(() => {   // 判斷標準缺口：講師改了出題正解，或盲答不同但維持正解
+          const m = metaOf(src), g = m.criteriaGap, pend = DB().gap.draftBasis(src, m, src.reviewed);
+          if (pend) return `<div class="banner info" style="border-radius:0;border-width:0 0 1px">💡 ${esc(t('dGapPending'))}</div>`;
+          if (!g) return '';
+          return `<div style="padding:10px 16px;border-bottom:1px solid var(--line)"><div class="gapcard card pad"><div class="row"><b>💡 ${esc(t(g.kind === 'ai_misread' ? 'gk_ai_misread' : 'dGapTitle'))}</b><span class="chip">${esc(t('gk_' + g.kind))}</span>${g.why ? `<span class="chip">${esc(t('gw_' + g.why))}</span>` : ''}
+            ${g.kind !== 'ai_misread' ? (m.gapState ? `<span class="chip ${m.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + m.gapState))}</span>` : `<span class="spacer"></span><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(draft.topicId)}&gap=${esc(src.id)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
+            <div class="small" style="margin-top:6px">${esc(g.situation)}</div>${g.suggestion ? `<pre class="gapsug">${esc(g.suggestion)}</pre>` : ''}${g.sameAs ? `<div class="small soft">${esc(t('gapAlso'))}${esc(g.sameAs)}</div>` : ''}</div></div>`;
+        })()}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
           ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key', {}, !editable)}` : ''}
@@ -2059,7 +2074,7 @@
         $('#ll').innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colSampleId'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colAnswer2'))}</th><th>${esc(t('colTags'))}</th>${tab === 'pending' ? `<th>${esc(t('yourExpect'))}</th>` : ''}<th>${esc(t('colStatus2'))}</th><th class="hide-sm">${esc(t('colBy'))}</th></tr></thead><tbody>${
           list.map((s) => {
             const diff = tab === 'pending' && s.wantedTags && s.wantedTags.length && !s.wantedTags.every((x) => s.tags.includes(x));
-            return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
+            return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}${s.importNotes ? ` <span class="chip warn" title="${esc(t('impNotesTitle'))}">⚠ ${s.importNotes}</span>` : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
               <td class="small">${s.tags.map((x) => `<span class="chip" style="margin:1px">${esc(tagName(x))}</span>`).join('')}</td>
               ${tab === 'pending' ? `<td class="small">${(s.wantedTags || []).map((x) => esc(tagName(x))).join('、')}${diff ? ' <span class="chip warn">≠</span>' : ''}</td>` : ''}
               <td>${smChip(s.status)}</td><td class="hide-sm small muted">${esc(s.requestedBy || s.approvedBy || '')}</td></tr>`;
@@ -2171,6 +2186,16 @@
           <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
           ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
         ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
+        ${(() => {   // 匯入時的提醒（遮蔽、格式問題）＋依目前規則重新檢查的結果；格式錯誤修好才能核准
+          const errs = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
+          const masks = (s.importNotes || []).filter((n) => n.level === 'mask'), warns = (s.importNotes || []).filter((n) => n.level === 'warn');
+          if (!errs.length && !masks.length && !warns.length) return '';
+          return `<div class="banner ${errs.length ? 'err' : 'warn'}"><b>${esc(t('impNotesTitle'))}</b>
+            ${errs.length ? `<div style="margin-top:4px"><b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 10).map(esc).join('<br>')}</div>` : ''}
+            ${masks.length ? `<div style="margin-top:4px"><b>${esc(t('impMasked'))}</b><br>${masks.map((n) => '・' + esc(pathLabel(n.path)) + '：' + esc(n.text)).join('<br>')}</div>` : ''}
+            ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return '・' + esc(m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text); }).join('<br>')}</div>` : ''}</div>`;
+        })()}
+        ${(s.enSource || []).length ? `<div class="small muted">${esc(t('enFromDms', { n: s.enSource.length }))}</div>` : ''}
         <div class="libgrid">
           <div class="card pad"><h4>${esc(t('yourExpect'))}</h4>${(s.wantedTags || []).length ? s.wantedTags.map((x) => `<span class="chip" style="margin:2px">${esc(tagName(x))}</span>`).join('') : '<span class="soft">—</span>'}
             ${s.note ? `<div class="small" style="margin-top:6px">${esc(s.note)}</div>` : ''}<div class="small soft" style="margin-top:6px">${esc(s.requestedBy || '')}</div></div>
@@ -2344,7 +2369,9 @@
     v1Open: '這些測驗還沒結束：{list}。建議等 V1 測驗結束後再匯出、匯入。', v1Warn: '{n} 項需要注意（仍會匯入，之後到題庫或範例頁處理）',
     v1Map: '新舊編號對照', v1Run: '開始匯入', v1Running: '匯入中…', v1Confirm: '確定要把這些 V1 資料寫入 V2 嗎？只能匯入一次。', v1Toast: 'V1 資料已匯入',
     qPointIn: '判斷重點（題目內）', gapTitle: '判斷標準可能有缺口（AI 匯入時回報）', gapTitle2: '判斷標準可能有缺口', gapAdd: '加到判斷標準', gapIgnore: '忽略', gapReset: '改回待處理', gap_added: '已加入判斷標準', gap_dismissed: '已忽略',
-    gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 匯入範例時，發現以下情境在判斷標準中沒有明確條文。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
+    gapListTitle: '判斷標準建議（{n}）', gapListHint: 'AI 在匯入範例、講師改了範例判斷、草稿校對（講師改了出題正解，或盲答與正解不同但維持正解）時，發現以下情境在判斷標準中沒有明確條文或可以有不同解讀。同一件事會合併計次。按「加入」會把建議條文接到判斷標準最後，請修改後再儲存。',
+    gapCount: '出現 {n} 次', gapAlso: '同樣的情況也出現在：', gw_trainer_changed: '講師改了出題正解', gw_blind_kept: '盲答不同、講師維持正解',
+    wkGapQ: '待分析判斷標準 {n} 題', dGapTitle: '判斷標準可能有缺口（依這題的校對分析）', dGapPending: '下次「處理」時，AI 會分析為什麼出題或盲答的答案和正解不同',
     gapAppend: '加入', gapAppended: '已加入，記得儲存', gapIgnored: '已忽略這條建議',
     tGrading: '批改原則（給 AI 批改用）', tGradingHint: 'AI 批改文字答案時優先依這裡的原則，其次才是每題的評分標準。例如：點出判斷關鍵就給滿分、不要求引用條文。',
     tImport: '匯入主題', tImportConfirm: '匯入主題「{n}」：標籤 {g} 個、選項範本 {o} 組。已經有這個主題時，下一步會問你要不要更新；已有的標籤不會被修改。確定匯入？', tImported: '已匯入主題 {n}',
@@ -2388,7 +2415,9 @@
     v1Open: 'These quizzes have not ended: {list}. Export and import after they end.', v1Warn: '{n} item(s) need attention (still imported; fix them later in the bank or sample page)',
     v1Map: 'Old → new IDs', v1Run: 'Start import', v1Running: 'Importing…', v1Confirm: 'Write these V1 records into V2? This can only be done once.', v1Toast: 'V1 data imported',
     qPointIn: 'Key point (in the question)', gapTitle: 'Possible gap in the criteria (reported by AI on import)', gapTitle2: 'Possible gap in the criteria', gapAdd: 'Add to criteria', gapIgnore: 'Ignore', gapReset: 'Reopen', gap_added: 'Added to criteria', gap_dismissed: 'Ignored',
-    gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'When importing samples, the AI found these situations are not clearly covered by the criteria. Add appends the suggested rule to the end of the criteria; edit it before saving.',
+    gapListTitle: 'Criteria suggestions ({n})', gapListHint: 'Found by the AI when importing samples, when a trainer changed a sample judgement, or during draft review (the trainer changed the generated key, or kept the key after a different blind answer). The same situation is merged and counted. Add appends the suggested rule to the end of the criteria; edit it before saving.',
+    gapCount: '{n} times', gapAlso: 'Also seen in: ', gw_trainer_changed: 'Trainer changed the key', gw_blind_kept: 'Blind answer differed, key kept',
+    wkGapQ: 'Criteria analysis pending: {n} question(s)', dGapTitle: 'Possible gap in the criteria (from reviewing this question)', dGapPending: 'Next time you send Process, the AI will analyze why the generated or blind answer differs from the key',
     gapAppend: 'Add', gapAppended: 'Added — remember to save', gapIgnored: 'Suggestion ignored',
     tGrading: 'Grading principles (for AI grading)', tGradingHint: 'When grading written answers, the AI follows these principles first, then each question’s rubric. E.g. full marks for naming the deciding factor; no need to cite rule numbers.',
     tImport: 'Import topic', tImportConfirm: 'Import topic "{n}" with {g} tags and {o} option sets? If the topic already exists, you will be asked whether to update it. Existing tags are not changed.', tImported: 'Topic {n} imported',
@@ -2482,8 +2511,9 @@
   async function setTopicTab(box) {
     const meta = await api('t_topics');
     const topicId = pickedTopic(meta);
-    const [{ topic }, smp] = await Promise.all([api('tw_getTopic', { topicId }), api('tw_listSamples').catch(() => ({ samples: [] }))]);
-    const gaps = smp.samples.filter((x) => x.topicId === topicId && x.gap && !x.gapState && x.status !== 'rejected');
+    const [{ topic }, gp] = await Promise.all([api('tw_getTopic', { topicId }), api('tw_gaps', { topicId }).catch(() => ({ gaps: [] }))]);
+    const gaps = gp.gaps;      // 範例與草稿的建議；同一件事合併成一筆（count = 出現次數）
+    const gapLink = (ref) => { const d = /^(D\d+)-\d+$/.exec(ref); return d ? '#/draft/' + d[1] + '?q=' + ref : '#/library/' + ref; };
     const added = new Set();          // 這次加入判斷標準的建議（儲存後標記為已加入）
     const sets = meta.optionSets;
     const active = topic.active !== false;
@@ -2496,9 +2526,10 @@
         <label class="k" for="t_set">${esc(t('tDefaultSet'))}</label><select id="t_set"><option value="">${esc(t('none'))}</option>${sets.map((o) => `<option value="${esc(o.setId)}" ${o.setId === topic.defaultOptionSet ? 'selected' : ''}>${esc(L(o.name))}</option>`).join('')}</select>
       </div>
       ${gaps.length ? `<div class="gapbox"><b>💡 ${esc(t('gapListTitle', { n: gaps.length }))}</b><div class="small muted" style="margin:2px 0 8px">${esc(t('gapListHint'))}</div>
-        ${gaps.map((g) => `<div class="gaprow" data-gap="${esc(g.sampleId)}"><div class="row"><a href="#/library/${esc(g.sampleId)}"><b>${esc(g.sampleId)}</b></a><span class="small">${esc(g.gap)}</span><span class="spacer"></span>
-          <button class="btn sm ghost" type="button" data-gi="${esc(g.sampleId)}">${esc(t('gapIgnore'))}</button><button class="btn sm" type="button" data-ga="${esc(g.sampleId)}">${esc(t('gapAppend'))}</button></div>
-          ${g.gapSuggestion ? `<pre class="gapsug">${esc(g.gapSuggestion)}</pre>` : ''}</div>`).join('')}</div>` : ''}
+        ${gaps.map((g) => `<div class="gaprow" data-gap="${esc(g.ref)}"><div class="row"><a href="${gapLink(g.ref)}"><b>${esc(g.ref)}</b></a>${g.count > 1 ? `<span class="chip warn" title="${esc(g.refs.join('、'))}">${esc(t('gapCount', { n: g.count }))}</span>` : ''}${g.why ? `<span class="chip">${esc(t('gw_' + g.why))}</span>` : ''}<span class="small">${esc(g.situation)}</span><span class="spacer"></span>
+          <button class="btn sm ghost" type="button" data-gi="${esc(g.ref)}">${esc(t('gapIgnore'))}</button><button class="btn sm" type="button" data-ga="${esc(g.ref)}">${esc(t('gapAppend'))}</button></div>
+          ${g.count > 1 ? `<div class="small soft">${esc(t('gapAlso'))}${g.refs.filter((x) => x !== g.ref).map((x) => `<a href="${gapLink(x)}">${esc(x)}</a>`).join('、')}</div>` : ''}
+          ${g.suggestion ? `<pre class="gapsug">${esc(g.suggestion)}</pre>` : ''}</div>`).join('')}</div>` : ''}
       <div><div class="row" style="margin-bottom:6px"><b>${esc(t('tCriteria'))}</b><span class="chip info">${esc(topic.criteriaVersion || '')}</span></div><div class="small muted" style="margin-bottom:6px">${esc(t('tCriteriaNote'))}</div>${ta('t_crit', 14, topic.criteria || '')}</div>
       ${(() => { const g = DB().group.normalize(topic.group); return g ? `<div><b>${esc(t('grpTopic'))}</b><div class="small muted" style="margin:2px 0 6px">${esc(t('grpTopicHint'))}</div><div class="grp">${g.map((x, i) => `<div class="grp-sub"><div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b><span class="soft small mono">${esc(x.id)}</span></div><div class="small">${x.options.map((o) => `<span class="chip" style="margin:2px">${esc(o.id)}. ${esc(L(o.text))}</span>`).join('')}</div></div>`).join('')}</div></div>` : ''; })()}
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
@@ -2509,15 +2540,17 @@
       <div class="row"><button class="btn brand" id="t_save" disabled>${esc(t('tSave'))}</button><span class="spacer"></span><button class="btn ${active ? 'danger' : ''}" id="t_act" type="button">${esc(t(active ? 'tDisable' : 'tEnable'))}</button></div></div>`;
     let dirty = false;
     const appendGap = (id) => {
-      const g = gaps.find((x) => x.sampleId === id); if (!g || added.has(id)) return;
-      const ta2 = $('#t_crit'); ta2.value = ta2.value.replace(/\s+$/, '') + '\n' + (g.gapSuggestion || g.gap);
+      const g = gaps.find((x) => x.ref === id || x.refs.includes(id)); if (!g || added.has(g.ref)) return;
+      id = g.ref;
+      const ta2 = $('#t_crit'); ta2.value = ta2.value.replace(/\s+$/, '') + '\n' + (g.suggestion || g.situation);
       added.add(id); dirty = true; $('#t_save').disabled = false;
       const b = $(`[data-ga="${id}"]`, box); if (b) { b.textContent = t('gapAppended'); b.disabled = true; }
       ta2.scrollIntoView({ block: 'center' }); ta2.focus();
     };
     $$('[data-ga]', box).forEach((b) => b.addEventListener('click', () => appendGap(b.dataset.ga)));
     $$('[data-gi]', box).forEach((b) => b.addEventListener('click', async () => {
-      try { await api('tw_setGap', { sampleId: b.dataset.gi, state: 'dismissed' }); const r = $(`[data-gap="${b.dataset.gi}"]`, box); if (r) r.remove(); added.delete(b.dataset.gi); toast(t('gapIgnored')); } catch (e) { toast(e.message, 4000); }
+      const g = gaps.find((x) => x.ref === b.dataset.gi);
+      try { await api('tw_setGap', { refs: g ? g.refs : [b.dataset.gi], state: 'dismissed' }); const r = $(`[data-gap="${b.dataset.gi}"]`, box); if (r) r.remove(); added.delete(b.dataset.gi); toast(t('gapIgnored')); } catch (e) { toast(e.message, 4000); }
     }));
     const wantGap = new URLSearchParams(location.hash.split('?')[1] || '').get('gap');
     if (wantGap) setTimeout(() => appendGap(wantGap), 0);
@@ -2560,7 +2593,7 @@
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
           defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value, gradingGuide: $('#t_grade').value,
         } });
-        if (added.size) await api('tw_setGap', { sampleIds: [...added], state: 'added' }).catch(() => null);
+        if (added.size) await api('tw_setGap', { refs: [...added].flatMap((r) => (gaps.find((x) => x.ref === r) || { refs: [r] }).refs), state: 'added' }).catch(() => null);
         dirty = false; leaveGuard = null; topicsCache = null; libMeta = null;
         toast(r.bumped ? t('tBumped', { v: r.bumped }) : t('tSaved'), 3500);
         const h = '#/settings?tab=topic&topic=' + topicId; if (location.hash !== h) location.hash = h; else viewSettings();

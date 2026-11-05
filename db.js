@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05m';
+const VERSION = 'V2-2026-11-05o';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -222,7 +222,8 @@ async function activeTopic(topicId) {
 }
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
   source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null,
-  ...gapOf(x), gapState: x.gapState || '', enPending: (x.enPending || []).length });
+  ...gapOf(x), gapState: x.gapState || '', enPending: (x.enPending || []).length,
+  importNotes: x.status === 'pending' ? (x.importNotes || []).filter((n) => n.level !== 'warn').length : 0 });
 /** 判斷標準缺口：講師修正後 AI 分析的結果（criteriaGap）優先於匯入時的回報（suggest.criteriaGap） */
 function gapOf(x) {
   const g = (x.criteriaGap && x.criteriaGap.kind !== 'ai_misread' && x.criteriaGap.situation) ? x.criteriaGap : (x.suggest && x.suggest.criteriaGap) || null;
@@ -340,7 +341,8 @@ function checkQuestion(q, reasons, opt = {}) {
     if (!it || typeof it !== 'object') { errs.push(p + ' must be an object'); return; }
     bi(it.name, p + '.name'); if (it.variation !== undefined) bi(it.variation, p + '.variation');
     need(Number.isInteger(it.qty) && it.qty > 0, p + '.qty must be a positive integer');
-    need(typeof it.price === 'number' && it.price > 0, p + '.price must be a positive number');
+    need(typeof it.price === 'number' && it.price >= 0, p + '.price must be a number >= 0');
+    if (it.price === 0) warn.push(p + '.price is 0 (free gift?)');
   }));
   if (Array.isArray(oi) && Array.isArray(ri)) {
     const ordered = {}; oi.forEach((it) => { if (it) ordered[key(it)] = it; });
@@ -434,7 +436,23 @@ function enPendingAfter(oldQ, newQ, prev) {
 }
 const sameQ = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 /** 題目以外的處理狀態（英文待翻譯、修訂號、AI 審查）放在 _m，存檔時移除 */
-const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null });
+const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null,
+  criteriaGap: x.criteriaGap || null, gapState: x.gapState || '', aiKey: x.aiKey === undefined ? null : x.aiKey });
+/** 正解的字串形式（與 rrqp2_tool.py key_str 相同）：A / B = 選項 id；G = s1=a,s2=na,… */
+const keyStr = (q) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + ((q.subAnswers || {})[x.id] || '')).join(',') : String((q && q.answer) || ''));
+const blindStr = (q, bl) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + (((bl || {}).subAnswers || {})[x.id] || '')).join(',') : String((bl && bl.answer) || ''));
+/**
+ * 草稿題目要不要分析判斷標準缺口（與 rrqp2_tool.py draft_gap 相同）；回傳 basis 字串，不需要時回傳 ''
+ *   trainer_changed：講師改了 Agent 出題時的正解；blind_kept：盲答和正解不同，講師確認後維持原本的正解（已校對）
+ */
+function draftGapBasis(q, m, reviewed) {
+  if (!q || !['A', 'B', 'G'].includes(q.type) || !m) return '';
+  const key = keyStr(q), bl = m.blind || {}, bnow = bl.rev === m.rev && bl.match === false;
+  const why = m.aiKey !== null && m.aiKey !== undefined && m.aiKey !== key ? 'trainer_changed' : bnow && reviewed ? 'blind_kept' : '';
+  if (!why) return '';
+  const basis = why + '|' + key + '|' + (bnow ? blindStr(q, bl) : '');
+  return m.criteriaGap && m.criteriaGap.basis === basis ? '' : basis;
+}
 const STRIP = ['id', 'qid', 'seq', 'points', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'];
 
 /** 題目的判斷重點（中文）與正解（選項中文文字） */
@@ -797,7 +815,9 @@ const ACTIONS = {
     if (!(cur.tags || []).length) fail('請至少選一個標籤 / Pick at least one tag');
     const jd = judgementOf(cur.question || {});
     if (!jd.pointZh.trim() || ((cur.question || {}).type !== 'C' && !jd.answer)) fail('請填寫判斷重點與正解 / Key point and answer are required');
-    if ((cur.question || {}).type === 'G') { const e = checkQuestion(cur.question, await loadDms(), { allowEmptyEn: true }).errors.filter((x) => /^(group|subAnswers)/.test(x)); if (e.length) fail('題組的答案還沒填完 / Sub-question answers missing: ' + e.slice(0, 4).join('; ')); }
+    // 匯入時不因格式問題拒收，核准前一定要符合目前的規則
+    { const e = checkQuestion(normalizeReason(JSON.parse(JSON.stringify(cur.question || {})), await loadDms()), await loadDms(), { allowEmptyEn: true }).errors;
+      if (e.length) fail('範例還有格式問題，請用「編輯題目內容」修正後再核准 / Fix the format first: ' + e.slice(0, 4).join('; ')); }
     if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
@@ -836,16 +856,41 @@ const ACTIONS = {
   },
 
   /** 判斷標準建議（範例匯入時 AI 回報的缺口）：added = 已加入判斷標準、dismissed = 忽略、'' = 待處理 */
+  /**
+   * 主題的判斷標準建議（範例匯入、講師改判斷、草稿校對）：同一件事（sameAs）合併成一筆並計次
+   * 回傳 [{ref, source, kind, situation, suggestion, count, refs}]，只列還沒處理的
+   */
+  tw_gaps: async (b) => {
+    await needTW();
+    const [idx, gidx] = await Promise.all([S.get('meta/sampleIndex'), S.get('meta/gapIndex')]);
+    const all = {};
+    Object.entries((idx && idx.items) || {}).forEach(([id, r]) => { if (r.topicId === b.topicId && r.gap && r.status !== 'rejected') all[id] = { ref: id, source: 'sample', situation: r.gap, suggestion: r.gapSuggestion || '', state: r.gapState || '', sameAs: r.gapSameAs || '' }; });
+    Object.entries((gidx && gidx.items) || {}).forEach(([id, r]) => { if (r.topicId === b.topicId && r.kind !== 'ai_misread') all[id] = { ref: id, source: 'draft', draftId: r.draftId, kind: r.kind, why: r.why || '', situation: r.situation, suggestion: r.suggestion || '', state: r.state || '', sameAs: r.sameAs || '' }; });
+    const root = (id, n = 0) => { const x = all[id]; return x && x.sameAs && all[x.sameAs] && n < 10 ? root(x.sameAs, n + 1) : id; };
+    const groups = {};
+    Object.keys(all).sort().forEach((id) => { const r = root(id); (groups[r] = groups[r] || []).push(id); });
+    const gaps = Object.entries(groups).map(([r, ids]) => Object.assign({}, all[r], { count: ids.length, refs: ids, open: ids.filter((i) => !all[i].state) }))
+      .filter((g) => !g.state && g.open.length);
+    return { gaps };
+  },
+
   tw_setGap: async (b) => {
     const m = await needTW();
     const state = ['added', 'dismissed', ''].includes(b.state) ? b.state : fail('state must be added / dismissed / empty');
-    const ids = (Array.isArray(b.sampleIds) ? b.sampleIds : [b.sampleId]).map(String).filter(Boolean);
+    // refs：範例 S001 或草稿題目 D001-03（判斷標準建議來自兩種地方）
+    const ids = (Array.isArray(b.refs) ? b.refs : Array.isArray(b.sampleIds) ? b.sampleIds : [b.ref || b.sampleId]).map(String).filter(Boolean);
     if (!ids.length) return { updated: 0 };
-    const idx = (await S.get('meta/sampleIndex')) || {};
+    const [idx, gidx] = await Promise.all([S.get('meta/sampleIndex'), S.get('meta/gapIndex')]);
     const ops = [];
     ids.forEach((id) => {
+      const d = /^(D\d+)-\d+$/.exec(id);
+      if (d) {
+        ops.push({ op: 'update', path: 'drafts/' + d[1] + '/questions/' + id, data: { gapState: state, gapBy: m.email, gapAt: now() } });
+        if (((gidx || {}).items || {})[id]) ops.push({ op: 'update', path: 'meta/gapIndex', data: { ['items.' + id + '.state']: state } });
+        return;
+      }
       ops.push({ op: 'update', path: 'samples/' + id, data: { gapState: state, gapBy: m.email, gapAt: now() } });
-      if ((idx.items || {})[id]) ops.push({ op: 'update', path: 'meta/sampleIndex', data: { ['items.' + id + '.gapState']: state } });
+      if (((idx || {}).items || {})[id]) ops.push({ op: 'update', path: 'meta/sampleIndex', data: { ['items.' + id + '.gapState']: state } });
     });
     await S.batch(ops);
     return { updated: ids.length, state };
@@ -1930,6 +1975,7 @@ async function api(action, payload = {}) {
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
     group: { normalize: normGroup, score: groupScore, answerText: answerTextOf },   // 題組（G 題）
+    gap: { draftBasis: draftGapBasis, keyStr },                                      // 草稿的判斷標準缺口
     dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },
     /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {
