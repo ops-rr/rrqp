@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05o';
+const VERSION = 'V2-2026-11-05p';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -374,6 +374,9 @@ function checkQuestion(q, reasons, opt = {}) {
   if (!r.remark || typeof r.remark !== 'object') errs.push('request.remark must be {zh, en} (both can be empty when the buyer wrote no remark)');
   else if (String(r.remark.zh || '').trim()) bi(r.remark, 'request.remark');
   // 買家 DRC 第一筆 = 申請時的 System Info（DMS 把同一份申請內容顯示在 DRC 與退貨退款申請兩處）
+  // DRC 提案只有買家第一筆（申請的 System Info）；賣家 DRC 與買家之後的訊息都是文字
+  (drc.seller || []).forEach((d, j) => { if (d && d.type === 'offer') errs.push('drc.seller[' + j + '] must be text (the seller DRC has no offers)'); });
+  (drc.buyer || []).forEach((d, j) => { if (j > 0 && d && d.type === 'offer') errs.push('drc.buyer[' + j + '] must be text (only the first buyer entry is the request offer)'); });
   const fo = (drc.buyer || [])[0];
   if (!fo || fo.type !== 'offer') errs.push('drc.buyer[0] must be the request offer (System Info, same solution and amount as request)');
   else if (fo.solution !== r.solution || fo.amount !== r.amount) errs.push('drc.buyer first offer (' + fo.solution + ' $' + fo.amount + ') must equal request (' + r.solution + ' $' + r.amount + ')');
