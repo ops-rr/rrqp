@@ -327,3 +327,17 @@ pre.gapsug { white-space: pre-wrap; font: inherit; font-size: 13px; background: 
 .chip.lv-suggest { color: var(--warn); background: var(--warn-bg); }
 .chip.lv-note { color: var(--info); background: var(--info-bg); }
 .qitem .mk { padding: 0 5px; font-size: 11px; margin-left: 2px; }
+
+/* 題組（G 題） */
+.grp { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; }
+.grp-sub { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.grp-q { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+.grp-n { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--chip, #eef0f4); font-size: 12px; font-weight: 700; }
+.grp-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.grp-opts .ropt { flex: 1 1 180px; padding: 8px 10px; font-size: 14px; }
+.grp-opts .ropt.na { color: var(--soft); }
+.grp-opts .opt { width: auto; flex: 1 1 160px; margin: 0; }
+.opt.sm { padding: 6px 10px; font-size: 13px; }
+.grp .rvgrid { margin-top: 6px; }
+@media (max-width: 640px) { .grp-opts .ropt, .grp-opts .opt { flex-basis: 100%; } }
+.grp-opts .opt .hint { white-space: nowrap; }

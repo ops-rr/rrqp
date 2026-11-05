@@ -25,7 +25,7 @@
       reLogin: '登入已失效，請重新登入', noConfig: '尚未設定 config.js（firebase）', loading: '載入中…',
       guide: '使用說明', navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
-      mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
+      mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', typeG: 'G 題組', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
       created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
       copy: '複製', copied: '已複製', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
       colDraft: '草稿', colTopic: '主題', colProgress: '進度', colStatus: '狀態', colBy: '建立者', colUpdated: '更新時間',
@@ -51,7 +51,7 @@
       reLogin: 'Your session expired. Please sign in again.', noConfig: 'config.js is not set (firebase)', loading: 'Loading…',
       guide: 'Guide', navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
-      mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
+      mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', typeG: 'G Question set', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
       created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
       copy: 'Copy', copied: 'Copied', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
       colDraft: 'Draft', colTopic: 'Topic', colProgress: 'Progress', colStatus: 'Status', colBy: 'Created by', colUpdated: 'Updated',
@@ -296,11 +296,11 @@
           <label class="k" for="f_topic">${esc(t('topic'))}</label><select id="f_topic">${topicOpts}</select>
           <span class="k">${esc(t('tags'))}</span><div><div class="tags" id="f_tags"></div><div class="small soft" style="margin-top:4px">${esc(t('tagsHint'))}</div></div>
           <label class="k" for="f_target">${esc(t('target'))}</label><div class="row"><input type="number" id="f_target" min="1" max="50" value="10"></div>
-          <span class="k">${esc(t('mix'))}</span><div class="row">
+          <span class="k">${esc(t('mix'))}</span><div><div class="small" id="f_grp" hidden></div><div class="row" id="f_mix">
             <label class="small">${esc(t('typeA'))} <input type="number" id="f_A" min="0" max="50" value="3"></label>
             <label class="small">${esc(t('typeB'))} <input type="number" id="f_B" min="0" max="50" value="5"></label>
             <label class="small">${esc(t('typeC'))} <input type="number" id="f_C" min="0" max="50" value="2"></label>
-            <span class="small" id="f_sum"></span></div>
+            <span class="small" id="f_sum"></span></div></div>
         </div>
         <div id="f_err" class="banner err" hidden></div>
         <div class="row"><button type="submit" class="btn brand" id="f_go">${esc(t('create'))}</button><button type="button" class="btn" id="f_cancel">${esc(t('cancel'))}</button></div>
@@ -310,7 +310,11 @@
         $('#f_tags').innerHTML = tp.tags.filter((x) => x.topicId === tid).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
         $$('#f_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked)));
       };
+      const grpOf = () => { const x = tp.topics.find((y) => y.topicId === $('#f_topic').value); return (x && x.group) || null; };
       const sum = () => {
+        const g = grpOf();
+        $('#f_grp').hidden = !g; $('#f_mix').hidden = !!g;
+        if (g) { $('#f_grp').innerHTML = `<span class="chip info">${esc(t('grpTopicOnly', { n: g.length }))}</span>`; const n0 = +$('#f_target').value || 0; $('#f_go').disabled = n0 < 1 || n0 > 50; return; }
         const n = +$('#f_target').value || 0, s = (+$('#f_A').value || 0) + (+$('#f_B').value || 0) + (+$('#f_C').value || 0);
         $('#f_sum').innerHTML = s === n ? `<span class="chip ok">${esc(t('mixSum', { n: s }))} ✓</span>` : `<span class="chip warn">${esc(t('mixSum', { n: s }))} ≠ ${n}</span>`;
         $('#f_go').disabled = s !== n || n < 1 || n > 50;
@@ -320,7 +324,7 @@
         $('#f_B').value = Math.max(0, n - a - c); sum();
       });
       ['#f_A', '#f_B', '#f_C'].forEach((s) => $(s).addEventListener('input', sum));
-      $('#f_topic').addEventListener('change', drawTags);
+      $('#f_topic').addEventListener('change', () => { drawTags(); sum(); });
       $('#f_cancel').onclick = () => { box.innerHTML = ''; };
       drawTags(); sum(); $('#f_name').focus();
       $('#cform').addEventListener('submit', async (e) => {
@@ -330,7 +334,7 @@
           const r = await api('t_createDraft', {
             name: $('#f_name').value.trim(), topicId: $('#f_topic').value, target: +$('#f_target').value,
             tags: $$('#f_tags input:checked').map((c) => c.value),
-            mix: { A: +$('#f_A').value || 0, B: +$('#f_B').value || 0, C: +$('#f_C').value || 0 },
+            mix: grpOf() ? { G: +$('#f_target').value } : { A: +$('#f_A').value || 0, B: +$('#f_B').value || 0, C: +$('#f_C').value || 0 },
           });
           box.innerHTML = ''; showCmd(r.command); loadList();
         } catch (err) { $('#f_err').textContent = err.message; $('#f_err').hidden = false; btn.disabled = false; }
@@ -382,6 +386,52 @@
     return { left, req };
   }
 
+  // ───────── 題組（G 題）：一題多個小題，全對得滿分，否則每對一小題得 滿分 ÷（2 × 小題數） ─────────
+  Object.assign(I18N.zh, {
+    grpConvert: '轉成題組', grpTitle: '題組（{n} 小題）', grpKeyHint: '點選每個小題的正解', grpNoAns: '未設定正解', grpScoring: '計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × {n}）',
+    grpMine: '你的答案', grpKey: '正解', grpOkN: '答對 {a} / {b} 小題', grpTopicOnly: '這個主題使用題組：全部出 G 題（{n} 小題）', qeTypeG: 'G：題組',
+    grpToG: '改成題組後，原本的選項、正解、參考答案與評分標準會移除，請重新點選每個小題的正解。', grpNone: '這個主題沒有題組範本',
+    grpTopic: '題組範本', grpTopicHint: '題組範本目前用「匯入主題」更新（JSON 檔的 topic.group）。改範本不會影響已經出好的題目。',
+    blindSubs: 'AI 沒看答案時，以下小題和正解不同：', tImportUpdate: '已經有主題「{n}」。要用檔案內容更新它嗎？判斷標準有改時版本號會 +1 並保留舊版；已有的標籤不會被修改。', tUpdated: '已更新主題 {n}',
+  });
+  Object.assign(I18N.en, {
+    grpConvert: 'Convert to question set', grpTitle: 'Question set ({n} parts)', grpKeyHint: 'Pick the correct answer for each part', grpNoAns: 'No answer set', grpScoring: 'Scoring: all correct = full points; otherwise each correct part earns full ÷ (2 × {n})',
+    grpMine: 'Your answer', grpKey: 'Correct', grpOkN: '{a} / {b} parts correct', grpTopicOnly: 'This topic uses question sets: all questions are type G ({n} parts)', qeTypeG: 'G: Question set',
+    grpToG: 'Switching to a question set removes the options, answer, model answer and rubric. Pick the answer for each part again.', grpNone: 'This topic has no question set template',
+    grpTopic: 'Question set template', grpTopicHint: 'Update the template with Import topic (topic.group in the JSON). Changing it does not affect existing questions.',
+    blindSubs: 'Without seeing the key, the AI answered these parts differently: ', tImportUpdate: 'Topic "{n}" already exists. Update it with this file? If the criteria changed, the version goes up and the old version is kept. Existing tags are not changed.', tUpdated: 'Topic {n} updated',
+  });
+  const topicGroup = (meta, topicId) => { const x = ((meta && meta.topics) || []).find((y) => y.topicId === topicId); return (x && x.group) || null; };
+  const grpOpt = (sub, id) => ((sub && sub.options) || []).find((o) => o.id === id);
+  /** 正解摘要（列表用）：各小題答案以「／」串起來 */
+  const grpSummary = (q) => (q && q.type === 'G' ? (q.group || []).map((x) => { const o = grpOpt(x, (q.subAnswers || {})[x.id]); return o ? L(o.text) : '?'; }).join('／') : '');
+  /**
+   * 題組畫面：mode = key（講師點正解）、view（唯讀顯示正解）、quiz（專員作答）、result（作答與正解對照）
+   * picks = 作答 {s1: 'a'}（quiz / result）
+   */
+  function groupHtml(q, mode, picks = {}, disabled = false) {
+    const g = q.group || [], key = q.subAnswers || {};
+    return `<div class="grp">${g.map((x, i) => {
+      const head = `<div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b></div>`;
+      if (mode === 'quiz') return `<div class="grp-sub">${head}<div class="grp-opts">${x.options.map((o) => `<label class="ropt ${picks[x.id] === o.id ? 'on' : ''} ${o.id === 'na' ? 'na' : ''}"><input type="radio" name="sub_${esc(x.id)}" data-sub="${esc(x.id)}" value="${esc(o.id)}" ${picks[x.id] === o.id ? 'checked' : ''}> ${esc(L(o.text))}</label>`).join('')}</div></div>`;
+      if (mode === 'result') {
+        const mine = grpOpt(x, picks[x.id]), right = grpOpt(x, key[x.id]), ok = !!mine && picks[x.id] === key[x.id];
+        return `<div class="grp-sub">${head}<div class="rvgrid small"><span>${esc(t('grpMine'))}</span><span class="${ok ? 'okc' : 'errc'}">${mine ? esc(L(mine.text)) : esc(t('noChoice'))} ${ok ? '✓' : '✕'}</span>${ok ? '' : `<span>${esc(t('grpKey'))}</span><span class="okc"><b>${right ? esc(L(right.text)) : '—'}</b></span>`}</div></div>`;
+      }
+      return `<div class="grp-sub">${head}<div class="grp-opts">${x.options.map((o) => {
+        const on = key[x.id] === o.id;
+        return mode === 'key' ? `<button type="button" class="opt sm ${on ? 'correct' : ''}" data-subkey="${esc(x.id)}" data-val="${esc(o.id)}" ${disabled ? 'disabled' : ''}>${esc(L(o.text))}${on ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</button>`
+          : `<div class="opt sm ${on ? 'correct' : ''}">${esc(L(o.text))}${on ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`;
+      }).join('')}${key[x.id] ? '' : `<span class="chip warn">${esc(t('grpNoAns'))}</span>`}</div></div>`;
+    }).join('')}</div>`;
+  }
+  /** 講師點選正解：work.subAnswers 更新後呼叫 onChange */
+  function bindGroupKey(root, work, onChange) {
+    $$('[data-subkey]', root).forEach((b) => b.addEventListener('click', () => {
+      work.subAnswers = Object.assign({}, work.subAnswers, { [b.dataset.subkey]: b.dataset.val }); onChange();
+    }));
+  }
+
   // ───────── 題目內容編輯器（表單，取代手動編輯 JSON） ─────────
   Object.assign(I18N.zh, {
     qeApplied: '已套用，記得按「儲存」', qeTitle: '編輯題目內容', qeOpen: '編輯題目內容', qeApply: '套用', qeCancel: '取消', qeJsonAdv: '進階：編輯 JSON',
@@ -426,7 +476,7 @@
   };
 
   /** 開啟題目內容編輯器；回傳修改後的題目，取消時回傳 null */
-  async function questionEditor(question, { rules = null, title = '' } = {}) {
+  async function questionEditor(question, { rules = null, title = '', group = null } = {}) {
     rules = rules || dmsNow();
     const q = clone(question);
     if (DB() && DB().dms) DB().dms.normalize(q, rules);     // 舊名稱換成規則表的正式名稱
@@ -460,7 +510,8 @@
     const drcHtml = (side) => q.drc[side].map((d, i) => `<div class="qe-card"><div class="qe-row"><div>${lab('qeTime')}${inp(`drc.${side}.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div>
         <div>${lab('qeType')}<select data-type="drc.${side}.${i}" style="${fld}">${[['offer', t('qeOffer')], ['text', t('qeDrcText')]].map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div><span class="spacer"></span>${ctl('drc.' + side, i, q.drc[side].length)}</div>
         ${d.type === 'offer' ? `<div class="qe-row"><div>${lab('qeSolution')}${sel(`drc.${side}.${i}.solution`, solOpts)}</div><div>${lab('qeAmount')}${inp(`drc.${side}.${i}.amount`, '', '120px', true)}</div></div>` : bi(`drc.${side}.${i}.text`, 2)}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="drc.${side}">${esc(t('qeAddDrc'))}</button>`;
-    const optHtml = () => (q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
+    const subHtml = () => `<div class="small muted" style="margin-bottom:6px">${esc(t('grpKeyHint'))}</div>${(q.group || []).map((x, i) => `<div class="qe-card"><div><b>${i + 1}. ${esc(L(x.text))}</b></div><div class="qe-row">${x.options.map((o) => `<label class="small" style="display:inline-flex;gap:4px;align-items:center"><input type="radio" name="qe_sub_${esc(x.id)}" data-qsub="${esc(x.id)}" value="${esc(o.id)}" ${(q.subAnswers || {})[x.id] === o.id ? 'checked' : ''}> ${esc(L(o.text))}</label>`).join('')}</div></div>`).join('')}`;
+    const optHtml = () => (q.type === 'G' ? subHtml() : q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
         ${(q.options || []).length < 8 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
 
     const rlist = (rules.reasons || []).map((x) => x.en);
@@ -492,10 +543,10 @@
       ${sec('qeRequest', `<div class="qe-row"><div>${lab('qeSolution')}${sel('request.solution', solOpts.map(([v, l]) => [v, allowed().includes(v) ? l : l + ' ✕']))}<div class="small" style="color:var(--warn);margin-top:2px">${esc(solHint())}</div></div><div class="qe-grow">${lab('qeReason')}${sel('request.reason', reasonOpts)}</div><div>${lab('qeDeduction')}${inp('request.deduction', '0', '120px', true)}</div><div>${lab('qeAmount')}<div class="qe-amount" id="qe_amt">$${esc(q.request.amount)}</div></div></div>
         <div class="small muted" style="margin:4px 0 10px">${esc(t('qeAmountAuto'))}</div>${lab('qeRemark')}${bi('request.remark', 2)}
         <div style="margin-top:10px">${lab('qeReqItems')}<div class="small muted" style="margin-bottom:6px">${esc(t('qeOrderHint'))}</div>${items('request.items')}</div>`)}
-      ${sec('qeQuestion', `${lab('qePrompt')}${bi('prompt')}<div class="qe-row" style="margin-top:8px"><div>${lab('qeQType')}${sel('type', [['A', t('qeTypeA')], ['B', t('qeTypeB')], ['C', t('qeTypeC')]])}</div></div>
+      ${sec('qeQuestion', `${lab('qePrompt')}${bi('prompt')}<div class="qe-row" style="margin-top:8px"><div>${lab('qeQType')}${sel('type', [['A', t('qeTypeA')], ['B', t('qeTypeB')], ['C', t('qeTypeC')]].concat(group || q.type === 'G' ? [['G', t('qeTypeG')]] : []))}</div></div>
         <div style="margin-top:8px">${optHtml()}</div>
         <div style="margin-top:8px">${lab('qePoint')}${bi('point')}</div>
-        ${q.type !== 'A' ? `<div style="margin-top:8px">${lab('qeModel')}${bi('modelAnswer', 3)}</div><div style="margin-top:8px">${lab('qeRubric')}${bi('rubric', 3)}</div>` : ''}
+        ${q.type === 'B' || q.type === 'C' ? `<div style="margin-top:8px">${lab('qeModel')}${bi('modelAnswer', 3)}</div><div style="margin-top:8px">${lab('qeRubric')}${bi('rubric', 3)}</div>` : ''}
         <div style="margin-top:8px">${lab('qeExpl')}${bi('explanation', 4)}</div>`)}`;
 
     return modal(`<div class="qe"><div class="row qe-head"><h2>${esc(t('qeTitle'))}${title ? ' · ' + esc(title) : ''}</h2></div>
@@ -514,6 +565,7 @@
       box.addEventListener('change', (e) => {
         const tgt = e.target;
         if (tgt.name === 'qe_ans') { q.answer = tgt.value; return; }
+        if (tgt.dataset.qsub) { q.subAnswers = Object.assign({}, q.subAnswers, { [tgt.dataset.qsub]: tgt.value }); return; }
         if (tgt.dataset.type) {   // 換類型：只保留共用欄位
           const cur = getP(q, tgt.dataset.type), v = tgt.value, base = { t: cur.t };
           if (tgt.dataset.type.startsWith('chat')) Object.assign(base, { from: cur.from, type: v }, v === 'text' ? { text: { zh: '', en: '' } } : v === 'sticker' ? { sticker: 'ok' } : { kind: 'image', desc: { zh: '', en: '' } });
@@ -521,7 +573,15 @@
           setP(q, tgt.dataset.type, base); recalc(); render(); return;
         }
         const p = tgt.dataset.p; if (!p) return;
-        if (p === 'type') { if (q.type === 'C') { delete q.options; delete q.answer; } else if (!q.options) { q.options = [{ id: 'a', text: { zh: '', en: '' } }, { id: 'b', text: { zh: '', en: '' } }]; } if (q.type === 'A') { delete q.modelAnswer; delete q.rubric; } else { q.modelAnswer = q.modelAnswer || { zh: '', en: '' }; q.rubric = q.rubric || { zh: '', en: '' }; } render(); }
+        if (p === 'type') {
+          if (q.type === 'G') {   // 改成題組：小題從主題範本帶入，原本的選項與文字作答欄位移除
+            if (!group && !q.group) { toast(t('grpNone')); q.type = 'B'; render(); return; }
+            if (!q.group) q.group = clone(group);
+            q.subAnswers = {}; ['options', 'answer', 'modelAnswer', 'rubric'].forEach((k) => delete q[k]); toast(t('grpToG'), 5000); render(); return;
+          }
+          delete q.group; delete q.subAnswers;
+          if (q.type === 'C') { delete q.options; delete q.answer; } else if (!q.options) { q.options = [{ id: 'a', text: { zh: '', en: '' } }, { id: 'b', text: { zh: '', en: '' } }]; } if (q.type === 'A') { delete q.modelAnswer; delete q.rubric; } else { q.modelAnswer = q.modelAnswer || { zh: '', en: '' }; q.rubric = q.rubric || { zh: '', en: '' }; } render();
+        }
         if (p === 'request.solution') { recalc(); render(); }
         if (p === 'request.reason') { fitSolution(); recalc(); render(); }
       });
@@ -612,6 +672,11 @@
   /** 盲答：AI 沒看答案自己作答的結果（只顯示目前版本的） */
   function blindHtml(m, q) {
     const b = m.blind; if (!b || b.rev !== m.rev) return '';
+    if (q && q.type === 'G') {   // 題組：列出和正解不同的小題
+      const diff = (q.group || []).filter((x) => (b.subAnswers || {})[x.id] !== (q.subAnswers || {})[x.id]);
+      return !diff.length ? `<div class="rvitem"><span class="chip ok">${esc(t('blindOk'))}</span><div class="small muted">${esc(b.reason || '')}</div></div>`
+        : `<div class="rvitem"><span class="chip lv-must">${esc(t('blindDiff'))}</span><div class="small"><b>${esc(t('blindSubs'))}</b>${diff.map((x) => { const o = grpOpt(x, (b.subAnswers || {})[x.id]); return `<div>・${esc(L(x.text))} → ${esc(o ? L(o.text) : '—')}</div>`; }).join('')}<div>${esc(b.reason || '')}</div><div class="muted">${esc(t('blindHint'))}</div></div></div>`;
+    }
     const opt = ((q && q.options) || []).find((o) => o.id === b.answer);
     return b.match ? `<div class="rvitem"><span class="chip ok">${esc(t('blindOk'))}</span><div class="small muted">${esc(b.reason || '')}</div></div>`
       : `<div class="rvitem"><span class="chip lv-must">${esc(t('blindDiff'))}</span><div class="small"><b>${esc(t('blindPicked', { a: b.answer + (opt ? '. ' + L(opt.text) : '') }))}</b> ${esc(b.reason || '')}<div class="muted">${esc(t('blindHint'))}</div></div></div>`;
@@ -670,7 +735,7 @@
         return `<div class="qitem ${i === idx ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
           <span class="dot ${q.reviewed ? 'on' : ''}" title="${esc(q.reviewed ? t('reviewedTag') : t('notReviewed'))}">${q.reviewed ? '✓' : ''}</span>
           <span class="id">${esc(q.id.split('-').pop())}</span><span class="chip" style="padding:0 7px">${esc(q.type)}</span>
-          <span class="ans">${esc(opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; if (!r || r.rev !== m.rev) return ''; const ok = r.verdict === 'ok' && !(m.blind && m.blind.rev === m.rev && m.blind.match === false); return `<span class="chip ${ok ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${ok ? '✓' : '!'}</span>`; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
+          <span class="ans">${esc(q.type === 'G' ? grpSummary(q) : opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; if (!r || r.rev !== m.rev) return ''; const ok = r.verdict === 'ok' && !(m.blind && m.blind.rev === m.rev && m.blind.match === false); return `<span class="chip ${ok ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${ok ? '✓' : '!'}</span>`; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
     function biField(key, label, short) {
@@ -701,8 +766,9 @@
         ${(() => { const h = reviewHtml(metaOf(src), editable, src); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
         <div class="qbody"><div>${left}</div><div>${req}
           ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
+          ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key', {}, !editable)}` : ''}
           ${biField('point', t('point'), true)}
-          ${q.type !== 'A' ? biField('modelAnswer', t('modelAnswer')) + biField('rubric', t('rubric')) : ''}
+          ${q.type === 'B' || q.type === 'C' ? biField('modelAnswer', t('modelAnswer')) + biField('rubric', t('rubric')) : ''}
           ${biField('explanation', t('explanation'))}
         </div></div>
         <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
@@ -778,6 +844,7 @@
       if (!questions.length) return;
       $('#prev').onclick = () => select(idx - 1);
       $('#next').onclick = () => select(idx + 1);
+      bindGroupKey($('#detail'), work, () => { draw(); setDirty(true); });
       $$('[data-ans]').forEach((b) => b.addEventListener('click', () => {
         if (work.answer === b.dataset.ans) return;
         work.answer = b.dataset.ans; setDirty(true);
@@ -796,7 +863,7 @@
       $('#qedit').onclick = async () => {
         const tp = await getTopics().catch(() => null);
         const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
-        const out = await questionEditor(raw, { rules: tp && tp.dms, title: questions[idx].id });
+        const out = await questionEditor(raw, { rules: tp && tp.dms, title: questions[idx].id, group: topicGroup(tp, draft.topicId) });
         if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs, _m: src._m }); draw(); setDirty(true); toast(t('qeApplied')); }
       };
       $('#json').onclick = async () => {
@@ -875,7 +942,7 @@
     rule5: '時間到會自動交卷。',
     startQuiz: '開始作答', startConfirm: '{n} 分鐘的計時會立即開始，且無法暫停。', continueQuiz: '繼續作答', viewQuiz: '查看',
     notOpenYet: '測驗尚未開始，開放時間：{t}', closedMsg: '這份測驗已結束。', expiredMsg: '作答時間已過，系統沒有收到你的答案。請聯絡講師。',
-    answeredN: '已作答 {a} / {b}', left: '剩餘 {t}', finish: '交卷', question: '第 {n} 題', typeAName: '選擇', typeBName: '選擇 + 原因', typeCName: '文字作答',
+    answeredN: '已作答 {a} / {b}', left: '剩餘 {t}', finish: '交卷', question: '第 {n} 題', typeAName: '選擇', typeBName: '選擇 + 原因', typeCName: '文字作答', typeGName: '題組',
     pts: '{n} 分', yourReason: '你的判斷原因', yourAnswer: '你的答案', reasonPh: '說明你的判斷依據…', answerPh: '輸入你的答案…',
     submitTitle: '確定要交卷嗎？', unansweredN: '還有 {n} 題未作答。', allAnswered: '所有題目都已作答。', submitNote: '交卷後就不能再修改。', submitNow: '確定交卷',
     submitting: '交卷中…', doneTitle: '已交卷', doneMsg: '你的答案已送出（{t}）。成績公布後，可以在這裡查看分數與錯題。', autoDone: '時間到，系統已自動交卷。',
@@ -905,7 +972,7 @@
     rule5: 'When time runs out, your answers are submitted automatically.',
     startQuiz: 'Start exam', startConfirm: 'The {n}-minute timer starts now and cannot be paused.', continueQuiz: 'Continue', viewQuiz: 'View',
     notOpenYet: 'This quiz opens at {t}.', closedMsg: 'This quiz has closed.', expiredMsg: 'Time is up and no answers were received. Please contact your trainer.',
-    answeredN: 'Answered {a} / {b}', left: '{t} left', finish: 'Finish exam', question: 'Question {n}', typeAName: 'Choice', typeBName: 'Choice + reason', typeCName: 'Written',
+    answeredN: 'Answered {a} / {b}', left: '{t} left', finish: 'Finish exam', question: 'Question {n}', typeAName: 'Choice', typeBName: 'Choice + reason', typeCName: 'Written', typeGName: 'Question set',
     pts: '{n} points', yourReason: 'Your reason', yourAnswer: 'Your answer', reasonPh: 'Explain how you decided…', answerPh: 'Type your answer…',
     submitTitle: 'Submit your exam?', unansweredN: '{n} question(s) not answered.', allAnswered: 'All questions answered.', submitNote: 'You cannot change your answers after submitting.', submitNow: 'Submit',
     submitting: 'Submitting…', doneTitle: 'Submitted', doneMsg: 'Your answers were received ({t}). When results are released, your score and the questions you missed will appear here.', autoDone: 'Time ran out, so your answers were submitted automatically.',
@@ -1094,7 +1161,7 @@
     shell('sessions', `<div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div>`);
     try {
       const d = await api('t_getSession', { sessionId: id });
-      const qs = d.questions.map((q) => { const o = {}; ['qid', 'seq', 'type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options'].forEach((k) => { if (q[k] !== undefined) o[k] = q[k]; }); return o; });
+      const qs = d.questions.map((q) => { const o = {}; ['qid', 'seq', 'type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options', 'group', 'cutoff'].forEach((k) => { if (q[k] !== undefined) o[k] = q[k]; }); return o; });
       runQuiz({ session: d.session, questions: qs, deadline: Date.now() + d.session.minutes * 60000, offset: 0, sandbox: true });
     } catch (e) { showError(e); }
   }
@@ -1108,7 +1175,7 @@
     const save = () => store.set(key, JSON.stringify(st));
     let submitted = false, submitting = false, warned5 = false, warned1 = false, tick = null, poll = null, retry = null;
     const now = () => Date.now() + offset;
-    const answered = (q) => { const a = st.answers[q.qid] || {}; return q.type === 'A' ? !!a.choice : q.type === 'B' ? !!a.choice && !!String(a.text || '').trim() : !!String(a.text || '').trim(); };
+    const answered = (q) => { const a = st.answers[q.qid] || {}; return q.type === 'G' ? (q.group || []).every((x) => (a.subs || {})[x.id]) : q.type === 'A' ? !!a.choice : q.type === 'B' ? !!a.choice && !!String(a.text || '').trim() : !!String(a.text || '').trim(); };
     const onBeforeUnload = (e) => { if (!submitted && !sandbox) { e.preventDefault(); e.returnValue = t('leaveWarn'); } };
     window.addEventListener('beforeunload', onBeforeUnload);
     leaveGuard = () => { if (submitted || sandbox) return cleanup(), true; const ok = window.confirm(t('leaveWarn')); if (ok) cleanup(); return ok; };
@@ -1140,6 +1207,7 @@
         <div class="qbody"><div>${left}</div><div>${req}
           <div class="answerbox"><div class="prompt">${esc(L(q.prompt))}</div>
             ${opts}
+            ${q.type === 'G' ? groupHtml(q, 'quiz', a.subs || {}) : ''}
             ${q.type === 'B' ? `<label class="lab2" for="txt">${esc(t('yourReason'))}</label><textarea id="txt" rows="5" placeholder="${esc(t('reasonPh'))}">${esc(a.text || '')}</textarea>` : ''}
             ${q.type === 'C' ? `<label class="lab2" for="txt">${esc(t('yourAnswer'))}</label><textarea id="txt" rows="7" placeholder="${esc(t('answerPh'))}">${esc(a.text || '')}</textarea>` : ''}
             <div class="small soft">${esc(t('saveLocal'))}</div></div>
@@ -1149,6 +1217,11 @@
       $$('input[name=ch]').forEach((r) => r.addEventListener('change', () => {
         st.answers[q.qid] = Object.assign({}, st.answers[q.qid], { choice: r.value }); save();
         $$('.ropt').forEach((l) => l.classList.toggle('on', $('input', l).checked)); drawNav();
+      }));
+      $$('input[data-sub]').forEach((r) => r.addEventListener('change', () => {
+        const cur = st.answers[q.qid] || {};
+        st.answers[q.qid] = Object.assign({}, cur, { subs: Object.assign({}, cur.subs, { [r.dataset.sub]: r.value }) }); save();
+        $$(`input[name="${r.name}"]`).forEach((x) => x.parentElement.classList.toggle('on', x.checked)); drawNav();
       }));
       const tx = $('#txt'); if (tx) tx.addEventListener('input', () => { st.answers[q.qid] = Object.assign({}, st.answers[q.qid], { text: tx.value }); save(); drawNav(); });
       $('#pv').onclick = () => go(st.idx - 1);
@@ -1396,8 +1469,10 @@
       <h2>${esc(r.review.length ? t('toReview', { n: r.review.length }) : t('allCorrect'))}</h2>
       ${r.review.map((x) => `<div class="card pad rv">
         <div class="row"><h2>${esc(t('question', { n: x.seq }))}</h2><span class="chip ${x.got > 0 ? 'warn' : ''}">${r2(x.got)} / ${r2(x.max)}</span>${x.point ? `<span class="soft small">${esc(t('keyPoint'))}：${bi(x.point)}</span>` : ''}</div>
+        ${x.subs ? `<div class="small muted" style="margin:4px 0">${esc(t('grpOkN', { a: x.subOk, b: x.subN }))}</div><div class="grp">${x.subs.map((u, i) => `<div class="grp-sub"><div class="grp-q"><span class="grp-n">${i + 1}</span><b>${bi(u.text)}</b></div>
+          <div class="rvgrid small"><span>${esc(t('grpMine'))}</span><span class="${u.ok ? 'okc' : 'errc'}">${u.mine ? bi(u.mine) : esc(t('noChoice'))} ${u.ok ? '✓' : '✕'}</span>${u.ok ? '' : `<span>${esc(t('grpKey'))}</span><span class="okc"><b>${u.correct ? bi(u.correct) : '—'}</b></span>`}</div></div>`).join('')}</div>` : ''}
         <div class="rvgrid">
-          ${x.type !== 'C' ? `<span>${esc(t('yourAns'))}</span><span class="${x.choiceOk ? 'okc' : 'errc'}">${x.myChoice ? bi(x.myChoice) : esc(t('noChoice'))}</span>` : ''}
+          ${x.type !== 'C' && x.type !== 'G' ? `<span>${esc(t('yourAns'))}</span><span class="${x.choiceOk ? 'okc' : 'errc'}">${x.myChoice ? bi(x.myChoice) : esc(t('noChoice'))}</span>` : ''}
           ${x.type === 'B' ? `<span>${esc(t('yourReason2'))}</span><span>${esc(x.myText) || t('none')}</span>` : ''}
           ${x.type === 'C' ? `<span>${esc(t('yourText'))}</span><span>${esc(x.myText) || t('none')}</span>` : ''}
           ${x.correct ? `<span>${esc(t('correct2'))}</span><span class="okc"><b>${bi(x.correct)}</b></span>` : ''}
@@ -1530,10 +1605,11 @@
       const got = r2((a.autoScore || 0) + (ts || 0));
       const opt = (id) => { const o = (q.options || []).find((x) => x.id === id); return o ? String(o.id).toUpperCase() + '. ' + L(o.text) : ''; };
       return `<div class="adq"><div class="row"><b>Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}</b><span class="chip ${got >= max - 1e-9 ? 'ok' : got > 0 ? 'warn' : ''}">${got} / ${max}</span><span class="small soft">${esc(L(q.point))}</span></div>
+        ${q.type === 'G' ? `<div class="small muted">${esc(t('grpOkN', { a: a.subOk || 0, b: a.subN || (q.group || []).length }))}</div>${groupHtml(q, 'result', a.subs || {})}` : ''}
         <div class="rvgrid small">
-          ${q.type !== 'C' ? `<span>${esc(t('choiceLabel'))}</span><span class="${a.choice === q.answer ? 'okc' : 'errc'}">${esc(opt(a.choice) || t('notAnswered'))}${a.choice !== q.answer ? ` → ${esc(opt(q.answer))}` : ''}</span>` : ''}
-          ${q.type !== 'A' ? `<span>${esc(t('textLabel'))}</span><span>${esc(a.text || t('notAnswered'))}</span>` : ''}
-          ${q.type !== 'A' && a.aiScore != null ? `<span>${esc(t('aiLabel'))}</span><span>${r2(a.aiScore)} · ${esc(a.aiReason || '')}</span>` : ''}
+          ${q.type !== 'C' && q.type !== 'G' ? `<span>${esc(t('choiceLabel'))}</span><span class="${a.choice === q.answer ? 'okc' : 'errc'}">${esc(opt(a.choice) || t('notAnswered'))}${a.choice !== q.answer ? ` → ${esc(opt(q.answer))}` : ''}</span>` : ''}
+          ${isText(q.type) ? `<span>${esc(t('textLabel'))}</span><span>${esc(a.text || t('notAnswered'))}</span>` : ''}
+          ${isText(q.type) && a.aiScore != null ? `<span>${esc(t('aiLabel'))}</span><span>${r2(a.aiScore)} · ${esc(a.aiReason || '')}</span>` : ''}
           ${a.teacherScore != null || a.teacherComment ? `<span>${esc(t('teacherLabel'))}</span><span>${a.teacherScore != null ? r2(a.teacherScore) : ''} ${a.teacherComment ? '· ' + esc(a.teacherComment) : ''}</span>` : ''}
         </div></div>`;
     }).join('');
@@ -1599,7 +1675,7 @@
     bankStats: '使用 {u} 次 · 作答 {n} 筆 · 平均得分率 {r} · {s} 人做過', usedIn: '用過的測驗', version: '版本 v{n}', outdatedNote: '判斷標準已更新為 {v}，請確認這題是否仍正確；儲存後會標記為符合 {v}。',
     // 組卷
     compose: '組卷', composeHint: '先填受測者，再依題型配比自動抽題，可以換題、移除或手動加題。', prefTags: '偏好標籤', avoidSeen: '避開受測者做過的題目',
-    autoPick: '自動抽題', manualAdd: '從題庫手動加題', pickedN: '已選 {n} 題 · A {a} · B {b} · C {c}', swap: '換一題', remove: '移除', seenByN: '{n} 人做過',
+    autoPick: '自動抽題', manualAdd: '從題庫手動加題', pickedN: '已選 {n} 題 · A {a} · B {b} · C {c}', pickedNG: '已選 {n} 題（題組 {g}）', swap: '換一題', remove: '移除', seenByN: '{n} 人做過',
     shortageMsg: '題庫中符合條件的 {type} 題不夠，少 {n} 題（可用 {fresh} 題，含做過的共 {total} 題）。可以取消「避開做過的題目」，或建立新草稿補題。',
     bankDel: '刪除', bankDelSel: '刪除選取的 {n} 題', bankDelConfirm: '刪除 {ids}？刪除後無法復原。{used}',
     bankDelUsed: '其中 {n} 題用在已發佈的測驗：測驗的試卷與成績不受影響（試卷是發佈當下的副本）。', bankDelDone: '已刪除 {n} 題',
@@ -1615,7 +1691,7 @@
     usedN: '{n}×', outdated: 'Re-check', bankTotal: '{n} active · A {a} · B {b} · C {c}', retire: 'Retire', activate: 'Activate', retiredDone: 'Retired', activatedDone: 'Activated',
     bankStats: 'Used {u}× · {n} answers · avg rate {r} · taken by {s}', usedIn: 'Used in', version: 'v{n}', outdatedNote: 'The criteria are now {v}. Check this question still holds; saving marks it as {v}.',
     compose: 'Build the quiz', composeHint: 'Enter the assignees, then auto-pick by type mix. Swap, remove or add questions by hand.', prefTags: 'Preferred tags', avoidSeen: 'Avoid questions assignees have taken',
-    autoPick: 'Auto-pick', manualAdd: 'Add from bank', pickedN: '{n} picked · A {a} · B {b} · C {c}', swap: 'Swap', remove: 'Remove', seenByN: 'taken by {n}',
+    autoPick: 'Auto-pick', manualAdd: 'Add from bank', pickedN: '{n} picked · A {a} · B {b} · C {c}', pickedNG: '{n} picked (question sets {g})', swap: 'Swap', remove: 'Remove', seenByN: 'taken by {n}',
     shortageMsg: 'Not enough type {type} questions: {n} short ({fresh} available, {total} including taken). Turn off "avoid taken" or create a new draft.',
     bankDel: 'Delete', bankDelSel: 'Delete {n} selected', bankDelConfirm: 'Delete {ids}? This cannot be undone. {used}',
     bankDelUsed: '{n} of them were used in published quizzes; those quizzes and results are not affected (each quiz keeps its own copy).', bankDelDone: '{n} deleted',
@@ -1692,7 +1768,8 @@
         <div class="card detail">
           <div class="qbody"><div>${left}</div><div>${req}
             ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
-            ${bi('point', t('point'), true)}${q.type !== 'A' ? bi('modelAnswer', t('modelAnswer')) + bi('rubric', t('rubric')) : ''}${bi('explanation', t('explanation'))}
+            ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key')}` : ''}
+            ${bi('point', t('point'), true)}${q.type === 'B' || q.type === 'C' ? bi('modelAnswer', t('modelAnswer')) + bi('rubric', t('rubric')) : ''}${bi('explanation', t('explanation'))}
           </div></div>
           <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
           <div class="dfoot"><button class="btn sm" id="json">${esc(t('editJson'))}</button><span class="spacer"></span><span class="small soft" id="dm">${dirty ? '●' : ''}</span>
@@ -1702,6 +1779,7 @@
     function setDirty() { dirty = true; $('#save').disabled = false; $('#dm').textContent = '●'; }
     function bind() {
       $$('[data-ans]').forEach((b) => b.addEventListener('click', () => { work.answer = b.dataset.ans; dirty = true; draw(); }));
+      bindGroupKey(main, work, () => { dirty = true; draw(); });
       $$('textarea[data-f]').forEach((ta) => ta.addEventListener('input', () => { work[ta.dataset.f] = Object.assign({}, work[ta.dataset.f], { [ta.dataset.l]: ta.value }); setDirty(); }));
       $('#save').onclick = async () => {
         $('#save').disabled = true; $('#saveErr').hidden = true;
@@ -1744,9 +1822,10 @@
           <label class="k">${esc(t('topic'))}</label><select id="c_topic">${meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
           <span class="k">${esc(t('prefTags'))}</span><div class="tags" id="c_tags"></div>
           <span class="k">${esc(t('mix'))}</span><div class="row">
-            <label class="small">${esc(t('typeA'))} <input type="number" id="c_A" min="0" max="50" value="3"></label>
+            <span class="row" id="c_abc"><label class="small">${esc(t('typeA'))} <input type="number" id="c_A" min="0" max="50" value="3"></label>
             <label class="small">${esc(t('typeB'))} <input type="number" id="c_B" min="0" max="50" value="5"></label>
-            <label class="small">${esc(t('typeC'))} <input type="number" id="c_C" min="0" max="50" value="2"></label></div>
+            <label class="small">${esc(t('typeC'))} <input type="number" id="c_C" min="0" max="50" value="2"></label></span>
+            <label class="small" id="c_Gl" hidden>${esc(t('typeG'))} <input type="number" id="c_G" min="0" max="50" value="10"></label></div>
           <span class="k"></span><label class="small"><input type="checkbox" id="c_avoid" checked> ${esc(t('avoidSeen'))}</label>
         </div>
         <div class="row"><button type="button" class="btn primary" id="c_pick">${esc(t('autoPick'))}</button><button type="button" class="btn" id="c_add">${esc(t('manualAdd'))}</button><span class="small" id="c_sum"></span></div>
@@ -1763,12 +1842,14 @@
     const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     const drawTags = () => { const tid = $('#c_topic').value; $('#c_tags').innerHTML = meta.tags.filter((x) => x.topicId === tid).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
       $$('#c_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
-    drawTags(); $('#c_topic').onchange = drawTags;
+    const cGroup = () => { const x = meta.topics.find((y) => y.topicId === $('#c_topic').value); return !!(x && x.group); };
+    const drawMix = () => { const g = cGroup(); $('#c_abc').hidden = g; $('#c_Gl').hidden = !g; };
+    drawTags(); drawMix(); $('#c_topic').onchange = () => { drawTags(); drawMix(); };
     const emails = () => parseEmails($('#s_emails').value);
     const opts = (extra) => Object.assign({ topicId: $('#c_topic').value, tags: $$('#c_tags input:checked').map((c) => c.value), assignees: emails().ok, avoidSeen: $('#c_avoid').checked }, extra);
     function drawList() {
-      const cnt = { A: 0, B: 0, C: 0 }; picked.forEach((q) => { cnt[q.type]++; });
-      $('#c_sum').innerHTML = picked.length ? `<span class="chip ok">${esc(t('pickedN', { n: picked.length, a: cnt.A, b: cnt.B, c: cnt.C }))}</span>` : '';
+      const cnt = { A: 0, B: 0, C: 0, G: 0 }; picked.forEach((q) => { cnt[q.type] = (cnt[q.type] || 0) + 1; });
+      $('#c_sum').innerHTML = picked.length ? `<span class="chip ok">${esc(cnt.G ? t('pickedNG', { n: picked.length, g: cnt.G }) : t('pickedN', { n: picked.length, a: cnt.A, b: cnt.B, c: cnt.C }))}</span>` : '';
       $('#c_list').innerHTML = picked.length ? `<div class="scroll-x"><table class="list"><thead><tr><th>#</th><th>${esc(t('colQid'))}</th><th>${esc(t('colType'))}</th><th>${esc(t('colPoint'))}</th><th class="hide-sm">${esc(t('colTags'))}</th><th>${esc(t('colUsed'))}</th><th>${esc(t('colRate'))}</th><th></th></tr></thead><tbody>${
         picked.map((q, i) => `<tr><td class="soft">${i + 1}</td><td><a href="#/bank/${esc(q.qid)}" target="_blank" rel="noopener"><b>${esc(q.qid)}</b></a></td><td><span class="chip">${esc(q.type)}</span></td><td>${esc(L(q.point))}${q.seenBy ? ` <span class="chip warn">${esc(t('seenByN', { n: q.seenBy }))}</span>` : ''}</td>
           <td class="hide-sm small soft">${q.tags.map((g) => esc(tagName(g))).join('、')}</td><td class="small">${esc(t('usedN', { n: q.used }))}</td><td>${rateChip(q.avgRate)}</td>
@@ -1787,7 +1868,7 @@
       return Object.keys(r.shortage || {}).map((k) => `<div class="banner warn">${esc(t('shortageMsg', { type: k, n: r.shortage[k], fresh: r.available[k].fresh, total: r.available[k].total }))}</div>`).join('');
     }
     $('#c_pick').onclick = async () => {
-      const mix = { A: +$('#c_A').value || 0, B: +$('#c_B').value || 0, C: +$('#c_C').value || 0 };
+      const mix = cGroup() ? { G: +$('#c_G').value || 0 } : { A: +$('#c_A').value || 0, B: +$('#c_B').value || 0, C: +$('#c_C').value || 0 };
       try { const r = await api('t_bankPick', opts({ mix })); lastPick = r; picked = r.picked; $('#c_short').innerHTML = shortageHtml(r); drawList(); } catch (e) { toast(e.message, 4000); }
     };
     $('#c_add').onclick = async () => {
@@ -2079,11 +2160,11 @@
     const qPointZh = () => String((work.question.point && work.question.point.zh) || '');
     const qOptions = () => (work.question.options || []);
     function draw() {
-      const sg = s.suggest, q = work.question, { left, req } = caseHtml(q);
+      const sg = s.suggest, q = work.question, { left, req } = caseHtml(q), grp = topicGroup(meta, s.topicId);
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
-          <span class="spacer"></span><button class="btn sm ghost" id="json">${esc(t('qeJsonAdv'))}</button><button class="btn" id="qedit">✎ ${esc(t('qeOpen'))}</button>
+          <span class="spacer"></span><button class="btn sm ghost" id="json">${esc(t('qeJsonAdv'))}</button>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG">${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="qedit">✎ ${esc(t('qeOpen'))}</button>
           ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
           <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
@@ -2117,6 +2198,7 @@
             <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
           </div><div id="e_err" class="banner err" hidden></div></div>
         <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
+          ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key')}` : ''}
           ${[['point', 'qPointIn'], ['modelAnswer', 'modelAnswer'], ['rubric', 'rubric'], ['explanation', 'explanation']].map(([k, lab]) => (q[k] && L(q[k]) ? `<h4>${esc(t(lab))}</h4><div class="box" style="white-space:pre-wrap">${esc(L(q[k]))}</div>` : '')).join('')}</div></div></div>`;
       bind();
     }
@@ -2125,16 +2207,25 @@
       $$('#e_tags input').forEach((c) => c.addEventListener('change', () => { c.parentElement.classList.toggle('on', c.checked); work.tags = $$('#e_tags input:checked').map((x) => x.value); mark(); }));
       $('#e_point').oninput = (e) => { work.question.point = Object.assign({ en: '' }, work.question.point, { zh: e.target.value }); qDirty = true; mark(); };
       const ea = $('#e_ans'); if (ea) ea.onchange = (e) => { work.question.answer = e.target.value; qDirty = true; mark(); };
+      bindGroupKey(main, work.question, () => { qDirty = true; dirty = true; draw(); });
+      const tg = $('#toG'); if (tg) tg.onclick = () => {
+        const q = work.question, tpx = meta.topics.find((y) => y.topicId === s.topicId) || {};
+        q.type = 'G'; q.group = clone(topicGroup(meta, s.topicId)); q.subAnswers = {};
+        if (tpx.prompt && tpx.prompt.zh) q.prompt = clone(tpx.prompt);      // 問句改成主題的問句（題組用）
+        ['options', 'answer', 'modelAnswer', 'rubric'].forEach((k) => delete q[k]);
+        qDirty = true; dirty = true; draw(); toast(t('grpToG'), 5000);
+      };
       $('#e_hint').oninput = (e) => { work.changeHint = e.target.value; mark(); };
       const ap = $('#applyAi'); if (ap) ap.onclick = () => {
         const sg = s.suggest; work.tags = (sg.tags || []).slice();
         if (sg.pointZh) work.question.point = Object.assign({ en: '' }, work.question.point, { zh: sg.pointZh });
         const o = qOptions().find((x) => x.text && x.text.zh === sg.answer); if (o) work.question.answer = o.id;
+        if (work.question.type === 'G' && sg.subAnswers) work.question.subAnswers = Object.assign({}, sg.subAnswers);
         qDirty = true; dirty = true; draw();
       };
       $('#save').onclick = () => save();
       $('#qedit').onclick = async () => {
-        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId });
+        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId, group: topicGroup(meta, s.topicId) });
         if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
       };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {

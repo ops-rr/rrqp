@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05k';
+const VERSION = 'V2-2026-11-05m';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -156,7 +156,7 @@ const needAdmin = async () => { const m = await whoAmI(); if (!m.isAdmin) fail('
 const needDelete = async (k) => { const m = await whoAmI(); if (!m.can[k]) fail('你沒有刪除權限（管理員可在「管理 → 刪除權限」設定） / You do not have delete permission'); return m; };
 
 const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', active: t.active !== false,
-  prompt: t.prompt || null, defaultOptionSet: t.defaultOptionSet || '' });
+  prompt: t.prompt || null, defaultOptionSet: t.defaultOptionSet || '', group: normGroup(t.group) });
 
 // ───────── DMS 系統規則（與主題無關，所有題目都要遵守） ─────────
 const SOLUTIONS = ['Return and Refund', 'Refund Only'];
@@ -250,6 +250,52 @@ function leakScan(obj, returnId) {
     [/[\w.+-]+@[\w-]+\.[\w.-]+/, '疑似 Email'], [/https?:\/\/[^\s"]+/, '網址'], [/\b\d{14,}\b/, '疑似長數字編號']].forEach(([re, n]) => { if (re.test(text)) hits.push(n); });
   return hits;
 }
+// ───────── 題組（G 題）：一題多個小題，全對得滿分，否則每對一小題得 滿分 ÷（2 × 小題數） ─────────
+const NA_OPT = { id: 'na', text: { zh: '不適用', en: 'Not applicable' } };
+/** 主題的題組範本 → 標準格式：小題 s1、s2…，選項 a、b、c…，有「不適用」時最後加 na（匯入的 JSON 與已存檔的格式都接受） */
+function normGroup(g) {
+  if (!Array.isArray(g) || !g.length) return null;
+  return g.map((x, i) => {
+    const src = (x && x.options) || [];
+    const opts = src.filter((o) => o && o.id !== 'na').map((o, k) => ({ id: String.fromCharCode(97 + k), text: { zh: String((o.text && o.text.zh) || '').trim(), en: String((o.text && o.text.en) || '').trim() } }));
+    if ((x && x.na) || src.some((o) => o && o.id === 'na')) opts.push({ id: NA_OPT.id, text: Object.assign({}, NA_OPT.text) });
+    return { id: String((x && x.id) || ('s' + (i + 1))).trim(), text: { zh: String((x && x.text && x.text.zh) || '').trim(), en: String((x && x.text && x.text.en) || '').trim() }, options: opts };
+  });
+}
+/** 範本格式錯誤時丟出說明（匯入主題時用） */
+function groupErrors(g) {
+  const errs = [], ids = new Set();
+  if (!g) return errs;
+  if (g.length < 2 || g.length > 10) errs.push('題組需要 2–10 個小題 / A group needs 2–10 sub-questions');
+  g.forEach((x, i) => {
+    const p = '小題 ' + (i + 1) + ' / sub-question ' + (i + 1);
+    if (!/^[a-z0-9_-]{1,10}$/i.test(x.id) || x.id === 'na') errs.push(p + '：代碼只能用英數字 / id must be alphanumeric');
+    if (ids.has(x.id)) errs.push(p + '：代碼重複 / duplicated id ' + x.id); ids.add(x.id);
+    if (!x.text.zh || !x.text.en) errs.push(p + '：問句需要中英文 / text needs zh and en');
+    const real = x.options.filter((o) => o.id !== 'na');
+    if (real.length < 2 || real.length > 8) errs.push(p + '：需要 2–8 個選項（不含不適用） / 2–8 options');
+    if (real.some((o) => !o.text.zh || !o.text.en)) errs.push(p + '：選項需要中英文 / options need zh and en');
+  });
+  return errs;
+}
+const optText = (sub, id) => { const o = ((sub && sub.options) || []).find((x) => x.id === id); return o ? o.text : null; };
+/** 題組計分：subs = 專員的作答 {s1: 'a', ...}；max = 本題配分 */
+function groupScore(q, subs, max) {
+  const g = q.group || [], key = q.subAnswers || {}, n = g.length;
+  const ok = g.filter((x) => subs && subs[x.id] && subs[x.id] === key[x.id]).length;
+  return { ok, n, score: !n ? 0 : ok === n ? max : r2((ok * max) / (2 * n)) };
+}
+/** 題目的正解文字：A / B = 選項文字；G = 各小題答案以「／」串起來 */
+function answerTextOf(q) {
+  if (!q) return null;
+  if (q.type === 'G') {
+    const parts = (q.group || []).map((x) => optText(x, (q.subAnswers || {})[x.id]) || { zh: '?', en: '?' });
+    return parts.length ? { zh: parts.map((x) => x.zh).join('／'), en: parts.map((x) => x.en).join(' / ') } : null;
+  }
+  const o = (q.options || []).find((x) => x && x.id === q.answer);
+  return o ? o.text : null;
+}
+
 function checkQuestion(q, reasons, opt = {}) {
   const errs = [], warn = [];
   const need = (c, m) => { if (!c) errs.push(m); };
@@ -261,7 +307,7 @@ function checkQuestion(q, reasons, opt = {}) {
     if (/[㐀-鿿]/.test(String(v.en || ''))) warn.push(p + '.en contains Chinese');
   };
   if (!q || typeof q !== 'object') return { errors: ['not an object'], warnings: [] };
-  need(['A', 'B', 'C'].includes(q.type), 'type must be A / B / C');
+  need(['A', 'B', 'C', 'G'].includes(q.type), 'type must be A / B / C / G');
   bi(q.prompt, 'prompt');
   ['buyer', 'seller'].forEach((s) => need(q[s] && q[s].id && q[s].username, s + '.id / ' + s + '.username missing'));
   need(Array.isArray(q.chat), 'chat must be an array (can be empty when the buyer and seller never chatted)');
@@ -336,6 +382,21 @@ function checkQuestion(q, reasons, opt = {}) {
     need(opts.some((o) => o && o.id === q.answer), 'answer must be one of the option ids');
   }
   if (q.type === 'B' || q.type === 'C') { bi(q.modelAnswer, 'modelAnswer'); bi(q.rubric, 'rubric'); }
+  if (q.type === 'G') {
+    const g = Array.isArray(q.group) ? q.group : [], sa = q.subAnswers && typeof q.subAnswers === 'object' ? q.subAnswers : {}, ids = new Set();
+    need(g.length >= 2 && g.length <= 10, 'group must have 2–10 sub-questions');
+    g.forEach((x, j) => {
+      const p = 'group[' + j + ']';
+      if (!x || !x.id) { errs.push(p + '.id missing'); return; }
+      if (ids.has(x.id)) errs.push(p + '.id duplicated: ' + x.id); ids.add(x.id);
+      bi(x.text, p + '.text');
+      const opts = Array.isArray(x.options) ? x.options : [];
+      need(opts.length >= 2 && opts.length <= 9, p + '.options must have 2–9 items');
+      opts.forEach((o, k) => { need(o && o.id, p + '.options[' + k + '].id missing'); if (o) bi(o.text, p + '.options[' + k + '].text'); });
+      need(opts.some((o) => o && o.id === sa[x.id]), 'subAnswers.' + x.id + ' must be one of ' + opts.map((o) => o && o.id).join(' / '));
+    });
+    Object.keys(sa).forEach((k) => { if (!ids.has(k)) errs.push('subAnswers.' + k + ' is not a sub-question id'); });
+  }
   bi(q.explanation, 'explanation'); bi(q.point, 'point');
   return { errors: errs, warnings: warn };
 }
@@ -378,8 +439,8 @@ const STRIP = ['id', 'qid', 'seq', 'points', 'reviewed', 'criteriaVersion', 'war
 
 /** 題目的判斷重點（中文）與正解（選項中文文字） */
 function judgementOf(q) {
-  const o = ((q && q.options) || []).find((x) => x && x.id === q.answer);
-  return { pointZh: String((q && q.point && q.point.zh) || '').slice(0, 200), answer: o ? String((o.text && o.text.zh) || '') : '' };
+  const a = answerTextOf(q);
+  return { pointZh: String((q && q.point && q.point.zh) || '').slice(0, 200), answer: a ? String(a.zh || '') : '' };
 }
 
 // ───────── 草稿與題庫的共用處理 ─────────
@@ -387,8 +448,8 @@ const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags
   reviewed: d.reviewed || 0, status: d.status, createdBy: d.createdBy || '', updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : null, version: d.updatedAt || 0 });
 const questionOut = (q) => Object.assign({}, q.question || {}, { id: q.id, reviewed: !!q.reviewed, criteriaVersion: q.criteriaVersion || '', warnings: q.warnings || [], _m: metaOut(q) });
 const bankIndexRow = (x) => {
-  const j = x.question || {}, opt = (j.options || []).find((o) => o.id === j.answer);
-  return { topicId: x.topicId, type: x.type, tags: x.tags || [], pointZh: x.pointZh || '', point: j.point || null, prompt: j.prompt || null, answer: opt ? opt.text : null,
+  const j = x.question || {};
+  return { topicId: x.topicId, type: x.type, tags: x.tags || [], pointZh: x.pointZh || '', point: j.point || null, prompt: j.prompt || null, answer: answerTextOf(j),
     criteriaVersion: x.criteriaVersion || '', status: x.status, version: x.version || 1, sourceDraft: x.sourceDraft || '', sourceQid: x.sourceQid || '', updatedAt: x.updatedAt || null,
     used: x.used || 0, rateSum: x.rateSum || 0, rateN: x.rateN || 0 };
 };
@@ -463,13 +524,18 @@ const ACTIONS = {
     const name = String(b.name || '').trim();
     if (!name) fail('草稿名稱必填 / Draft name is required');
     const topicId = String(b.topicId || '');
-    await activeTopic(topicId);
+    const tp = await activeTopic(topicId);
     const target = Number(b.target);
     if (!(target >= 1 && target <= 50)) fail('題數需介於 1–50 / Target must be 1–50');
     const mx = b.mix || {};
-    const mix = { A: Number(mx.A) || 0, B: Number(mx.B) || 0, C: Number(mx.C) || 0 };
-    if (mix.A + mix.B + mix.C === 0) mix.B = target;
-    if (mix.A + mix.B + mix.C !== target) fail('題型數量加總需等於題數 / Type mix must add up to target');
+    let mix;
+    if (normGroup(tp && tp.group)) mix = { G: target };               // 題組主題：一律出 G 題
+    else {
+      if (Number(mx.G)) fail('這個主題沒有題組範本，不能出 G 題 / This topic has no question group');
+      mix = { A: Number(mx.A) || 0, B: Number(mx.B) || 0, C: Number(mx.C) || 0 };
+      if (mix.A + mix.B + mix.C === 0) mix.B = target;
+      if (mix.A + mix.B + mix.C !== target) fail('題型數量加總需等於題數 / Type mix must add up to target');
+    }
     const tags = (b.tags || []).map(String);
     const known = new Set((await S.list('tags')).filter((t) => t.topicId === topicId).map((t) => t.id));
     const unknown = tags.filter((t) => !known.has(t));
@@ -731,6 +797,7 @@ const ACTIONS = {
     if (!(cur.tags || []).length) fail('請至少選一個標籤 / Pick at least one tag');
     const jd = judgementOf(cur.question || {});
     if (!jd.pointZh.trim() || ((cur.question || {}).type !== 'C' && !jd.answer)) fail('請填寫判斷重點與正解 / Key point and answer are required');
+    if ((cur.question || {}).type === 'G') { const e = checkQuestion(cur.question, await loadDms(), { allowEmptyEn: true }).errors.filter((x) => /^(group|subAnswers)/.test(x)); if (e.length) fail('題組的答案還沒填完 / Sub-question answers missing: ' + e.slice(0, 4).join('; ')); }
     if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
@@ -884,9 +951,13 @@ const ACTIONS = {
     if (!topicId) fail('topic.topicId 必填（英文小寫與 -） / topic.topicId is required');
     if (!tp.name || !tp.name.zh || !tp.name.en) fail('topic.name 需要中英文 / topic.name needs zh and en');
     if (!String(tp.criteria || '').trim()) fail('topic.criteria（判斷標準）必填 / topic.criteria is required');
-    if (await S.get('topics/' + topicId)) fail('已經有這個主題，不會覆蓋 / Topic already exists: ' + topicId);
+    const group = normGroup(tp.group), gErr = groupErrors(group);
+    if (gErr.length) fail('題組範本有誤 / Invalid group: ' + gErr.join('; '));
+    const exist = await S.get('topics/' + topicId);
+    // 已有這個主題：預設不覆蓋；update = true 時更新主題內容（判斷標準有改就升版並保留舊版），只新增缺少的標籤
+    if (exist && !b.update) fail('已經有這個主題，不會覆蓋 / Topic already exists: ' + topicId);
     const [tags, sets] = await Promise.all([S.list('tags'), S.list('optionSets')]);
-    const dupTags = (d.tags || []).filter((x) => tags.some((y) => y.id === x.tagId)).map((x) => x.tagId);
+    const dupTags = (d.tags || []).filter((x) => tags.some((y) => y.id === x.tagId && (!exist || y.topicId !== topicId))).map((x) => x.tagId);
     if (dupTags.length) fail('標籤代碼已被使用 / Tag id already used: ' + dupTags.join(', '));
     const t = now(), ops = [];
     (d.optionSets || []).forEach((o) => {
@@ -898,15 +969,28 @@ const ACTIONS = {
     });
     const setIds = new Set(sets.map((x) => x.id).concat((d.optionSets || []).map((x) => x.setId)));
     if (tp.defaultOptionSet && !setIds.has(tp.defaultOptionSet)) fail('找不到預設選項範本 / Default option set not found: ' + tp.defaultOptionSet);
-    ops.push({ op: 'set', path: 'topics/' + topicId, data: { name: tp.name, prompt: tp.prompt || { zh: '', en: '' }, criteria: String(tp.criteria), criteriaVersion: tp.criteriaVersion || 'v1',
-      keyFactors: tp.keyFactors || [], rules: tp.rules || '', blocks: tp.blocks || [], defaultOptionSet: tp.defaultOptionSet || '', gradingGuide: tp.gradingGuide || '',
-      active: true, history: [], createdAt: t, createdBy: m.email, updatedAt: t, updatedBy: m.email } });
+    const body = { name: tp.name, prompt: tp.prompt || { zh: '', en: '' }, criteria: String(tp.criteria), keyFactors: tp.keyFactors || [], rules: tp.rules || '', blocks: tp.blocks || [],
+      defaultOptionSet: tp.defaultOptionSet || '', gradingGuide: tp.gradingGuide || '', group: group || null, updatedAt: t, updatedBy: m.email };
+    let bumped = null;
+    if (exist) {
+      if (String(exist.criteria || '').trim() !== body.criteria.trim()) {
+        bumped = tp.criteriaVersion && tp.criteriaVersion !== exist.criteriaVersion ? tp.criteriaVersion : bumpVersion(exist.criteriaVersion);
+        Object.assign(body, { criteriaVersion: bumped, history: (exist.history || []).concat([{ version: exist.criteriaVersion, criteria: exist.criteria, until: t, by: m.email }]).slice(-10) });
+      }
+      if (!body.gradingGuide) delete body.gradingGuide;          // 檔案沒有批改原則時保留平台上的
+      ops.push({ op: 'update', path: 'topics/' + topicId, data: body });
+    } else {
+      ops.push({ op: 'set', path: 'topics/' + topicId, data: Object.assign(body, { criteriaVersion: tp.criteriaVersion || 'v1', active: true, history: [], createdAt: t, createdBy: m.email }) });
+    }
+    let newTags = 0;
     (d.tags || []).forEach((x) => {
       if (!x.tagId || !x.name || !x.name.zh || !x.name.en) fail('標籤需要 tagId 與中英文名稱 / Tags need tagId and names');
+      if (tags.some((y) => y.id === x.tagId)) return;              // 更新主題時已有的標籤不動
+      newTags++;
       ops.push({ op: 'set', path: 'tags/' + x.tagId, data: { topicId, name: x.name, desc: x.desc || '', active: true, updatedAt: t, updatedBy: m.email } });
     });
     await S.batch(ops);
-    return { topicId, tags: (d.tags || []).length, optionSets: ops.filter((o) => o.path.startsWith('optionSets/')).length };
+    return { topicId, updated: !!exist, bumped, tags: newTags, optionSets: ops.filter((o) => o.path.startsWith('optionSets/')).length };
   },
 
   /** DMS 系統規則：申退原因 × 允許的申請方案，與給 AI 的文字規則 */
@@ -1044,7 +1128,7 @@ const ACTIONS = {
 };
 
 // ───────── 題庫（M4）：草稿 = 生產線、題庫 = 倉庫；發佈測驗一律從題庫組卷，試卷是發佈當下的快照 ─────────
-const AGENT_FIELDS = ['type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options', 'cutoff'];
+const AGENT_FIELDS = ['type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options', 'group', 'cutoff'];
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 const r2 = (n) => Math.round(n * 100) / 100;
 function shuffle(a) { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
@@ -1058,7 +1142,7 @@ function validEmails(list) {
 /** 預設配分：總分 100 依題數平均；B 題選擇與原因各半 */
 function pointsOf(type, n) {
   const each = r2(100 / n);
-  if (type === 'A') return { choice: each };
+  if (type === 'A' || type === 'G') return { choice: each };
   if (type === 'C') return { text: each };
   const half = r2(each / 2);
   return { choice: half, text: r2(each - half) };
@@ -1161,11 +1245,12 @@ const M4 = {
     const emails = (b.assignees || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean);
     const seen = await seenMap(emails);
     const tags = (b.tags || []).map(String), exclude = (b.exclude || []).map(String), avoid = b.avoidSeen !== false;
-    const mix = { A: Number((b.mix || {}).A) || 0, B: Number((b.mix || {}).B) || 0, C: Number((b.mix || {}).C) || 0 };
+    const mix = { A: Number((b.mix || {}).A) || 0, B: Number((b.mix || {}).B) || 0, C: Number((b.mix || {}).C) || 0, G: Number((b.mix || {}).G) || 0 };
     const all = Object.keys(items).filter((q) => { const r = items[q]; return r.status === 'active' && (!b.topicId || r.topicId === b.topicId) && !exclude.includes(q) && (b.includeOutdated || tv[r.topicId] === r.criteriaVersion); });
     const seenAny = (q) => emails.some((e) => seen[e].has(q));
     const picked = [], shortage = {}, available = {};
-    ['A', 'B', 'C'].forEach((k) => {
+    ['A', 'B', 'C', 'G'].forEach((k) => {
+      if (k === 'G' && !mix.G) return;
       const pool = all.filter((q) => items[q].type === k), fresh = pool.filter((q) => !seenAny(q));
       available[k] = { total: pool.length, fresh: fresh.length };
       const ranked = shuffle(avoid ? fresh : pool).map((q) => ({ q, m: (items[q].tags || []).filter((x) => tags.includes(x)).length, u: items[q].used || 0 })).sort((x, y) => (y.m - x.m) || (x.u - y.u));
@@ -1301,7 +1386,7 @@ const M4 = {
     const a = await S.get(path) || fail('尚未開始作答 / You have not started this quiz');
     if (a.submittedAt) return { attempt: attemptOut(s, a, now()), already: true };
     const answers = {};
-    Object.entries(b.answers || {}).forEach(([q, x]) => { if ((s.qids || []).includes(q)) answers[q] = { choice: String((x && x.choice) || '').slice(0, 10), text: String((x && x.text) || '').slice(0, 3000) }; });
+    Object.entries(b.answers || {}).forEach(([q, x]) => { if ((s.qids || []).includes(q)) answers[q] = Object.assign({ choice: String((x && x.choice) || '').slice(0, 10), text: String((x && x.text) || '').slice(0, 3000) }, subsIn(x && x.subs)); });
     try { await S.update(path, { answers, submittedAt: S.serverTime(), autoSubmitted: !!b.auto }); }
     catch (e) { if (/permission/i.test(String(e.code || e.message))) fail('已超過交卷時間 / The submission window has closed'); throw e; }
     return { attempt: attemptOut(s, await S.get(path), now()) };
@@ -1316,6 +1401,13 @@ const M4 = {
   },
 };
 Object.assign(ACTIONS, M4);
+
+/** 題組作答：{s1: 'a', ...}，最多 10 個小題 */
+function subsIn(v) {
+  if (!v || typeof v !== 'object') return {};
+  const o = {}; Object.entries(v).slice(0, 10).forEach(([k, x]) => { if (/^[a-z0-9_-]{1,10}$/i.test(k) && x) o[k] = String(x).slice(0, 10); });
+  return Object.keys(o).length ? { subs: o } : {};
+}
 
 // ───────── 閱卷與成績（M5）：grades/{email}（ai = AI 分數、teacher = 講師確認）；發佈時寫 results/{sid}_{email} 給專員看 ─────────
 const isTextQ = (t) => t === 'B' || t === 'C';
@@ -1346,8 +1438,9 @@ function answerRows(qs, atts, g) {
     qs.forEach((q) => {
       const x = (a.answers || {})[q.qid] || {}, ai = (gr.ai || {})[q.qid], tc = (gr.teacher || {})[q.qid] || {};
       const blank = isTextQ(q.type) && !String(x.text || '').trim();
-      out.push({ aid: aidOf(a.id, q.qid), email: a.id, qid: q.qid, choice: x.choice || '', text: x.text || '',
-        autoScore: q.type === 'A' || q.type === 'B' ? (x.choice && x.choice === q.answer ? (q.points || {}).choice || 0 : 0) : null,
+      const gs = q.type === 'G' ? groupScore(q, x.subs, (q.points || {}).choice || 0) : null;
+      out.push({ aid: aidOf(a.id, q.qid), email: a.id, qid: q.qid, choice: x.choice || '', text: x.text || '', subs: x.subs || {}, subOk: gs ? gs.ok : null, subN: gs ? gs.n : null,
+        autoScore: gs ? gs.score : q.type === 'A' || q.type === 'B' ? (x.choice && x.choice === q.answer ? (q.points || {}).choice || 0 : 0) : null,
         aiScore: blank && !ai ? 0 : ai ? ai.score : null, aiConfidence: blank && !ai ? 1 : ai ? ai.confidence : null, aiReason: blank && !ai ? '未作答 / No answer' : ai ? ai.reason : '',
         teacherScore: tc.score === undefined || tc.score === null ? null : tc.score, teacherComment: tc.comment || '', teacherBy: tc.by || '', teacherAt: tc.at || null });
     });
@@ -1362,10 +1455,13 @@ function resultOf(sid, s, qs, a, rows) {
   const items = qs.map((q) => {
     const r = rows.find((x) => x.qid === q.qid) || {}, max = qMax(q), got = r2(rowScore(r));
     if (q.type === 'A' || q.type === 'B') { choiceN++; if (r.choice && r.choice === q.answer) choiceOk++; }
+    if (q.type === 'G') { choiceN++; if (r.subN && r.subOk === r.subN) choiceOk++; }
     if (isTextQ(q.type)) { textMax += (q.points || {}).text || 0; textGot += textScore(r) || 0; }
     const opt = (id) => { const o = (q.options || []).find((x) => x.id === id); return o ? o.text : null; };
-    return { qid: q.qid, seq: q.seq, type: q.type, max, got, prompt: q.prompt || null, point: q.point || null, myChoice: opt(r.choice), myText: r.text || '', correct: opt(q.answer),
-      choiceOk: r.choice ? r.choice === q.answer : false, explanation: q.explanation || null, modelAnswer: q.type === 'C' ? q.modelAnswer || null : null, comment: r.teacherComment || '' };
+    const subs = q.type === 'G' ? (q.group || []).map((x) => { const mine = (r.subs || {})[x.id] || '', key = (q.subAnswers || {})[x.id]; return { id: x.id, text: x.text, mine: optText(x, mine), correct: optText(x, key), ok: !!mine && mine === key }; }) : null;
+    return Object.assign({ qid: q.qid, seq: q.seq, type: q.type, max, got, prompt: q.prompt || null, point: q.point || null, myChoice: opt(r.choice), myText: r.text || '', correct: opt(q.answer),
+      choiceOk: q.type === 'G' ? !!r.subN && r.subOk === r.subN : r.choice ? r.choice === q.answer : false, explanation: q.explanation || null, modelAnswer: q.type === 'C' ? q.modelAnswer || null : null, comment: r.teacherComment || '' },
+      subs ? { subs, subOk: r.subOk || 0, subN: r.subN || subs.length } : {});
   });
   return { sessionId: sid, email: a.id, title: s.title, score: r2(items.reduce((t, x) => t + x.got, 0)), total: r2(items.reduce((t, x) => t + x.max, 0)), choiceOk, choiceN,
     textGot: r2(textGot), textMax: r2(textMax), timeUsed: a.submittedAt - a.startedAt, submittedAt: a.submittedAt, startedAt: a.startedAt, autoSubmitted: !!a.autoSubmitted,
@@ -1833,6 +1929,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
+    group: { normalize: normGroup, score: groupScore, answerText: answerTextOf },   // 題組（G 題）
     dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },
     /** 即時監聽（範例生成頁、題庫生成頁；權限仍由規則把關） */
     live: {
