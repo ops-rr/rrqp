@@ -657,6 +657,7 @@
   const needsReview = (m) => m.reviewWanted || (m.rev > 0 && m.rev > ((m.review && m.review.rev) || 0));
   const sampleNeedsGap = (smp) => {
     const sg = smp.suggest; if (!smp.judgedBy || !sg) return false;
+    if (smp.question && smp.question.type === 'G' && !sg.subAnswers) return false;   // 單選題改成題組：舊的 AI 判斷不能比較
     const cur = { answer: smp.answer || '', pointZh: smp.pointZh || '' };
     if (cur.answer === (sg.answer || '') && cur.pointZh === (sg.pointZh || '')) return false;
     const b = smp.criteriaGap && smp.criteriaGap.basis; return !b || b.answer !== cur.answer || b.pointZh !== cur.pointZh;
@@ -2499,6 +2500,7 @@
           <button class="btn sm ghost" type="button" data-gi="${esc(g.sampleId)}">${esc(t('gapIgnore'))}</button><button class="btn sm" type="button" data-ga="${esc(g.sampleId)}">${esc(t('gapAppend'))}</button></div>
           ${g.gapSuggestion ? `<pre class="gapsug">${esc(g.gapSuggestion)}</pre>` : ''}</div>`).join('')}</div>` : ''}
       <div><div class="row" style="margin-bottom:6px"><b>${esc(t('tCriteria'))}</b><span class="chip info">${esc(topic.criteriaVersion || '')}</span></div><div class="small muted" style="margin-bottom:6px">${esc(t('tCriteriaNote'))}</div>${ta('t_crit', 14, topic.criteria || '')}</div>
+      ${(() => { const g = DB().group.normalize(topic.group); return g ? `<div><b>${esc(t('grpTopic'))}</b><div class="small muted" style="margin:2px 0 6px">${esc(t('grpTopicHint'))}</div><div class="grp">${g.map((x, i) => `<div class="grp-sub"><div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b><span class="soft small mono">${esc(x.id)}</span></div><div class="small">${x.options.map((o) => `<span class="chip" style="margin:2px">${esc(o.id)}. ${esc(L(o.text))}</span>`).join('')}</div></div>`).join('')}</div></div>` : ''; })()}
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
       <div class="small muted">${esc(t('tReasonsMoved'))} <a href="#/settings?tab=dms">${esc(t('setDms'))} →</a></div>
       <div><b>${esc(t('tRules'))}</b>${ta('t_rules', 12, topic.rules || '')}</div>
@@ -2524,8 +2526,15 @@
       let data; try { data = JSON.parse(await f.text()); } catch (_) { toast(t('seedBad'), 4000); return; }
       const tp = data.topic || {};
       if (!(await confirmBox(t('tImportConfirm', { n: (tp.name && tp.name.zh) || tp.topicId || '?', g: (data.tags || []).length, o: (data.optionSets || []).length }), t('tImport')))) { e.target.value = ''; return; }
-      try { const r = await api('tw_importTopic', { data }); topicsCache = null; libMeta = null; toast(t('tImported', { n: r.topicId }), 4000); location.hash = '#/settings?tab=topic&topic=' + r.topicId; }
-      catch (err) { toast(err.message, 6000); e.target.value = ''; }
+      // 匯入後重新載入設定頁（先清掉「未儲存」狀態：選檔案也會觸發 input，不然舊內容會擋住換頁）
+      const go = (r) => { topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; toast(t(r.updated ? 'tUpdated' : 'tImported', { n: r.topicId }) + (r.bumped ? ' · ' + r.bumped : ''), 4000); history.replaceState(null, '', '#/settings?tab=topic&topic=' + r.topicId); viewSettings(); };
+      try { go(await api('tw_importTopic', { data })); }
+      catch (err) {
+        if (/already exists/.test(err.message) && await confirmBox(t('tImportUpdate', { n: (tp.name && tp.name.zh) || tp.topicId }), t('tImport'))) {
+          try { go(await api('tw_importTopic', { data, update: true })); } catch (e2) { toast(e2.message, 6000); }
+        } else toast(err.message, 6000);
+        e.target.value = '';
+      }
     };
     $('#tp_new').onclick = () => addTopicDialog(meta).then((tp) => { if (tp) { topicsCache = null; libMeta = null; dirty = false; leaveGuard = null; location.hash = '#/settings?tab=topic&topic=' + tp.topicId; } });
     $('#t_act').onclick = async () => {
