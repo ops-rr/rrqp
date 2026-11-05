@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>外部圖片／影片連結測試</title>
+<style>
+  :root {
+    --bg: #f6f6f8;
+    --panel: #ffffff;
+    --text: #1f2330;
+    --muted: #6a7080;
+    --line: #dcdfe6;
+    --accent: #2b5fd9;
+    --ok: #137a3f;
+    --ok-bg: #e3f5ea;
+    --bad: #b3261e;
+    --bad-bg: #fbe6e4;
+    --wait: #8a6100;
+    --wait-bg: #fdf1d4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171c;
+      --panel: #1e2128;
+      --text: #e8eaf0;
+      --muted: #9aa1b3;
+      --line: #343944;
+      --accent: #7fa4ff;
+      --ok: #6fd69a;
+      --ok-bg: #1b3326;
+      --bad: #ff9c94;
+      --bad-bg: #3a1f1d;
+      --wait: #f2c864;
+      --wait-bg: #3a2f14;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.65 system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    padding: env(safe-area-inset-top, 0px) 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  }
+  main { max-width: 760px; margin: 0 auto; padding-top: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  p { margin: 0 0 10px; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 96px;
+    resize: vertical;
+    font: 13px/1.5 ui-monospace, Consolas, monospace;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+  select, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #0e1117; } }
+  button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .warn {
+    background: var(--wait-bg);
+    color: var(--wait);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .results { display: grid; gap: 8px; }
+  .res {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    gap: 10px;
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .badge {
+    text-align: center;
+    border-radius: 4px;
+    padding: 1px 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .badge.wait { background: var(--wait-bg); color: var(--wait); }
+  .res .name { font-weight: 600; }
+  .res .note { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .preview { margin-top: 12px; }
+  .preview img, .preview video { max-width: 100%; max-height: 420px; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .env { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .hist-row {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px;
+  }
+  .hist-row:first-child { border-top: 0; }
+  .hist-row .grow { flex: 1 1 260px; overflow-wrap: anywhere; }
+  ul { margin: 0 0 10px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>外部圖片／影片連結測試</h1>
+  <p class="sub">確認測驗頁面能不能直接顯示 DMS 的圖片或影片連結，以及連結隔多久會失效。</p>
+
+  <section>
+    <h2>1. 貼上要測的連結</h2>
+    <textarea id="url" placeholder="貼上完整網址（圖片或影片）" spellcheck="false" autocomplete="off"></textarea>
+    <div class="bar">
+      <select id="kind" aria-label="媒體類型">
+        <option value="image">圖片</option>
+        <option value="video">影片</option>
+      </select>
+      <button id="run" class="primary" type="button">開始測試</button>
+      <a id="open" href="#" target="_blank" rel="noopener noreferrer" class="hidden">在新分頁開啟</a>
+    </div>
+    <p class="warn" style="margin-top:12px">網址帶有簽章，等同這張圖的通行證。請只貼在這個測試框，不要把網址寫進任何會上傳 GitHub 的檔案。測試紀錄只存在你這台瀏覽器（localStorage）。</p>
+  </section>
+
+  <section id="resultBox" class="hidden">
+    <h2>2. 測試結果</h2>
+    <div class="results" id="results"></div>
+    <div class="preview" id="preview"></div>
+    <p class="env" id="env" style="margin-top:12px"></p>
+  </section>
+
+  <section>
+    <h2>3. 怎麼解讀</h2>
+    <ul>
+      <li>圖片測試成功：測驗頁面可以直接嵌入縮圖。</li>
+      <li>圖片測試失敗，但「在新分頁開啟」看得到：多半是瀏覽器擋第三方 cookie 或需要登入。測驗頁面改成縮圖位置放按鈕，點開新分頁看。</li>
+      <li>「跨站讀取內容」失敗不影響顯示，只代表網頁程式不能讀取圖片的位元組，我們不需要這個。</li>
+      <li>「不帶來源網址」成功、「預設」失敗：對方依來源網站判斷，測驗頁面可以設定不送來源網址。</li>
+    </ul>
+    <p><strong>要測的情境</strong>（每種都跑一次）：</p>
+    <ul>
+      <li>你的電腦，已登入 DMS，在內網。</li>
+      <li>同一台電腦用無痕視窗，沒登入 DMS。</li>
+      <li>不在內網（手機行動網路，或請菲律賓同事代測）。</li>
+      <li>隔幾天、一週、一個月後，用「測試紀錄」重測同一個網址，確認有沒有過期。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. 測試紀錄</h2>
+    <div id="hist"><span class="env">還沒有紀錄。</span></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'rrqp2:mediatest';
+  var TIMEOUT_MS = 20000;
+  var $ = function (s) { return document.querySelector(s); };
+
+  function loadHist() {
+    try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveHist(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, 10))); } catch (e) { /* 無法儲存就略過 */ }
+  }
+
+  function addRow(name, desc) {
+    var row = document.createElement('div');
+    row.className = 'res';
+    var badge = document.createElement('div');
+    badge.className = 'badge wait';
+    badge.textContent = '測試中';
+    var body = document.createElement('div');
+    var n = document.createElement('div');
+    n.className = 'name';
+    n.textContent = name;
+    var d = document.createElement('div');
+    d.className = 'note';
+    d.textContent = desc;
+    body.appendChild(n);
+    body.appendChild(d);
+    row.appendChild(badge);
+    row.appendChild(body);
+    $('#results').appendChild(row);
+    return {
+      done: function (ok, note) {
+        badge.className = 'badge ' + (ok ? 'ok' : 'bad');
+        badge.textContent = ok ? '成功' : '失敗';
+        d.textContent = desc + (note ? '　→ ' + note : '');
+      }
+    };
+  }
+
+  function withTimeout(promise) {
+    return new Promise(function (resolve) {
+      var t0 = performance.now();
+      var finished = false;
+      var timer = setTimeout(function () {
+        if (finished) return;
+        finished = true;
+        resolve({ ok: false, note: '超過 ' + (TIMEOUT_MS / 1000) + ' 秒沒有回應', ms: TIMEOUT_MS });
+      }, TIMEOUT_MS);
+      promise.then(function (r) {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        r.ms = Math.round(performance.now() - t0);
+        resolve(r);
+      });
+    });
+  }
+
+  function testImage(url, referrer) {
+    return withTimeout(new Promise(function (resolve) {
+      var im = new Image();
+      if (referrer) im.referrerPolicy = referrer;
+      im.onload = function () {
+        resolve({ ok: true, note: '尺寸 ' + im.naturalWidth + '×' + im.naturalHeight, el: im });
+      };
+      im.onerror = function () {
+        resolve({ ok: false, note: '瀏覽器無法載入（連結失效、需要登入，或被瀏覽器擋下）' });
+      };
+      im.src = url;
+    }));
+  }
+
+  function testVideo(url, referrer) {
+    return withTimeout(new Promise(function (resolve) {
+      var v = document.createElement('video');
+      v.preload = 'metadata';
+      v.muted = true;
+      v.playsInline = true;
+      v.controls = true;
+      if (referrer) v.referrerPolicy = referrer;
+      v.onloadedmetadata = function () {
+        resolve({
+          ok: true,
+          note: '長度 ' + (isFinite(v.duration) ? v.duration.toFixed(1) + ' 秒' : '未知') + '，尺寸 ' + v.videoWidth + '×' + v.videoHeight,
+          el: v
+        });
+      };
+      v.onerror = function () {
+        resolve({ ok: false, note: '瀏覽器無法載入（連結失效、需要登入、被擋下，或格式不支援）' });
+      };
+      v.src = url;
+    }));
+  }
+
+  function testFetchNoCors(url) {
+    return withTimeout(
+      fetch(url, { mode: 'no-cors', credentials: 'omit', cache: 'no-store' })
+        .then(function () { return { ok: true, note: '伺服器有回應（內容不可讀，這是預期的）' }; })
+        .catch(function (e) { return { ok: false, note: '連線失敗：' + (e && e.message ? e.message : e) }; })
+    );
+  }
+
+  function testFetchCors(url) {
+    return withTimeout(
+      fetch(url, { mode: 'cors', credentials: 'include', cache: 'no-store' })
+        .then(function (r) {
+          return { ok: r.ok, note: 'HTTP ' + r.status + '，類型 ' + (r.headers.get('content-type') || '未知') };
+        })
+        .catch(function (e) {
+          return { ok: false, note: '對方沒有開放跨站讀取，或連線失敗（只影響程式讀取，不影響顯示）' };
+        })
+    );
+  }
+
+  var running = false;
+
+  function run(urlOverride) {
+    if (running) return;
+    var url = (urlOverride || $('#url').value).trim();
+    if (!/^https?:\/\//i.test(url)) {
+      alert('請貼上以 http:// 或 https:// 開頭的完整網址。');
+      return;
+    }
+    if (urlOverride) $('#url').value = url;
+    var kind = $('#kind').value;
+    running = true;
+    $('#run').disabled = true;
+    $('#resultBox').classList.remove('hidden');
+    $('#results').textContent = '';
+    $('#preview').textContent = '';
+    var open = $('#open');
+    open.href = url;
+    open.classList.remove('hidden');
+    $('#env').textContent = '環境：' + navigator.userAgent + '　頁面網域：' + location.host;
+
+    var isImg = kind === 'image';
+    var tests = [
+      { name: isImg ? '直接顯示圖片（預設）' : '直接播放影片（預設）',
+        desc: '用 ' + (isImg ? '<img>' : '<video>') + ' 載入，這是測驗頁面實際會用的方式',
+        fn: function () { return (isImg ? testImage : testVideo)(url, null); } },
+      { name: '直接顯示（不帶來源網址）',
+        desc: '同上，但不告訴對方是從哪個網站來的',
+        fn: function () { return (isImg ? testImage : testVideo)(url, 'no-referrer'); } },
+      { name: '伺服器可連線',
+        desc: 'fetch no-cors，只確認連得到',
+        fn: function () { return testFetchNoCors(url); } },
+      { name: '跨站讀取內容',
+        desc: 'fetch cors（含 cookie），只供參考',
+        fn: function () { return testFetchCors(url); } }
+    ];
+
+    var rows = tests.map(function (t) { return addRow(t.name, t.desc); });
+    var summary = [];
+    var previewed = false;
+
+    tests.reduce(function (chain, t, i) {
+      return chain.then(function () {
+        return t.fn().then(function (r) {
+          rows[i].done(r.ok, r.note + '（' + r.ms + ' ms）');
+          summary.push({ name: t.name, ok: !!r.ok });
+          if (r.ok && r.el && !previewed) {
+            previewed = true;
+            $('#preview').appendChild(r.el);
+          }
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      running = false;
+      $('#run').disabled = false;
+      record(url, kind, summary);
+    });
+  }
+
+  function record(url, kind, summary) {
+    var list = loadHist();
+    var now = Date.now();
+    var found = null;
+    for (var i = 0; i < list.length; i++) if (list[i].url === url) { found = list[i]; break; }
+    if (found) {
+      found.runs.unshift({ at: now, summary: summary });
+      found.runs = found.runs.slice(0, 10);
+    } else {
+      list.unshift({ url: url, kind: kind, first: now, runs: [{ at: now, summary: summary }] });
+    }
+    saveHist(list);
+    renderHist();
+  }
+
+  function fmtAgo(ms) {
+    var m = Math.floor(ms / 60000);
+    if (m < 60) return m + ' 分鐘前';
+    var h = Math.floor(m / 60);
+    if (h < 48) return h + ' 小時前';
+    return Math.floor(h / 24) + ' 天前';
+  }
+
+  function renderHist() {
+    var box = $('#hist');
+    var list = loadHist();
+    box.textContent = '';
+    if (!list.length) {
+      var s = document.createElement('span');
+      s.className = 'env';
+      s.textContent = '還沒有紀錄。';
+      box.appendChild(s);
+      return;
+    }
+    list.forEach(function (item, idx) {
+      var row = document.createElement('div');
+      row.className = 'hist-row';
+      var info = document.createElement('div');
+      info.className = 'grow';
+      var first = item.runs[item.runs.length - 1];
+      var last = item.runs[0];
+      var ok = function (r) {
+        var d = r.summary[0];
+        return d && d.ok ? '可顯示' : '無法顯示';
+      };
+      info.textContent = (item.kind === 'video' ? '影片' : '圖片') + '　網址結尾 …' + item.url.slice(-14) +
+        '　首次測試 ' + fmtAgo(Date.now() - item.first) + '（' + ok(first) + '）' +
+        (item.runs.length > 1 ? '　最近一次 ' + fmtAgo(Date.now() - last.at) + '（' + ok(last) + '）' : '') +
+        '　共 ' + item.runs.length + ' 次';
+      var again = document.createElement('button');
+      again.type = 'button';
+      again.textContent = '重測';
+      again.addEventListener('click', function () {
+        $('#kind').value = item.kind;
+        run(item.url);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '刪除';
+      del.addEventListener('click', function () {
+        var l = loadHist();
+        l.splice(idx, 1);
+        saveHist(l);
+        renderHist();
+      });
+      row.appendChild(info);
+      row.appendChild(again);
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  $('#run').addEventListener('click', function () { run(); });
+  renderHist();
+})();
+</script>
+</body>
+</html>
