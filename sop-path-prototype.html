@@ -1,0 +1,6609 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOP 路徑題試做</title>
+<style>
+:root{--brand:#ee4d2d;--bg:#f5f5f9;--ink:#0a1f44;--text:#333;--muted:#8a8f99;--line:#e8e8ee;--card:#fff;--ok:#1aa260;--bad:#e5484d;--sys:#2f6fdb;--man:#22a06b;--tag:#fafafa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Roboto,Helvetica,Arial,"Microsoft JhengHei","Heiti TC",sans-serif}
+header{height:52px;background:var(--brand);color:#fff;display:flex;align-items:center;gap:16px;padding:0 20px}
+header b{font-size:16px}
+header .sp{flex:1}
+.seg{display:flex;background:rgba(0,0,0,.15);border-radius:6px;padding:3px}
+.seg button{border:0;background:transparent;color:#fff;padding:5px 14px;border-radius:4px;cursor:pointer;font:inherit}
+.seg button.on{background:#fff;color:var(--brand);font-weight:500}
+.wrap{display:flex;gap:12px;padding:12px;align-items:flex-start}
+.main{flex:1;min-width:0;background:var(--card);border-radius:6px;padding:18px 22px}
+.side{width:420px;flex:none;background:var(--card);border-radius:6px;position:sticky;top:12px;max-height:calc(100vh - 88px);display:flex;flex-direction:column}
+h2{font-size:20px;font-weight:500;color:var(--ink);margin:4px 0 12px}
+h3{font-size:15px;font-weight:500;color:var(--ink);margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px}
+.kv{color:var(--ink)}.kv span{color:var(--text)}
+.tag{display:inline-block;font-size:12px;line-height:20px;padding:0 7px;border:1px solid #d9d9d9;background:var(--tag);border-radius:4px;color:var(--text)}
+.tag.blue{border-color:#91caff;background:#e6f4ff;color:#0958d9}
+.tag.green{border-color:#b7eb8f;background:#f6ffed;color:#389e0d}
+table{border-collapse:collapse;width:100%;margin-top:6px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-weight:400}
+th{background:#fafafa;color:var(--ink)}
+.chat{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.msg{display:flex;gap:10px}.msg .av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-size:13px}
+.msg.b .av{background:#f6b73c}.msg.s .av{background:#4d8df0}
+.bub{background:#f4f5f7;border-radius:6px;padding:8px 12px;max-width:520px}
+.bub small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.who{font-size:12px;color:var(--muted);margin-bottom:2px}
+.sys{background:#eaf2ff;border-radius:6px;padding:10px 12px;margin-top:6px}
+.tabs{display:flex;border-bottom:1px solid var(--line);padding:0 12px}
+.tabs div{padding:11px 12px;color:var(--text);cursor:default}
+.tabs .on{color:var(--brand);border-bottom:2px solid var(--brand)}
+.tabs .off{color:#bbb}
+.sopbody{overflow:auto;padding:10px 12px;flex:1}
+.row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:9px 10px;margin-bottom:8px;background:#fff}
+.row .ic{width:18px;height:18px;border-radius:4px;flex:none;display:grid;place-items:center;color:#fff;font-size:11px}
+.row .ic.m{background:var(--man)}.row .ic.s{background:var(--sys)}.row .ic.j{background:var(--brand)}.row .ic.x{background:#999}
+.row .q{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .a{color:var(--text);max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .a::before{content:"→ ";color:var(--muted)}
+.row.click{cursor:pointer}.row.click:hover{border-color:var(--brand)}
+.row.okm{border-color:#9fe0bd;background:#f3fbf6}.row.badm{border-color:#f5b5b7;background:#fff5f5}
+.cur{border:1px solid var(--brand);border-radius:6px;padding:12px;margin-bottom:8px}
+.cur .qt{white-space:pre-wrap;color:var(--ink);margin-bottom:10px}
+.cur .qt b{display:block;font-size:15px;margin-bottom:6px}
+.opt{display:block;width:100%;text-align:left;border:1px solid #d9d9d9;background:#fff;border-radius:6px;padding:9px 12px;margin-top:6px;cursor:pointer;font:inherit;color:var(--text)}
+.opt:hover{border-color:var(--brand);color:var(--brand)}
+.opt.pick{border-color:var(--brand);background:#fff5f2;color:var(--brand)}
+.endbox{border:1px dashed #ccc;border-radius:6px;padding:10px 12px;color:var(--muted);margin-bottom:8px}
+.foot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.foot .sp{flex:1;color:var(--muted)}
+.btn{border:0;background:var(--brand);color:#fff;padding:7px 16px;border-radius:6px;cursor:pointer;font:inherit}
+.btn.ghost{background:#fff;color:var(--text);border:1px solid #d9d9d9}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.result{margin:0 0 10px;border-radius:6px;padding:10px 12px;font-weight:500}
+.result.ok{background:#eafaf1;color:#137a47}.result.bad{background:#fdecec;color:#b42318}
+.cfg{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.cfg input{font:inherit;padding:5px 8px;border:1px solid #d9d9d9;border-radius:4px}
+.cfg input[type=number]{width:64px}
+.note{font-size:12px;color:var(--muted)}
+.hide{display:none}
+.wm{position:fixed;inset:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='200'%3E%3Ctext x='10' y='110' transform='rotate(-18 180 100)' font-size='14' fill='rgba(0,0,0,0.05)' font-family='Arial'%3Eagent@example.com CONFIDENTIAL%3C/text%3E%3C/svg%3E")}
+</style>
+</head>
+<body>
+<div class="wm"></div>
+<header><b>SOP 路徑題・試做</b><span class="tag" style="background:#fff;border:0;color:var(--brand)">原型，資料只存在這台電腦</span><span class="sp"></span>
+<div class="seg"><button id="mStudent" class="on">專員作答</button><button id="mTeacher">講師設定</button></div></header>
+<div class="wrap">
+ <div class="main" id="case"></div>
+ <div class="side">
+  <div class="tabs"><div class="on">SOP</div><div class="off">Operation History</div><div class="off">Chat History</div><div class="off">Discuss</div></div>
+  <div class="cfg hide" id="cfg">
+   <label>起點 <input id="startQ" type="search" placeholder="搜尋節點名稱" size="12"></label><select id="startSel" style="font:inherit;padding:5px 6px;border:1px solid #d9d9d9;border-radius:4px;max-width:300px"></select>
+   <label>步數上限 <input id="maxIn" type="number" min="1" max="15"></label>
+   <button class="btn ghost" id="resetRec">重新點選</button>
+   <div class="note" style="width:100%">在下方點一次正確路徑。系統判讀步驟由講師選擇，代表這個案件的系統值。</div>
+  </div>
+  <div class="sopbody" id="sop"></div>
+  <div class="foot"><span class="sp" id="stat"></span><button class="btn ghost hide" id="retry">重新作答</button><button class="btn" id="act">交卷</button></div>
+ </div>
+</div>
+<script>
+const SOP = {
+ "schema": "rrqp-sop/0.2",
+ "taskbot": "SOP60",
+ "taskbotName": "通用前置流程",
+ "flowId": "SOP60_F76",
+ "flowDesc": "協議流程 v13(AOC RR逾鑑賞期調整)",
+ "root": "SOP60_Node380",
+ "exportedAt": 1793811579,
+ "variables": {
+  "check_get_sop_dispute_seller_type": "Check GetSopDispute / Seller Type",
+  "get_sop_dispute.seller_type": "GetSopDispute / Seller Type",
+  "check_get_sop_dispute_max_refund_amount": "Check GetSopDispute / Max Refund Amount",
+  "get_sop_dispute.max_refund_amount": "GetSopDispute / Max Refund Amount",
+  "check_get_sop_dispute_request_type": "Check GetSopDispute / Request Type",
+  "get_sop_dispute.request_type": "GetSopDispute / Request Type",
+  "check_get_sop_dispute_no_of_rr_raised": "Check GetSopDispute / No Of R/R Raised",
+  "get_sop_dispute.no_of_rr_raised": "GetSopDispute / No Of R/R Raised",
+  "check_dms_buyer_return_offer_info_v1_buyer_first_offer_return_proposal_dms_dispute_info_v1_dms_buyer_category": "Check Dms buyer return offer info v1 / Buyer first offer return proposal, Dms dispute info v1 / Dms Buyer Category",
+  "dms_buyer_return_offer_info_v1.buyer_first_offer_proposed_refund_amount": "Dms buyer return offer info v1 / Buyer first offer proposed refund amount",
+  "dms_dispute_info_v1.dms_buyer_category": "Dms dispute info v1 / Dms Buyer Category",
+  "check_dms_dispute_info_v1_dms_seller_validate_status": "Check Dms dispute info v1 / Dms Seller Validate Status",
+  "dms_dispute_info_v1.dms_seller_validate_status": "Dms dispute info v1 / Dms Seller Validate Status",
+  "check_get_sop_account_seller_phone_number_return_logistics_info_v1_return_forward_lm_shipping_carrier_name_list": "Check GetSopAccount / Seller Phone Number, Return logistics info v1 / Return forward lm shipping carrier name list",
+  "logistic_group_shipping_order_info_v1.order_sn_quantity_of_group_shipping_orders": "Logistic group shipping order info v1 / Order sn quantity of group shipping orders",
+  "return_logistics_info_v1.return_forward_lm_shipping_carrier_name_list": "Return logistics info v1 / Return forward lm shipping carrier name list",
+  "get_sop_account.seller_phone_number": "GetSopAccount / Seller Phone Number",
+  "check_get_sop_dispute_forward_logistic_type": "Check GetSopDispute / Forward Logistic Type",
+  "get_sop_dispute.forward_logistic_type": "GetSopDispute / Forward Logistic Type",
+  "check_dms_blacklist_info_v1_buyer_blacklist_risk_level": "Dms dispute info v1/Dms Buyer Category",
+  "check_dms_dispute_info_v1_dispute_after_order_completed_outside_buyer_window_dms_dispute_info_v1_dispute_after_order_completed_within_buyer_window__split_condition_1_92fec47689": "Check Dms dispute info v1 / Dispute After Order Completed Outside Buyer Window, Dms dispute info v1 / Dispute After Order Completed Within Buyer Window - condition values: AOC",
+  "dms_dispute_info_v1.dispute_after_order_completed_within_buyer_window": "Dms dispute info v1 / Dispute After Order Completed Within Buyer Window",
+  "dms_dispute_info_v1.dispute_after_order_completed_outside_buyer_window": "Dms dispute info v1 / Dispute After Order Completed Outside Buyer Window"
+ },
+ "nodes": {
+  "SOP60_Node709": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node710"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node707"
+    }
+   ]
+  },
+  "SOP60_Node454": {
+   "name": "Ju411-同意退款-CB",
+   "type": "judge",
+   "text": "Ju411-同意退款-CB",
+   "to": "SOP60_Node456",
+   "codes": [
+    "Ju411"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "同意退款-包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju411包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept refund-CB買家",
+    "seller_email_template": "FC-Ju411包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node346": {
+   "name": "賣家是否提供有效與物流聯繫配送進度證明",
+   "type": "manual",
+   "question": "確認賣家提供與物流聯繫配送進度證明是否成功?\n\n\n1) Open DMS > Case > Evidence Center.\n2) Verify seller provided carrier email/chat screenshots with date, tracking no., and response from carrier.\n3) If details confirm contact and status, select '驗證成功'; else select '驗證失敗/未回覆'",
+   "options": [
+    {
+     "label": "驗證成功",
+     "to": "SOP60_Node630"
+    },
+    {
+     "label": "驗證失敗/未回覆>>視同未達成協議回原流程",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node724": {
+   "name": "買家退貨意向為何",
+   "type": "manual",
+   "question": "買家退貨意向為何",
+   "options": [
+    {
+     "label": "買家要僅退款",
+     "to": "SOP60_Node725"
+    },
+    {
+     "label": "買家要退貨",
+     "to": "SOP60_Node729"
+    }
+   ]
+  },
+  "SOP60_Node455": {
+   "name": "Ju411-同意退款-LC",
+   "type": "judge",
+   "text": "Ju411-同意退款-LC",
+   "to": "SOP60_Node456",
+   "codes": [
+    "Ju411"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "同意退款-包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju411包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept refund-LC買家",
+    "seller_email_template": "FC-Ju411包裹毀損，非整合物流同意賠償賣家，同意退款買家-Accept refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node777": {
+   "name": "商品是否已寄回賣家",
+   "type": "manual",
+   "question": "商品是否已寄回賣家?\n\n\n1)Open DMS>Case>Chat/Buyer & Seller's message\n2)確認買賣是否提及商品已寄還賣家(eg.買家說明已寄出或上傳寄件單據、賣家說明已收到退貨)\n3)若是選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node654"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node30"
+    }
+   ]
+  },
+  "SOP60_Node356": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB (1)"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node357"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node359"
+    }
+   ]
+  },
+  "SOP60_Node748": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node667": {
+   "name": "Ju503-同意退款-LC",
+   "type": "judge",
+   "text": "Ju503-同意退款-LC",
+   "to": "SOP60_Node668",
+   "codes": [
+    "Ju503"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "remark": "同意退款-AOC RR其他特殊情境，買家說明退貨已配達賣家，賣家驗收允退/未回覆，Accept Refund",
+    "buyer_email_template": "FC-Ju503AOC RR其他特殊情境，買家說明退貨已配達賣家，賣家驗收允退/未回覆，同意退款-LC買家",
+    "seller_email_template": "FC-Ju503AOC RR其他特殊情境，買家說明退貨已配達，賣家驗收允退/未回覆，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node435": {
+   "name": "Ju407-同意退款-LC",
+   "type": "judge",
+   "text": "Ju407-同意退款-LC",
+   "to": "SOP60_Node434",
+   "codes": [
+    "Ju407"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "同意退款-包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju407包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept refund-LC買家",
+    "seller_email_template": "FC-Ju407包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node531": {
+   "name": "Ju405-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju405-同意退貨-CB",
+   "to": "SOP60_Node533",
+   "codes": [
+    "Ju405"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept Return",
+    "buyer_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-CB買家",
+    "seller_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-同意退貨-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node832": {
+   "name": "買家是否有提供物流取件證明",
+   "type": "manual",
+   "question": "買家是否有提供物流取件證明? (請先發買家證據卡確認)\n\n\n1)Open DMS>Case>Buyer evidence\n2)確認買家是否提供有效物流取件證明，若有選\"JU534同意退款\"，否則選\"JU533取消退貨\"",
+   "options": [
+    {
+     "label": "JU534同意退款",
+     "to": "SOP60_Node525"
+    },
+    {
+     "label": "JU533取消退貨",
+     "to": "SOP60_Node524"
+    }
+   ]
+  },
+  "SOP60_Node475": {
+   "name": "Ju537-撥款賣家-CB",
+   "type": "judge",
+   "text": "Ju537-撥款賣家-CB",
+   "to": "SOP60_Node477",
+   "codes": [
+    "Ju537"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close",
+    "buyer_email_template": "FC-Ju537物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close-CB買家",
+    "seller_email_template": "FC-Ju537物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close-CB賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node715": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node482": {
+   "name": "Ju522-同意退款-CB",
+   "type": "judge",
+   "text": "Ju522-同意退款-CB",
+   "to": "SOP60_Node781",
+   "codes": [
+    "Ju522"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju522CB物流調查VM回覆，需提供賠付對象，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju522CB物流調查VM回覆，需提供賠付對象，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node771": {
+   "name": "買家申退品項是否錯誤",
+   "type": "manual",
+   "question": "買家申退品項是否錯誤?\n\n\n1)Open DMS>Case\n2)比對買家聊聊/申退備註/買家訊息，確認買家需退品項是否包含於申退品項內\n3)若未包含選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node383"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node772"
+    }
+   ]
+  },
+  "SOP60_Node23": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node27"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node24"
+    }
+   ]
+  },
+  "SOP60_Node517": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node476"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node518"
+    }
+   ]
+  },
+  "SOP60_Node824": {
+   "name": "請買家提供收件宅資/歸還包裹證明",
+   "type": "manual",
+   "question": "確認買家是否有提供收件宅資/歸還包裹證明(請先發買家證據卡索取)\n\n\n1)Open DMS>Case>Buyer evidence\n2)確認買家是否依照證據卡內容回覆?(eg.索取收件宅資，買家回覆姓名/電話/地址；索取歸還包裹證明，買家提供歸還門市/時間)\n3)若是選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "否",
+     "to": "SOP60_Node487"
+    },
+    {
+     "label": "是",
+     "to": "SOP60_Node825"
+    }
+   ]
+  },
+  "SOP60_Node740": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node656": {
+   "name": "貨態是否為已集貨/配送中/已配達",
+   "type": "manual",
+   "question": "查詢逆物流貨態是否為已集貨/配送中/配達?\n\n\n1) Open DMS > Order > Return/Reverse Logistics > Tracking. \n2) Read the current reverse logistics status. \n3) If status is '已集貨' or '配送中' or '已配達', select '是'; otherwise select '否'",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node660"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node393"
+    }
+   ]
+  },
+  "SOP60_Node542": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node767": {
+   "name": "申退金額是否低於1500",
+   "type": "system",
+   "branches": [
+    {
+     "label": "申退金額≦1500",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_max_refund_amount",
+       "varName": "Check GetSopDispute / Max Refund Amount",
+       "op": "10",
+       "value": [
+        "申退金額≦1500"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node768"
+    },
+    {
+     "label": "申退金額>1500",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node675"
+    }
+   ]
+  },
+  "SOP60_Node47": {
+   "name": "將買家加入高風險黑名單",
+   "type": "note",
+   "text": "將買家加入高風險黑名單",
+   "to": "SOP60_Node550"
+  },
+  "SOP60_Node529": {
+   "name": "是否為易腐敗商品",
+   "type": "manual",
+   "question": "1) Open DMS > Case > 退貨/退款詳情並確認買家申退品項。\n2) 確認該品項是否符合「易於腐敗（例如：現做餐盒或蔬果等），或保存期限較短或解約時即將逾期（例如：蛋糕或鮮奶等）」\n3) 符合則選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP5_Node540"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node534"
+    }
+   ]
+  },
+  "SOP60_Node361": {
+   "name": "請賣家聯繫物流處理",
+   "type": "pending",
+   "text": "通知賣家 補充足夠證據/聯絡物流協助處理\nDs210 & Pe218",
+   "to": "SOP60_Node362",
+   "codes": [
+    "Ds210",
+    "Pe218"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]缺件，雙方協議補寄，【物流名稱XXX/單號XXX / 賣家提供簽單狀態XXXX】，因買家仍反應收件問題XXXXXXX / 驗證失敗，發賣家限期補充足夠證據/聯絡物流協助處理，待追"
+    }
+   ]
+  },
+  "SOP60_Node392": {
+   "name": "可確認有提供折扣碼優惠券",
+   "type": "manual",
+   "question": "確認賣家是否有提供折扣碼優惠券?\n\n\n確認賣家是否有提供折扣碼優惠券?\n\n\n1) Open DMS > Case > Chat Logs & Evidence Center.\n2) 若賣家提供有效折扣碼/優惠券資訊，選\"有提供且可確認到資訊\"，否則選\"驗證失敗/未回覆\"",
+   "options": [
+    {
+     "label": "有提供且可確認到資訊",
+     "to": "SOP60_Node622"
+    },
+    {
+     "label": "驗證失敗/未回覆",
+     "to": "SOP1_Node206"
+    }
+   ]
+  },
+  "SOP60_Node26": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node345": {
+   "name": "請賣家提供與物流聯繫確認配送進度證明",
+   "type": "pending",
+   "text": "請賣家提供與物流聯繫確認配送進度證明\nDs003 & Pe806",
+   "to": "SOP60_Node346",
+   "codes": [
+    "Ds003",
+    "Pe806"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]雙方協議補寄，查【物流名稱】單號XXXXXX，貨態為XX/XX配送異常，發賣家限期聯繫物流確認配送狀況"
+    }
+   ]
+  },
+  "SOP60_Node489": {
+   "name": "Ju526-同意退款-LC",
+   "type": "judge",
+   "text": "Ju526-同意退款-LC",
+   "to": "SOP60_Node788",
+   "codes": [
+    "Ju526"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju526物流調查錯包，VM請買家自行寄回/其他退回，買家有提供，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju526物流調查錯包，VM請買家自行寄回/其他退回，買家有提供，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node530": {
+   "name": "Ju405-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju405-同意退貨-LC",
+   "to": "SOP60_Node532",
+   "codes": [
+    "Ju405"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept Return",
+    "buyer_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-LC買家",
+    "seller_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node705": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node722": {
+   "name": "商品類別是否為易腐敗或虛擬數位",
+   "type": "manual",
+   "question": "商品類別是否為易腐敗或虛擬數位",
+   "options": [
+    {
+     "label": "商品類別=易腐敗或虛擬數位",
+     "to": "SOP60_Node723"
+    },
+    {
+     "label": "商品類別≠易腐敗或虛擬數位",
+     "to": "SOP60_Node724"
+    }
+   ]
+  },
+  "SOP60_Node707": {
+   "name": "Ju831-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju831-同意退貨-LC",
+   "to": "SOP60_Node708",
+   "codes": [
+    "Ju831"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，整合物流超過物流索賠期限，Accept Return",
+    "buyer_email_template": "(通用)-Ju831包裹毀損，整合物流，超過物流索賠期限，Accept Return-CB買家",
+    "seller_email_template": "(通用)-Ju831包裹毀損，整合物流，超過物流索賠期限，Accept Return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node560": {
+   "name": "依QA表回覆判決",
+   "type": "judge",
+   "text": "依QA表回覆判決",
+   "to": "SOP60_Node561",
+   "judge": {}
+  },
+  "SOP60_Node729": {
+   "name": "是否符合合理情境",
+   "type": "manual",
+   "question": "是否符合合理情境\n\n\n\n\n不合理情境判定\n根據買家商品狀況，請依買家逾越鑑賞行為判斷準則判斷路線",
+   "options": [
+    {
+     "label": "合理情境",
+     "to": "SOP60_Node731"
+    },
+    {
+     "label": "不合理情境",
+     "to": "SOP60_Node733"
+    }
+   ]
+  },
+  "SOP60_Node556": {
+   "name": "驗證買家補充結果",
+   "type": "manual",
+   "question": "驗證買家補充結果",
+   "options": [
+    {
+     "label": "可確認買家證據編輯/造假 / 提供重複證據",
+     "to": "SOP60_Node47"
+    },
+    {
+     "label": "買家逾期未回",
+     "to": "SOP60_Node557"
+    },
+    {
+     "label": "買家提供有利證據且非編輯/造假",
+     "to": "SOP1_Node177"
+    },
+    {
+     "label": "仍無法判定證據是否有編輯/造假",
+     "to": "SOP60_Node559"
+    }
+   ]
+  },
+  "SOP60_Node719": {
+   "name": "是否已退款買家",
+   "type": "manual",
+   "question": "是否已退款買家",
+   "options": [
+    {
+     "label": "尚未退款買家",
+     "to": "SOP60_Node689"
+    },
+    {
+     "label": "已退款買家",
+     "to": "SOP60_Node698"
+    }
+   ]
+  },
+  "SOP60_Node374": {
+   "name": "Ju815-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju815-同意退貨-LC",
+   "to": "SOP60_Node375",
+   "codes": [
+    "Ju815"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-買賣合意退回訂單所有商品，已確認買家申退品項與買賣合意退回品項相符",
+    "buyer_email_template": "通用-Ju815協議，買賣合意退回商品，核對買家申退與協議退回相符，賣家已派車，逾期未回/驗證失敗-同意退貨-LC買家",
+    "seller_email_template": "通用-Ju815協議，買賣合意退回商品，核對買家申退與協議退回相符，賣家已派車，逾期未回/驗證失敗-同意退貨-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node498": {
+   "name": "依VM回覆選擇對應路線",
+   "type": "manual",
+   "question": "依VM回覆選擇對應路線\n\n\n1) Open Inhouse System > 查詢案件對應工單\n2) 讀取VM回覆內容\n3) 若VM回覆＝需回收商品或要求用戶提供歸還包裹證明 → 選「需提供宅資(商品需回收)/歸還包裹證明」；若VM回覆＝錯誤包裹需回收且正確包裹仍在尋找 → 選「錯誤包裹待回收，正確包裹等待尋找期」；若VM回覆＝錯包已歸還且正確件已尋獲 → 選「錯包已歸還，正確件已尋獲」，否則選「其他」",
+   "options": [
+    {
+     "label": "需提供宅資(商品需回收)/歸還包裹證明",
+     "to": "SOP60_Node824"
+    },
+    {
+     "label": "錯誤包裹待回收，正確包裹等待尋找期",
+     "to": "SOP60_Node825"
+    },
+    {
+     "label": "錯包已歸還，正確件已尋獲",
+     "to": "SOP60_Node829"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node833"
+    }
+   ]
+  },
+  "SOP60_Node518": {
+   "name": "Ju538-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju538-取消退貨-LC",
+   "to": "SOP60_Node477",
+   "codes": [
+    "Ju538"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju538物流調查，SPX折扣碼補償，商品在買家，逾期未回/回覆不同意且無相關資訊可轉VM登記，取消申退-LC買家",
+    "seller_email_template": "FC-Ju538物流調查，SPX折扣碼補償，商品在買家，逾期未回/回覆不同意且無資訊可轉VM登記，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node528": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node515": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node475"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node516"
+    }
+   ]
+  },
+  "SOP60_Node753": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node826": {
+   "name": "查詢派車貨態是否正常配達",
+   "type": "manual",
+   "question": "查詢派車貨態是否正常配達\n\n\n1)依照VM提供物流單號，至對應的物流官網查詢貨態\n2)若包裹已配達選\"配達\"，若已配送2次未配達/取件2次未成功/超過2天未更新貨態選\"貨態異常\"，否則請隔天再查詢一次確認結果",
+   "options": [
+    {
+     "label": "配達",
+     "to": "SOP60_Node488"
+    },
+    {
+     "label": "貨態異常",
+     "to": "SOP60_Node522"
+    }
+   ]
+  },
+  "SOP60_Node758": {
+   "name": "賣家是否提供有效補寄證明",
+   "type": "manual",
+   "question": "是否可確認賣家已提供有效的補寄證明?\n\n\n查聊聊/賣家訊息，確認賣家是否有提供補寄物流單號/寄件單據，若是選\"是\"，沒有選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node22"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node29"
+    }
+   ]
+  },
+  "SOP60_Node687": {
+   "name": "Ju516-同意退款-LC",
+   "type": "judge",
+   "text": "Ju516-同意退款-LC",
+   "to": null,
+   "codes": [
+    "Ju516"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage (forward logistics)",
+    "buyer_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node720": {
+   "name": "Hot Listing熱門商品錯誤(起點)",
+   "type": "manual",
+   "question": "Hot Listing熱門商品錯誤\n確認買家收到商品與熱門商品頁面資訊\n\n\n1.Open DMS>Case>Hot listing item\n2.Compare with Buyer's evidence\n2.可確認兩者不相符選\"可確認買家實際收到商品和熱門商品頁面資訊不符\"，可確認兩者相符選\"可確認買家實際收到商品和熱門商品頁面資訊相符\"，若無法比對選\"無法看出買家實際收到商品和熱門商品頁面不符\"",
+   "options": [
+    {
+     "label": "無法看出買家實際收到商品和熱門商品頁面不符",
+     "to": "SOP1_Node60"
+    },
+    {
+     "label": "可確認買家實際收到商品和熱門商品頁面資訊相符",
+     "to": "SOP1_Node60"
+    },
+    {
+     "label": "可確認買家實際收到商品和熱門商品頁面資訊不符",
+     "to": "SOP60_Node721"
+    }
+   ]
+  },
+  "SOP60_Node785": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node557": {
+   "name": "Ju821-取消退貨",
+   "type": "judge",
+   "text": "Ju821-取消退貨",
+   "to": "SOP60_Node558",
+   "codes": [
+    "Ju821"
+   ],
+   "judge": {
+    "judging_reason": "Buyer failed fraud check",
+    "remark": "取消申退-買家疑似使用AI偽造證據，發證據卡請買家補充但逾期未回-Cancel",
+    "buyer_email_template": "通用-Ju818買家使用AI偽造證據，買家加入黑名單後取消退貨-Cancel-AB買家",
+    "seller_email_template": "通用-Ju818買家使用AI偽造證據，買家加入黑名單後取消退貨-Cancel-AS賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node833": {
+   "name": "General",
+   "type": "end",
+   "text": "請重新選擇對應路線",
+   "to": null
+  },
+  "SOP60_Node621": {
+   "name": "Ju826-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju826-取消退貨-CB",
+   "to": "SOP60_Node623",
+   "codes": [
+    "Ju826"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買賣合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券",
+    "buyer_email_template": "(通用)Ju826-合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券即可取消買家退貨-Cancel-CB買家",
+    "seller_email_template": "(通用)Ju826-合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券即可取消買家退貨-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node723": {
+   "name": "易腐敗或虛擬數位",
+   "type": "manual",
+   "question": "易腐敗或虛擬數位",
+   "options": [
+    {
+     "label": "易腐敗",
+     "to": "SOP5_Node171"
+    },
+    {
+     "label": "虛擬數位",
+     "to": "SOP65_Node59"
+    }
+   ]
+  },
+  "SOP60_Node678": {
+   "name": "是否已有賠償(起點)",
+   "type": "manual",
+   "question": "是否已有賠償?\n若先前已手動賠償(e.g CS先前已轉單)\n爭議案件請以拒絕賠償為主，避免與物流重新賠償，Review案件則退款買家後由VM/SPX手動賠償賣家\n\n\n1) Open DMS > Order > Payment/Refund > Compensation History.\n2) Check for a manual compensation record created by CS (e.g., transfer/credit) dated before the current case creation time.\n3) If such a record exists, select '先前已手動賠償(e.g CS先前已轉單)'; otherwise select '尚未賠償'",
+   "options": [
+    {
+     "label": "先前已手動賠償(e.g CS先前已轉單)",
+     "to": "SOP60_Node743"
+    },
+    {
+     "label": "尚未賠償",
+     "to": "SOP60_Node679"
+    }
+   ]
+  },
+  "SOP60_Node448": {
+   "name": "Ju412-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju412-同意退貨-LC",
+   "to": "SOP60_Node449",
+   "codes": [
+    "Ju412"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept Return",
+    "buyer_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-LC買家",
+    "seller_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node751": {
+   "name": "買家主訴為何",
+   "type": "manual",
+   "question": "買家主訴為何",
+   "options": [
+    {
+     "label": "買家主訴缺件商品為貨態異常或配送中/買家無任何主張",
+     "to": "SOP60_Node752"
+    },
+    {
+     "label": "其他情境",
+     "to": "SOP60_Node339"
+    }
+   ]
+  },
+  "SOP60_Node522": {
+   "name": "確認是否VM允退",
+   "type": "manual",
+   "question": "確認是否VM允退? (若為蝦皮派車請先轉VM確認)\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認是否有工單VM回覆允退紀錄\n3)若有選\"Ju532同意退款\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "Ju532同意退款",
+     "to": "SOP60_Node523"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node832"
+    }
+   ]
+  },
+  "SOP60_Node727": {
+   "name": "Ju829-同意退款-LC",
+   "type": "judge",
+   "text": "Ju829-同意退款-LC\n同意退款並賠償賣家\n\n\n判決原因請選熱門商品錯誤",
+   "to": "SOP60_Node728",
+   "codes": [
+    "Ju829"
+   ],
+   "judge": {
+    "buyer_email_template": "(通用)-Ju829熱門商品錯誤，買家缺件同意退款，Accept Refund-LC買家",
+    "seller_email_template": "(通用)-Ju829熱門商品錯誤，買家缺件同意退款，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node428": {
+   "name": "Ju409-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju409-同意退貨-LC",
+   "to": "SOP60_Node429",
+   "codes": [
+    "Ju409"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退貨-包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return",
+    "buyer_email_template": "FC-Ju409包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return-LC買家",
+    "seller_email_template": "FC-Ju409包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node759": {
+   "name": "貨態是否已配達",
+   "type": "manual",
+   "question": "貨態是否已配達?\n\n\n1.至物流官網，查詢補寄單號目前狀況\n2.若貨態顯示已配達/郵局招領中，選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "否",
+     "to": "SOP60_Node630"
+    },
+    {
+     "label": "是",
+     "to": "SOP60_Node760"
+    }
+   ]
+  },
+  "SOP60_Node383": {
+   "name": "是否已確認買家申退品項/訂單錯誤(起點)",
+   "type": "manual",
+   "question": "是否已確認買家申退品項/訂單錯誤，需要取消買家申請?\n1) Open DMS > Order > Items & Return Request.\n2) 比對申退品項與實際下單/缺失品項是否不一致 or 買家是否申退錯誤訂單。\n3) 不一致選『是，確認品項錯誤需取消』；一致選『否，回場景樹』",
+   "options": [
+    {
+     "label": "是，確認品項/訂單錯誤需取消",
+     "to": "SOP60_Node385"
+    },
+    {
+     "label": "否，回場景樹",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node786": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node373": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node285": {
+   "name": "是否為錯包",
+   "type": "manual",
+   "question": "是否為錯包?\n\n\n1)Open DMS>Case>Chat/Buyer & Seller's evidence\n2)確認買賣雙方是否有人主張訂單問題為收到錯誤包裹\n3)若有選\"錯包\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "其他",
+     "to": "SOP60_Node804"
+    },
+    {
+     "label": "錯包",
+     "to": "SOP60_Node803"
+    }
+   ]
+  },
+  "SOP60_Node533": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node31": {
+   "name": "可否確認協議退款的金額/品項",
+   "type": "manual",
+   "question": "可否確認協議退款的金額/品項\n\n\n1) Open DMS > Case > Agreement & Order > Refundable Amount.\n2) 確認買賣協議品項是否等於申退品項\n3) 若是選\"可確認\"，否則選\"否，無法確認(視為未達成協議)\"",
+   "options": [
+    {
+     "label": "可確認",
+     "to": "SOP60_Node33"
+    },
+    {
+     "label": "否，無法確認(視為未達成協議)",
+     "to": "SOP1_Node206"
+    }
+   ]
+  },
+  "SOP60_Node780": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node580": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node818": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node683": {
+   "name": "更改真實退貨原因",
+   "type": "note",
+   "text": "更改真實退貨原因\n僅限可更改未收到/缺件/瑕疵/空包/寄錯",
+   "to": "SOP60_Node684"
+  },
+  "SOP60_Node408": {
+   "name": "轉Dispute",
+   "type": "pending",
+   "text": "轉Dispute",
+   "to": "SOP1_Node177",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 29,
+     "remark": "[Pending Agent-待Dispute接手案件] "
+    }
+   ]
+  },
+  "SOP60_Node355": {
+   "name": "買家回覆簽收單狀況",
+   "type": "manual",
+   "question": "買家回覆簽收單狀況",
+   "options": [
+    {
+     "label": "無回覆/確認已收到包裹",
+     "to": "SOP60_Node356"
+    },
+    {
+     "label": "有異議",
+     "to": "SOP60_Node361"
+    }
+   ]
+  },
+  "SOP60_Node544": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node527"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node545"
+    }
+   ]
+  },
+  "SOP60_Node789": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node52": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node397": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node398"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node399"
+    }
+   ]
+  },
+  "SOP60_Node810": {
+   "name": "工單進線者為買家或賣家",
+   "type": "manual",
+   "question": "工單進線者為買家或賣家\n\n\n1)Open inhouse system\n2)確認Shopee User Name對應此訂單的賣家或買家?\n3)若為買家選\"買家\"，賣家選\"賣家\"",
+   "options": [
+    {
+     "label": "買家",
+     "to": "SOP60_Node811"
+    },
+    {
+     "label": "賣家",
+     "to": "SOP60_Node812"
+    }
+   ]
+  },
+  "SOP60_Node22": {
+   "name": "確認補寄目前貨態",
+   "type": "manual",
+   "question": "1.至物流官網，查詢補寄單號目前狀況\n2.若貨態顯示拒收/退回，選\"最新貨態顯示拒收/退回賣家>>視同未達成協議回原流程\"；若貨態超過2日未更新或已配送2次以上仍未配達選\"可確認但貨態異常\"；其餘選\"可確認且貨態正常\"；",
+   "options": [
+    {
+     "label": "可確認且貨態正常",
+     "to": "SOP60_Node759"
+    },
+    {
+     "label": "可確認但貨態異常",
+     "to": "SOP60_Node345"
+    },
+    {
+     "label": "最新貨態顯示拒收/退回賣家>>視同未達成協議回原流程",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node569": {
+   "name": "請賣家補充(出貨/驗收)證明",
+   "type": "pending",
+   "text": "請賣家補充(出貨/驗收)證明",
+   "to": "SOP60_Node571",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5
+    }
+   ]
+  },
+  "SOP60_Node476": {
+   "name": "Ju538-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju538-取消退貨-CB",
+   "to": "SOP60_Node477",
+   "codes": [
+    "Ju538"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju538物流調查，SPX折扣碼補償，商品在買家，逾期未回/回覆不同意且無資訊可轉VM登記，Cancel-CB買家",
+    "seller_email_template": "FC-Ju538物流調查，SPX折扣碼補償，商品在買家，逾期未回/回覆不同意且無資訊可轉VM登記，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node592": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node595"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node602"
+    }
+   ]
+  },
+  "SOP60_Node561": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node587": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node10": {
+   "name": "Ju401-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju401-撥款賣家-LC",
+   "to": "SOP60_Node8",
+   "codes": [
+    "Ju401"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement (Offline settlement)",
+    "remark": "撥款賣家-協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close",
+    "buyer_email_template": "FC-Ju401協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close-LC買家",
+    "seller_email_template": "FC-Ju401協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node659": {
+   "name": "Ju550-同意退款-CB",
+   "type": "judge",
+   "text": "Ju550-同意退款-CB",
+   "to": "SOP60_Node662",
+   "codes": [
+    "Ju550"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "remark": "同意退款-非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund\n",
+    "buyer_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node756": {
+   "name": "申退金額是否低於1500",
+   "type": "system",
+   "branches": [
+    {
+     "label": "申退金額≦1500",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_max_refund_amount",
+       "varName": "Check GetSopDispute / Max Refund Amount",
+       "op": "10",
+       "value": [
+        "申退金額≦1500"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node757"
+    },
+    {
+     "label": "申退金額>1500",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node663"
+    }
+   ]
+  },
+  "SOP60_Node409": {
+   "name": "賣家是否反應退貨異常",
+   "type": "manual",
+   "question": "賣家是否反應退貨異常?\n\n\n1) Open DMS > Order >Chat/Discuss/Seller's evidence\n2) 確認賣家是否反應退回商品非完好(訊息說明或提供驗收照片反應)，若是選\"需轉Dispute\"，否則選\"可退款\"",
+   "options": [
+    {
+     "label": "可退款",
+     "to": "SOP60_Node410"
+    },
+    {
+     "label": "需轉Dispute",
+     "to": "SOP60_Node408"
+    }
+   ]
+  },
+  "SOP60_Node413": {
+   "name": "貨態異常狀況為何",
+   "type": "manual",
+   "question": "確認貨態異常狀況為何?\n\n\n1) 至物流官網查詢目前貨態\n2) 若貨態顯示未取到件/取消取件，選\"Ju551同意退貨\"，否則選\"Ju552退款買家\"",
+   "options": [
+    {
+     "label": "Ju551同意退貨",
+     "to": "SOP60_Node511"
+    },
+    {
+     "label": "Ju552退款買家",
+     "to": "SOP60_Node763"
+    }
+   ]
+  },
+  "SOP60_Node743": {
+   "name": "案件類型",
+   "type": "system",
+   "branches": [
+    {
+     "label": "Review (1)",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_request_type",
+       "varName": "Check GetSopDispute / Request Type",
+       "op": "10",
+       "value": [
+        "Review (1)"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node694"
+    },
+    {
+     "label": "Dispute SOP1_Node1待改",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node834"
+    }
+   ]
+  },
+  "SOP60_Node478": {
+   "name": "依VM回覆選擇適用路線",
+   "type": "manual",
+   "question": "依VM回覆選擇適用路線\n\n\n1)Open inhouse system>查詢案件對應工單\n2)VM回覆需等候尋找期選\"Ju521同意退款\"、回覆同意賠付並索取賠付對象選\"Ju522同意退款\"、回覆\"錯包已歸還，正確件買家逾期未取\"選\"Ju561同意退款\"、回覆\"錯包已歸還，正確件已重新上架/仍在門市可取件/買家已取正確包裹\"選\"Ju032取消退貨\"，回覆商品需回收選\"商品需回收\"，回覆提供折扣碼補償選\"SPX折扣碼補償\"，回覆拒絕賠償或無回覆選\"其他\"",
+   "options": [
+    {
+     "label": "Ju521同意退款",
+     "to": "SOP60_Node481"
+    },
+    {
+     "label": "Ju522同意退款",
+     "to": "SOP60_Node482"
+    },
+    {
+     "label": "Ju561同意退款",
+     "to": "SOP60_Node483"
+    },
+    {
+     "label": "Ju032取消退貨",
+     "to": "SOP60_Node484"
+    },
+    {
+     "label": "商品需回收",
+     "to": "SOP60_Node778"
+    },
+    {
+     "label": "SPX折扣碼補償",
+     "to": "SOP60_Node474"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node805"
+    }
+   ]
+  },
+  "SOP60_Node559": {
+   "name": "登QA表詢問，後續依QA表回覆判決",
+   "type": "pending",
+   "text": "登QA表詢問，後續依QA表回覆判決",
+   "to": "SOP60_Node560",
+   "pending": [
+    {
+     "button_text": "Pending Reason"
+    }
+   ]
+  },
+  "SOP60_Node699": {
+   "name": "DJu516-同意賠償",
+   "type": "judge",
+   "text": "DJu516-同意賠償",
+   "to": "SOP60_Node700",
+   "judge": {
+    "judging_reason": "3PL lost/ damage (forward logistics)",
+    "seller_email_template": "DJu516",
+    "execution": 105
+   }
+  },
+  "SOP60_Node418": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node25": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node469": {
+   "name": "Ju515-同意退款-LC",
+   "type": "judge",
+   "text": "Ju515-同意退款-LC",
+   "to": "SOP60_Node817",
+   "codes": [
+    "Ju515"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju515物流調查VM回覆，尋獲商品需提供寄出宅資，賣家有填申請表，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju515物流調查VM回覆，尋獲商品需提供寄出宅資，賣家有填申請表，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node444": {
+   "name": "Ju413-同意退款-CB",
+   "type": "judge",
+   "text": "Ju413-同意退款-CB",
+   "to": "SOP60_Node446",
+   "codes": [
+    "Ju413"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退款-包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept Refund",
+    "buyer_email_template": "FC-Ju413包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept refund-CB買家",
+    "seller_email_template": "FC-Ju413包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node578": {
+   "name": "Ju820-同意退款-CB",
+   "type": "judge",
+   "text": "Ju820-同意退款-CB",
+   "to": "SOP60_Node580",
+   "codes": [
+    "Ju820"
+   ],
+   "judge": {
+    "judging_reason": "Seller faked evidence using AI",
+    "remark": "同意退款-賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund",
+    "buyer_email_template": "通用-Ju820賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund-CB買家",
+    "seller_email_template": "通用-Ju820賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node582": {
+   "name": "更改真實退貨原因",
+   "type": "note",
+   "text": "補寄訂單沒問題：其真實退貨原因，以主訂單訴求為主\n無須轉組直接操作直至退款",
+   "to": "SOP60_Node744"
+  },
+  "SOP60_Node35": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node581": {
+   "name": "補寄訂單有無問題(申退為補寄訂單起點)",
+   "type": "manual",
+   "question": "補寄訂單有無問題?\n\n\n1) Open DMS > Order > Replacement Shipment & Payment. 2) 確認是否單純補寄(無補差價/額外購買)。\n3) 依證據判定是否存在出貨/物流/金流異常；有則選『補寄訂單有問題』，無則選『補寄訂單沒有問題』",
+   "options": [
+    {
+     "label": "補寄訂單有問題",
+     "to": "SOP60_Node603"
+    },
+    {
+     "label": "補寄訂單沒有問題",
+     "to": "SOP60_Node582"
+    }
+   ]
+  },
+  "SOP60_Node797": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node675": {
+   "name": "Pe444",
+   "type": "pending",
+   "text": "Pe444追蹤至已配達",
+   "to": "SOP60_Node406",
+   "codes": [
+    "Pe444"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 14
+    }
+   ]
+  },
+  "SOP60_Node701": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node511": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node422"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node512"
+    }
+   ]
+  },
+  "SOP60_Node386": {
+   "name": "Ju505-取消申退-CB",
+   "type": "judge",
+   "text": "Ju505-取消申退-CB",
+   "to": "SOP60_Node388",
+   "codes": [
+    "Ju505"
+   ],
+   "judge": {
+    "judging_reason": "Wrong quantity selected",
+    "remark": "取消申退-申退品項與實際需退品項不符，Cancel",
+    "buyer_email_template": "FC-Ju505AOC RR非系統限制，申退品項與實際需退品項不符，Cancel-CB買家",
+    "seller_email_template": "FC-Ju505AOC RR非系統限制，申退品項與實際需退品項不符，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node358": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node525": {
+   "name": "Ju534-同意退款-LC",
+   "type": "judge",
+   "text": "Ju534-同意退款-LC\n\n\n※請追蹤至配達判決",
+   "to": "SOP60_Node802",
+   "codes": [
+    "Ju534"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju534物流調查貨態異常，買家提供已配達證明，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju534物流調查貨態異常，買家提供已配達證明，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node586": {
+   "name": "Ju822-同意退款-LC",
+   "type": "judge",
+   "text": "Ju822-同意退款-LC",
+   "to": "SOP60_Node587",
+   "codes": [
+    "Ju822"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退款-前單補寄訂單，退款系統計算金額",
+    "buyer_email_template": "(通用)Ju822-補寄訂單，收到補寄商品沒有問題，Accept Refund-LC買家",
+    "seller_email_template": "(通用)Ju822-補寄訂單，收到補寄商品沒有問題，Accept Refund-AS賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node460": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node812": {
+   "name": "查詢寄回申請表是否有填寫紀錄",
+   "type": "manual",
+   "question": "查詢寄回申請表是否有填寫紀錄?\n\n\n1) 於 DMS 讀取該訂單之 OSN。\n2) 開啟 Google Sheet「寄回申請表」，在 D 欄以完全相同字串搜尋該 OSN。\n3) 若 D 欄出現相同 OSN，選「是」；否則選「否」",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node469"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node468"
+    }
+   ]
+  },
+  "SOP60_Node725": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node726"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node727"
+    }
+   ]
+  },
+  "SOP60_Node395": {
+   "name": "是否為蝦皮個案派車",
+   "type": "manual",
+   "question": "是否為蝦皮個案派車?\n\n\n1) Open DMS > Case > Chat/Seller's message.\n2) If the seller arranged the pickup (e.g., seller states they arranged pickup/provides tracking or a shipping slip), select '非蝦皮個案派車'; otherwise (Shopee case-arranged pickup), select '蝦皮個案派車'",
+   "options": [
+    {
+     "label": "蝦皮個案派車",
+     "to": "SOP60_Node397"
+    },
+    {
+     "label": "非蝦皮個案派車",
+     "to": "SOP60_Node544"
+    }
+   ]
+  },
+  "SOP60_Node584": {
+   "name": "Ju822-同意退款-CB",
+   "type": "judge",
+   "text": "Ju822-同意退款-CB",
+   "to": "SOP60_Node587",
+   "codes": [
+    "Ju822"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退款-前單補寄訂單，退款系統計算金額",
+    "buyer_email_template": "(通用)Ju822-補寄訂單，收到補寄商品沒有問題，Accept Refund-CB買家",
+    "seller_email_template": "(通用)Ju822-補寄訂單，收到補寄商品沒有問題，Accept Refund-AS賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node520": {
+   "name": "Ju561-同意退款-LC",
+   "type": "judge",
+   "text": "Ju561同意退款",
+   "to": "SOP60_Node791",
+   "codes": [
+    "Ju561"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "buyer_email_template": "FC-Ju561物流調查VM回覆錯包已歸還/回收，正確件買家逾期未取，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju561物流調查VM回覆錯包已歸還/回收，正確件買家逾期未取，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node733": {
+   "name": "確認案件後，欲執行的判決",
+   "type": "manual",
+   "question": "確認案件後，欲執行的判決",
+   "options": [
+    {
+     "label": "判決撥款賣家",
+     "to": "SOP60_Node734"
+    },
+    {
+     "label": "判決取消申退",
+     "to": "SOP60_Node737"
+    }
+   ]
+  },
+  "SOP60_Node804": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node478"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node677"
+    }
+   ]
+  },
+  "SOP60_Node764": {
+   "name": "貨態是否已正常?",
+   "type": "manual",
+   "question": "貨態是否已正常?\n\n\n1) 至物流官網查詢目前貨態\n2) 若重複配送2次以上仍未配達或超過2日未更新貨態選\"否\"，否則選\"是\"",
+   "options": [
+    {
+     "label": "否",
+     "to": "SOP60_Node765"
+    },
+    {
+     "label": "是",
+     "to": "SOP60_Node675"
+    }
+   ]
+  },
+  "SOP60_Node430": {
+   "name": "物流是否願賠",
+   "type": "manual",
+   "question": "物流是否願賠?\n\n\n1) Open inhouse system>查詢此訂單對應工單\n2) 確認物流調查結果，若VM回覆同意賠償選\"物流願賠\"，否則選\"物流拒賠\"",
+   "options": [
+    {
+     "label": "物流願賠",
+     "to": "SOP60_Node431"
+    },
+    {
+     "label": "物流拒賠",
+     "to": "SOP60_Node711"
+    }
+   ]
+  },
+  "SOP60_Node661": {
+   "name": "Ju550-同意退款-LC",
+   "type": "judge",
+   "text": "Ju550-同意退款-LC",
+   "to": "SOP60_Node662",
+   "codes": [
+    "Ju550"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "remark": "同意退款-非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund\n",
+    "buyer_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node16": {
+   "name": "買家申退次數",
+   "type": "system",
+   "branches": [
+    {
+     "label": "買家第一次申退",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_no_of_rr_raised",
+       "varName": "Check GetSopDispute / No Of R/R Raised",
+       "op": "10",
+       "value": [
+        "買家第一次申退"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node754"
+    },
+    {
+     "label": "買家第二次以上申退",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node758"
+    }
+   ]
+  },
+  "SOP60_Node488": {
+   "name": "Ju524-同意退款-LC",
+   "type": "judge",
+   "text": "Ju524-同意退款-LC",
+   "to": "SOP60_Node787",
+   "codes": [
+    "Ju524"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju524物流調查錯包，VM有提供回收單號且已配達，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju524物流調查錯包，VM有提供回收單號且已配達，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node451": {
+   "name": "Ju412-同意退貨-LC",
+   "type": "judge",
+   "text": "依案件狀況判決",
+   "to": "SOP60_Node452",
+   "codes": [
+    "Ju412"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "buyer_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-LC買家",
+    "seller_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node438": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node623": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node399": {
+   "name": "Ju506-同意退款-LC",
+   "type": "judge",
+   "text": "同意退款-非個案派車，已集貨/配送中，符合優先退款政策-Accept RefundJu506-同意退款-CB",
+   "to": "SOP60_Node400",
+   "codes": [
+    "Ju506"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "buyer_email_template": "FC-Ju506個案派車，已集貨/配送中，符合優先退款政策，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju506個案派車，已集貨/配送中，符合優先退款政策，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node814": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node349": {
+   "name": "請賣家提供簽收單",
+   "type": "pending",
+   "text": "請賣家提供簽收單\nDs209 & Pe217",
+   "to": "SOP60_Node350",
+   "codes": [
+    "Ds209",
+    "Pe217"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]缺件，雙方協議補寄，查【物流名稱】單號XXXXXX，貨態已配達買家表示未收到，請賣家提供簽收單"
+    }
+   ]
+  },
+  "SOP60_Node442": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node444"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node445"
+    }
+   ]
+  },
+  "SOP60_Node665": {
+   "name": "賣家是否反應退貨異常?",
+   "type": "manual",
+   "question": "賣家是否反應退貨異常?\n\n\n1) Open DMS > Order >Chat/Discuss/Seller's evidence\n2) 確認賣家是否反應退回商品非完好(訊息說明或提供驗收照片反應)，若是選\"反應收到商品有異常\"，否則選\"逾期未回/同意退款\"",
+   "options": [
+    {
+     "label": "逾期未回/同意退款",
+     "to": "SOP60_Node666"
+    },
+    {
+     "label": "反應收到商品有異常",
+     "to": "SOP60_Node408"
+    }
+   ]
+  },
+  "SOP60_Node694": {
+   "name": "Ju516-同意退款-LC",
+   "type": "judge",
+   "text": "Ju516-同意退款-LC",
+   "to": "SOP60_Node695",
+   "codes": [
+    "Ju516"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node499": {
+   "name": "Ju532-同意退款-CB",
+   "type": "judge",
+   "text": "Ju532-同意退款-CB",
+   "to": "SOP60_Node797",
+   "codes": [
+    "Ju532"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju532物流調查貨態異常，VM告知已配達/已收回/同意退款，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju532物流調查貨態異常，VM告知已配達/已收回/同意退款，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node350": {
+   "name": "賣家是否提供有效簽收單",
+   "type": "manual",
+   "question": "賣家提供證據狀況",
+   "options": [
+    {
+     "label": "有提供",
+     "to": "SOP60_Node351"
+    },
+    {
+     "label": "逾期未回>>視同未達成協議回原流程",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node588": {
+   "name": "補寄訂單有無問題",
+   "type": "manual",
+   "question": "是否屬於出貨包裝、物流配送問題?\n\n\n﻿1) Open DMS > Order > Replacement Shipment > Evidence. 2) 判定問題歸因：若屬包裝不當/配送破損/延誤，選『出貨包裝、 物流配送問題』；否則選『非出貨包裝、 物流配送問題』",
+   "options": [
+    {
+     "label": "出貨包裝、 物流配送問題",
+     "to": "SOP60_Node591"
+    },
+    {
+     "label": "非出貨包裝、 物流配送問題",
+     "to": "SOP60_Node592"
+    }
+   ]
+  },
+  "SOP60_Node633": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node539": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node628": {
+   "name": "Ju239-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju239-撥款賣家-LC",
+   "to": "SOP60_Node629",
+   "codes": [
+    "Ju239"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "撥款賣家-缺件，買賣雙方已達成協議，已確認賣家提供折扣碼優惠券，買家已使用",
+    "buyer_email_template": "FB缺件-Ju239缺件雙方協議，賣家已提供折扣碼優惠券，確認買家已使用，撥款賣家-Close-LC買家",
+    "seller_email_template": "FB缺件-Ju239缺件雙方協議，賣家已提供折扣碼優惠券，確認買家已使用，撥款賣家-Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node766": {
+   "name": "確認買家是否已使用折扣碼/優惠券",
+   "type": "manual",
+   "question": "確認買家是否已使用折扣碼/優惠券?\n\n\n1)Open DMS>Case>Buyer User ID>用戶詳情(詳細資訊-買家)>優惠代碼錢包>優惠代碼錢包狀態>已使用\n2)確認買家是否已使用賣家提供的折扣碼/優惠券(已使用清單內是否包含賣家提供的折扣碼/優惠券)\n3)若已使用選\"是\"，否則選\"否)",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node626"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node622"
+    }
+   ]
+  },
+  "SOP60_Node27": {
+   "name": "Ju825-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju825-取消退貨-CB",
+   "to": "SOP60_Node25",
+   "codes": [
+    "Ju825"
+   ],
+   "judge": {
+    "judging_reason": "buyer and seller reached an agreement (shipping/ shop discounts)",
+    "remark": "取消申退-買家申退次數≦1，已確認買賣雙方合意折扣碼優惠券退款",
+    "buyer_email_template": "(通用)Ju825-協議折扣碼優惠券退款，買家申退次數≦1，確認雙方合意折扣碼優惠券退款即可取消買家退貨-Cancel-CB買家",
+    "seller_email_template": "(通用)Ju825-協議折扣碼優惠券退款，買家申退次數≦1，確認雙方合意折扣碼優惠券退款即可取消買家退貨-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node360": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node37": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node690": {
+   "name": "DJu516-同意賠償",
+   "type": "judge",
+   "text": "DJu516-同意賠償",
+   "to": null,
+   "judge": {
+    "judging_reason": "3PL lost/ damage (reverse logistics)",
+    "remark": "同意退款-物流調查VM回覆，VM已確認賠付賣家，同意賠償",
+    "buyer_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC買家",
+    "seller_email_template": "DJu516",
+    "execution": 105
+   }
+  },
+  "SOP60_Node570": {
+   "name": "是否使用AI編輯/造假",
+   "type": "manual",
+   "question": "是否使用AI編輯/造假",
+   "options": [
+    {
+     "label": "非AI生成編輯/造假",
+     "to": "SOP60_Node573"
+    },
+    {
+     "label": "AI生成編輯/造假",
+     "to": "SOP60_Node577"
+    }
+   ]
+  },
+  "SOP60_Node629": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node450": {
+   "name": "轉L2專員",
+   "type": "pending",
+   "text": "轉L2專員",
+   "to": "SOP60_Node451",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 30,
+     "remark": "[Pending Agent-轉L2專員]買賣家證據皆充足，羅生門，轉L2專員處理"
+    }
+   ]
+  },
+  "SOP60_Node382": {
+   "name": "買家是否已提供破壞商品照",
+   "type": "manual",
+   "question": "1) Open DMS > Order > Chat/Discuss.\n2) Check if buyer uploaded clear photos showing the item destroyed\n3) 若買家未提供破壞照片或賣家說明商品仍未達損壞無法使用 select『買家沒有提供破壞商品照片/賣家對買家破壞照有意見>>未達成協議』; else if photos exist, select『買家已提供破壞商品照』",
+   "options": [
+    {
+     "label": "買家已提供破壞商品照",
+     "to": "SOP60_Node33"
+    },
+    {
+     "label": "買家沒有提供破壞商品照片/賣家對買家破壞照有意見>>未達成協議",
+     "to": "SOP1_Node206"
+    }
+   ]
+  },
+  "SOP60_Node503": {
+   "name": "Ju534-同意退款-CB",
+   "type": "judge",
+   "text": "Ju534-同意退款-CB\n\n\n※請追蹤至配達判決",
+   "to": "SOP60_Node799",
+   "codes": [
+    "Ju534"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju534物流調查貨態異常，買家提供已配達證明，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju534物流調查貨態異常，買家提供已配達證明，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node663": {
+   "name": "包裹配達地點?",
+   "type": "manual",
+   "question": "確認包裹配達地點是否為蝦皮倉庫?\n\n\n1) Open DMS > Order > Chat/Discuss/Buyer & Seller's evidence\n2) 確認買賣任一方是否提及將商品退回蝦皮倉庫，或有無寄件單據可確認收件地址為\"桃園市楊梅區和平路576號\"，若有選\"CB包裹配達WH\"，否則選\"Local /CB包裹配達賣家端\"",
+   "options": [
+    {
+     "label": "Local /CB包裹配達賣家端",
+     "to": "SOP60_Node664"
+    },
+    {
+     "label": "CB包裹配達WH",
+     "to": "SOP60_Node408"
+    }
+   ]
+  },
+  "SOP60_Node437": {
+   "name": "Ju410-同意退款-CB",
+   "type": "judge",
+   "text": "Ju410-同意退款-CB",
+   "to": "SOP60_Node438",
+   "codes": [
+    "Ju410"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退款-包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju410包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept refund-CB買家",
+    "seller_email_template": "FC-Ju410包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node732": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node502": {
+   "name": "確認是否VM允退",
+   "type": "manual",
+   "question": "確認是否VM允退? (若為蝦皮派車請先轉VM確認)\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認是否有工單VM回覆允退紀錄\n3)若有選\"Ju532同意退款\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "Ju532同意退款",
+     "to": "SOP60_Node499"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node831"
+    }
+   ]
+  },
+  "SOP60_Node393": {
+   "name": "個案派車起點(線下派車)",
+   "type": "manual",
+   "question": "確認貨態是否正常?\n\n\n1) 至物流官網查詢目前貨態\n2) 若已重複配送2次以上仍未配達或超過2日未更新貨態、顯示未收到件/取消取件，選\"貨態異常\"，否則選\"已集貨/配送中\"",
+   "options": [
+    {
+     "label": "已集貨/配送中",
+     "to": "SOP60_Node767"
+    },
+    {
+     "label": "貨態異常",
+     "to": "SOP60_Node412"
+    }
+   ]
+  },
+  "SOP60_Node711": {
+   "name": "使用哪張判決信",
+   "type": "manual",
+   "question": "使用哪張判決信",
+   "options": [
+    {
+     "label": "Ju410",
+     "to": "SOP60_Node440"
+    },
+    {
+     "label": "Ju832",
+     "to": "SOP60_Node716"
+    }
+   ]
+  },
+  "SOP60_Node480": {
+   "name": "Ju520-同意退款-CB",
+   "type": "judge",
+   "text": "Ju520-同意退款-CB",
+   "to": "SOP60_Node784",
+   "codes": [
+    "Ju520"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju520CB物流調查VM回覆，買家已提供且貨態配達，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju520CB物流調查VM回覆，買家已提供且貨態配達，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node540": {
+   "name": "轉L2",
+   "type": "pending",
+   "text": "PendingReason請選：轉件-關鍵字/長天數案件轉L2",
+   "to": "SOP60_Node541",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 30,
+     "remark": "[Pending Agent-轉L2專員]整合物流轉VM調查，因證明不足拒絕賠償或VM無回應，轉L2專員處理"
+    }
+   ]
+  },
+  "SOP60_Node765": {
+   "name": "賣家是否提供有效驗收證明",
+   "type": "manual",
+   "question": "賣家是否已提供驗收證明?\n\n\n1) Open DMS> Case > Chat/Seller's evidence\n2) 確認賣家是否已提供退貨驗收照片或訊息說明驗收完成",
+   "options": [
+    {
+     "label": "否",
+     "to": "SOP60_Node513"
+    },
+    {
+     "label": "是",
+     "to": "SOP60_Node409"
+    }
+   ]
+  },
+  "SOP60_Node595": {
+   "name": "Ju823-同意退款-CB",
+   "type": "judge",
+   "text": "Ju823-同意退款-CB",
+   "to": "SOP60_Node594",
+   "codes": [
+    "Ju823"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退款-前單(OSN: XXXXXXX)補寄訂單，退款系統計算金額\n",
+    "buyer_email_template": "(通用)Ju823-補寄訂單，收到補寄商品有問題，但非出貨包裝、物流配送問題，Accept Refund-CB買家",
+    "seller_email_template": "(通用)Ju823-補寄訂單，收到補寄商品有問題，但非出貨包裝、物流配送問題，Accept Refund-AS賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node624": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node696": {
+   "name": "案件是否已退款",
+   "type": "manual",
+   "question": "案件是否已退款?\n\n\n1) Open DMS>Case> Operation history\n2) 確認是否有Refund Paid紀錄，若有選\"已退款案件\"，否則選\"未退款案件\"",
+   "options": [
+    {
+     "label": "已退款案件",
+     "to": "SOP60_Node697"
+    },
+    {
+     "label": "未退款案件",
+     "to": "SOP60_Node703"
+    }
+   ]
+  },
+  "SOP60_Node466": {
+   "name": "Ju546-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju546-取消退貨-LC",
+   "to": "SOP60_Node816",
+   "codes": [
+    "Ju546"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju546物流調查VM回覆，尋獲商品需提供寄出宅資，買家未填申請表，Cancel-LC買家",
+    "seller_email_template": "FC-Ju546物流調查VM回覆，尋獲商品需提供寄出宅資，買家未填申請表，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node798": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node794": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node463": {
+   "name": "Ju511-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju511-取消退貨-LC",
+   "to": "SOP60_Node813",
+   "codes": [
+    "Ju511"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju511物流調查VM回覆，買家逾期未回宅資，Cancel-LC買家",
+    "seller_email_template": "FC-Ju511物流調查VM回覆，買家逾期未回宅資，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node17": {
+   "name": "Ju812-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju812-取消退貨-CB",
+   "to": "SOP60_Node20",
+   "codes": [
+    "Ju812"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買家申退次數≦1，已確認買賣雙方合意補寄",
+    "buyer_email_template": "通用-Ju812協議合意補寄，買家申退次數≦1，確認雙方要補寄即可取消買家退貨-Cancel-CB買家",
+    "seller_email_template": "通用-Ju812協議合意補寄，買家申退次數≦1，確認雙方要補寄即可取消買家退貨-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node728": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node782": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node702": {
+   "name": "DJu516-同意賠償",
+   "type": "judge",
+   "text": "DJu516-同意賠償",
+   "to": "SOP60_Node701",
+   "judge": {
+    "judging_reason": "3PL lost/ damage (reverse logistics)",
+    "seller_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC賣家",
+    "execution": 105
+   }
+  },
+  "SOP60_Node567": {
+   "name": "(系統自動判讀)退款金額是否大1萬",
+   "type": "system",
+   "branches": [
+    {
+     "label": "退款金額>=1萬",
+     "rules": [
+      {
+       "var": "check_dms_buyer_return_offer_info_v1_buyer_first_offer_return_proposal_dms_dispute_info_v1_dms_buyer_category",
+       "varName": "Check Dms buyer return offer info v1 / Buyer first offer return proposal, Dms dispute info v1 / Dms Buyer Category",
+       "op": "10",
+       "value": [
+        "退款金額>=1萬"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP55_Node175"
+    },
+    {
+     "label": "退款金額<1萬",
+     "rules": [],
+     "default": true,
+     "to": "SOP55_Node103"
+    }
+   ]
+  },
+  "SOP60_Node510": {
+   "name": "Ju507-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju507-取消退貨-LC",
+   "to": "SOP60_Node509",
+   "codes": [
+    "Ju507"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju507個案派車貨態異常，買家因素未成功向買家回收，買家逾期未回/未提供已收回證明，Cancel-LC買家",
+    "seller_email_template": "FC-Ju507個案派車貨態異常，買家因素未成功向買家回收，買家逾期未回/未提供已收回證明，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node13": {
+   "name": "Ds401 & Pe401請賣家提供已匯款之證明",
+   "type": "pending",
+   "text": "Ds401 & Pe401請賣家提供已匯款的資訊",
+   "to": "SOP60_Node15",
+   "codes": [
+    "Ds401"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]雙方協議，賣家協議自行匯款買家，限【XX/XX】前回覆匯款證明"
+    }
+   ]
+  },
+  "SOP60_Node415": {
+   "name": "Ju509-同意退款-LC",
+   "type": "judge",
+   "text": "Ju509-同意退款-LC",
+   "to": "SOP60_Node418",
+   "codes": [
+    "Ju509"
+   ],
+   "judge": {
+    "judging_reason": "Seller evidence overdue",
+    "buyer_email_template": "FC-Ju509個案派車貨態配送失敗，包裹已退回寄件方/買家，賣家逾期未回/未提供相關證明，同意退款-LC賣家",
+    "seller_email_template": "FC-Ju509個案派車貨態配送失敗，包裹已退回寄件方/買家，賣家逾期未回/未提供相關證明，同意退款-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node791": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node30": {
+   "name": "可否確認申退品項和寄回商品相同",
+   "type": "manual",
+   "question": "查看聊聊/買賣家訊息，是否可確認買賣協議退回品項與目前申退品項相同，或需退回品項包含於申退品項內，是選\"可確認相符\"，否則選\"無法確認相符\"",
+   "options": [
+    {
+     "label": "可確認相符",
+     "to": "SOP60_Node341"
+    },
+    {
+     "label": "無法確認相符",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node698": {
+   "name": "賠付為正物流或逆物流",
+   "type": "manual",
+   "question": "賠付為正物流或逆物流?\n\n\n1) Open DMS > Order > Logistics Info.\n2) 依問題發生階段判定：出貨至買家為正物流、買家退回至賣家為逆物流。\n3) 選擇對應選項。",
+   "options": [
+    {
+     "label": "正物流需賠付",
+     "to": "SOP60_Node699"
+    },
+    {
+     "label": "逆物流需賠付",
+     "to": "SOP60_Node702"
+    }
+   ]
+  },
+  "SOP60_Node827": {
+   "name": "確認買家是否提供寄件單據或寄出單號",
+   "type": "manual",
+   "question": "確認買家是否提供寄件單據或寄出單號(請先發買家證據卡索取)\n\n\n1)Open DMS>Case>Buyer evidence\n2)確認買家是否有提供寄件單據照片(可看到物流名稱/單號的照片)或寄件單號\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node828"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node490"
+    }
+   ]
+  },
+  "SOP60_Node828": {
+   "name": "查詢寄件貨態是否正常配達",
+   "type": "manual",
+   "question": "查詢寄件貨態是否正常配達\n\n\n1)依照買家提供物流單號，至對應的物流官網查詢貨態\n2)若包裹已配達選\"配達\"，若已配送2次未配達/取件2次未成功/超過2天未更新貨態選\"貨態異常\"，否則請隔天再查詢一次確認結果",
+   "options": [
+    {
+     "label": "配達",
+     "to": "SOP60_Node489"
+    },
+    {
+     "label": "貨態異常",
+     "to": "SOP60_Node522"
+    }
+   ]
+  },
+  "SOP60_Node553": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node9": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node7"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node10"
+    }
+   ]
+  },
+  "SOP60_Node406": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node408"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node618"
+    }
+   ]
+  },
+  "SOP60_Node721": {
+   "name": "改真實退貨原因&增加備註",
+   "type": "note",
+   "text": "將真實退貨原因改為【商品與賣場描述不符】\n添加備註#HotListingMismatch",
+   "to": "SOP60_Node722"
+  },
+  "SOP60_Node380": {
+   "name": "是否逾鑑賞期",
+   "type": "manual",
+   "question": "是否須以逾鑑賞期流程處理?\n\n\n1)Open DMS>Case>查看包裹配達日\n2)買家申退日是否已超過鑑賞期期限(賣家為B2C=15天，C2C=7天)\n3)若超過選\"逾鑑賞期買家才申請退貨\"，否則選\"鑑賞期內申退\"\n\n\n若超過鑑賞期但雙方鎮對本次申請有合意則選\"鑑賞期內申退\"",
+   "options": [
+    {
+     "label": "逾鑑賞期買家才申請退貨",
+     "to": "SOP60_Node835"
+    },
+    {
+     "label": "鑑賞期內買家申請退貨",
+     "to": "SOP60_Node769"
+    }
+   ]
+  },
+  "SOP60_Node632": {
+   "name": "Ju813-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju813-取消退貨-LC",
+   "to": "SOP60_Node633",
+   "codes": [
+    "Ju813"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買賣合意補寄，買家申退次數≧2，已確認有補寄單號且有貨態",
+    "buyer_email_template": "(通用)-Ju813缺件協議合意補寄，有補寄單號&貨態即可取消買家退貨-Cancel-LC買家",
+    "seller_email_template": "(通用)-Ju813缺件協議合意補寄，有補寄單號&貨態即可取消買家退貨-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node375": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node666": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node669"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node667"
+    }
+   ]
+  },
+  "SOP60_Node679": {
+   "name": "金額賠償類型",
+   "type": "manual",
+   "question": "金額賠償類型?\n\n\n1.查IH工單，確認VM回覆\n2.若VM同意針對買家申退品項全額賠償，選\"申退品項整筆賠償\"，否則選\"申退品項非整筆賠償\"",
+   "options": [
+    {
+     "label": "申退品項整筆賠償",
+     "to": "SOP60_Node681"
+    },
+    {
+     "label": "申退品項非整筆賠償",
+     "to": "SOP60_Node692"
+    }
+   ]
+  },
+  "SOP60_Node784": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node477": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node776": {
+   "name": "買賣是否協議要退回商品",
+   "type": "manual",
+   "question": "買賣是否協議要退回商品\n\n\n1)Open DMS>Case>Chat\n2)確認買賣雙方是否協議要退回商品\n3)若是選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node777"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node336"
+    }
+   ]
+  },
+  "SOP60_Node50": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node15": {
+   "name": "賣家是否提供有效匯款證明",
+   "type": "manual",
+   "question": "可否確認買家已收到匯款/賣家是否已提供有效匯款證明?\n\n\n1) Open DMS > Case > Evidence Center.\n2) Validate remittance proof includes buyer account and transfer timestamp matching chat timeline.\n3) If valid, select '賣家提供匯款資訊'; else select '驗證失敗/未回覆'",
+   "options": [
+    {
+     "label": "賣家提供匯款資訊",
+     "to": "SOP60_Node9"
+    },
+    {
+     "label": "驗證失敗/未回覆>>視同未達成協議回原流程",
+     "to": "SOP1_Node206"
+    }
+   ]
+  },
+  "SOP60_Node411": {
+   "name": "依據以下選項選擇",
+   "type": "manual",
+   "question": "蝦皮個案派車貨態異常依據以下選項選擇",
+   "options": [
+    {
+     "label": "Ju507取消退貨",
+     "to": "SOP60_Node507"
+    },
+    {
+     "label": "Ju508退款買家",
+     "to": "SOP60_Node414"
+    },
+    {
+     "label": "Ju509退款買家",
+     "to": "SOP60_Node415"
+    }
+   ]
+  },
+  "SOP60_Node627": {
+   "name": "Ju239-撥款賣家-CB",
+   "type": "judge",
+   "text": "Ju239-撥款賣家-CB",
+   "to": "SOP60_Node629",
+   "codes": [
+    "Ju239"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "撥款賣家-缺件，買賣雙方已達成協議，已確認賣家提供折扣碼優惠券，買家已使用",
+    "buyer_email_template": "FB缺件-Ju239缺件雙方協議，賣家已提供折扣碼優惠券，確認買家已使用，撥款賣家-Close-CB買家",
+    "seller_email_template": "FB缺件-Ju239缺件雙方協議，賣家已提供折扣碼優惠券，確認買家已使用，撥款賣家-Close-CB賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node339": {
+   "name": "Ju814-取消退貨-不分",
+   "type": "judge",
+   "text": "Ju814-取消退貨-不分",
+   "to": "SOP60_Node340",
+   "codes": [
+    "Ju814"
+   ],
+   "judge": {
+    "judging_reason": "Invalid buyer evidence",
+    "remark": "取消申退-缺件，環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張",
+    "buyer_email_template": "通用-Ju814SPX環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張-Cancel-AB買家",
+    "seller_email_template": "通用-Ju814SPX環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張-Cancel-AS賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node429": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node676": {
+   "name": "是否為易腐敗商品",
+   "type": "manual",
+   "question": "是否為易腐敗商品?\n\n\n1) Open DMS > Case > 退貨/退款詳情並確認買家申退品項。\n2) 在KB表易腐敗商品中查找該品項是否於B欄出現且C欄標示「不退」。\n3)若是選\"是>>PG\"，否則選\"否>>同意退貨\"",
+   "options": [
+    {
+     "label": "是>>PG SOP5_Node540(待改)易腐敗",
+     "to": "SOP60_Node371"
+    },
+    {
+     "label": "否>>同意退貨",
+     "to": "SOP60_Node371"
+    }
+   ]
+  },
+  "SOP60_Node685": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node500": {
+   "name": "Ju533-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju533-取消退貨-CB",
+   "to": "SOP60_Node798",
+   "codes": [
+    "Ju533"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju533物流調查貨態異常，買家因素逾期未回/未提供，Cancel-CB買家",
+    "seller_email_template": "FC-Ju533物流調查貨態異常，買家因素逾期未回/未提供，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node769": {
+   "name": "用戶證明是否有編輯造假",
+   "type": "manual",
+   "question": "用戶證明是否有編輯造假\n\n\n1)Open DMS>Case>Buyer & Seller's evidence\n2)確認買賣任一方證明是否有編輯造假嫌疑(eg.照片/影片經由AI變造、包裹已拆封過卻假裝拍攝原始開箱過程)\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node44"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node770"
+    }
+   ]
+  },
+  "SOP60_Node825": {
+   "name": "VM派車收回或由買家自行寄回/其他退回方式",
+   "type": "manual",
+   "question": "VM派車收回或由買家自行寄回/其他退回方式?\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認VM是否自行派車收回(提供派車單號)\n3)若是選\"VM派車收回\"，否則選\"買家自行寄回/其他退回方式\"",
+   "options": [
+    {
+     "label": "VM派車收回",
+     "to": "SOP60_Node826"
+    },
+    {
+     "label": "買家自行寄回/其他退回方式",
+     "to": "SOP60_Node827"
+    }
+   ]
+  },
+  "SOP60_Node774": {
+   "name": "包裹是否有毀損/錯誤",
+   "type": "manual",
+   "question": "包裹是否有毀損/錯誤\n\n\n1)Open DMS>Case>Chat/Buyer & Seller's message\n2)買賣雙方是否有提及包裹毀損/收到錯誤包裹\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node279"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node775"
+    }
+   ]
+  },
+  "SOP60_Node468": {
+   "name": "Ju531-同意退款-LC",
+   "type": "judge",
+   "text": "Ju531-同意退款-LC",
+   "to": "SOP60_Node819",
+   "codes": [
+    "Ju531"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju531物流調查VM回覆，尋獲商品需提供寄出宅資，賣家未填申請表，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju531物流調查VM回覆，尋獲商品需提供寄出宅資，賣家未填申請表，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node51": {
+   "name": "Ju406-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju406-取消退貨-LC",
+   "to": "SOP60_Node52",
+   "codes": [
+    "Ju406"
+   ],
+   "judge": {
+    "judging_reason": "Buyer failed fraud check (Forward Logistics)",
+    "remark": "取消申退-買家提交證據造假，買家加入黑名單後取消退貨-Cancel",
+    "buyer_email_template": "FC-Ju406買家提交證據造假，買家加入黑名單後取消退貨-Cancel-LC買家",
+    "seller_email_template": "FC-Ju406買家提交證據造假，買家加入黑名單後取消退貨-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node493": {
+   "name": "Ju528-同意退款-LC",
+   "type": "judge",
+   "text": "Ju528-同意退款-LC",
+   "to": "SOP60_Node793",
+   "codes": [
+    "Ju528"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju528物流調查錯包，正確件已尋獲，賣家未提供宅資，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju528物流調查錯包，正確件已尋獲，賣家未提供宅資，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node541": {
+   "name": "L2依案件狀況判決",
+   "type": "judge",
+   "text": "L2依案件狀況判決",
+   "to": "SOP60_Node542",
+   "judge": {}
+  },
+  "SOP60_Node506": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node568": {
+   "name": "可否肯定賣家證據編輯/造假",
+   "type": "manual",
+   "question": "可否肯定賣家證據編輯/造假",
+   "options": [
+    {
+     "label": "可確認賣家證據編輯/造假",
+     "to": "SOP60_Node572"
+    },
+    {
+     "label": "無法肯定賣家證據編輯/造假",
+     "to": "SOP60_Node569"
+    }
+   ]
+  },
+  "SOP60_Node8": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node778": {
+   "name": "買家是否提供有效收件資訊可回收商品",
+   "type": "manual",
+   "question": "買家是否提供有效收件資訊可回收商品(請先發買家證據卡)\n\n\n1)Open DMS>Case>Buyer's evidence\n2)確認買家是否有提供有效收件資訊或已自行寄回/門市歸還\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node779"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node479"
+    }
+   ]
+  },
+  "SOP60_Node283": {
+   "name": "賣家是否已提供相關證明",
+   "type": "manual",
+   "question": "賣家是否已提供相關證明\n\n\n1) Open DMS > Case > Evidence Center > Seller Uploads.\n2) 確認賣家是否已提供完整出貨證明(可辨識商品以良好狀態下包裝出貨的影片)\n3) 若有提供選'已提供>轉物流調查'; otherwise select '逾期未回/證明不足'",
+   "options": [
+    {
+     "label": "已提供>轉物流調查",
+     "to": "SOP60_Node284"
+    },
+    {
+     "label": "逾期未回/證明不足",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node630": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node631"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node632"
+    }
+   ]
+  },
+  "SOP60_Node573": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node574"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node576"
+    }
+   ]
+  },
+  "SOP60_Node414": {
+   "name": "Ju508-同意退款-LC",
+   "type": "judge",
+   "text": "Ju508-同意退款-LC",
+   "to": "SOP60_Node418",
+   "codes": [
+    "Ju508"
+   ],
+   "judge": {
+    "judging_reason": "Seller evidence overdue",
+    "buyer_email_template": "FC-Ju508個案派車貨態配送失敗，包裹未退回寄件方/暫置物流，賣家逾期未回/未提供相關證明，同意退款-LC買家",
+    "seller_email_template": "FC-Ju508個案派車貨態配送失敗，包裹未退回寄件方/暫置物流，賣家逾期未回/未提供相關證明，同意退款-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node655": {
+   "name": "是否有單號可追蹤",
+   "type": "manual",
+   "question": "是否有單號可追蹤\n\n\n1) Open DMS > Order > Chat/Discuss\n2) 若買賣任一方有提供物流單號，選\"已有單號可追蹤\"，否則選\"無單號可追蹤\"",
+   "options": [
+    {
+     "label": "已有單號可追蹤",
+     "to": "SOP60_Node756"
+    },
+    {
+     "label": "無單號可追蹤",
+     "to": "SOP60_Node658"
+    }
+   ]
+  },
+  "SOP60_Node807": {
+   "name": "物流是否提供證明並拒絕賠償",
+   "type": "manual",
+   "question": "物流是否提供證明並拒絕賠償?\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認VM是否有回應及拒絕賠償原因\n3)若拒賠且有提供調查照片/影片，確認包裹完好配達買家，選\"拒絕賠償，判買家輸\"，若拒賠且有提供調查照片/影片，確認物流收到包裹時就有異常，選\"拒絕賠償，判賣家輸\"，若拒賠且告知超過索賠期限選\"超過索賠期限\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "拒絕賠償，判買家輸",
+     "to": "SOP60_Node538"
+    },
+    {
+     "label": "拒絕賠償，判賣家輸",
+     "to": "SOP60_Node424"
+    },
+    {
+     "label": "超過索賠期限",
+     "to": "SOP60_Node424"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node540"
+    }
+   ]
+  },
+  "SOP60_Node474": {
+   "name": "General",
+   "type": "manual",
+   "question": "使用適用判決信",
+   "options": [
+    {
+     "label": "Ju537撥款賣家",
+     "to": "SOP60_Node515"
+    },
+    {
+     "label": "Ju538取消退貨",
+     "to": "SOP60_Node517"
+    }
+   ]
+  },
+  "SOP60_Node33": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node34"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node36"
+    }
+   ]
+  },
+  "SOP60_Node441": {
+   "name": "買家申請",
+   "type": "manual",
+   "question": "買家申請",
+   "options": [
+    {
+     "label": "退貨後退款 (非空包/非缺件/CB>=560/改變心意)",
+     "to": "SOP60_Node443"
+    },
+    {
+     "label": "僅退款 (空包/缺件/CB<560且非改變心意)",
+     "to": "SOP60_Node442"
+    }
+   ]
+  },
+  "SOP60_Node412": {
+   "name": "貨態異常",
+   "type": "manual",
+   "question": "貨態異常，確認是否為蝦皮個案派車?\n\n\n1) Open DMS > Case>Discuss/Seller's evidence\n2) 確認物流單號是否由賣家提供，若是選\"非蝦皮個案派車貨態異常\"，否則選\"蝦皮個案派車貨態異常\"",
+   "options": [
+    {
+     "label": "蝦皮個案派車貨態異常",
+     "to": "SOP60_Node411"
+    },
+    {
+     "label": "非蝦皮個案派車貨態異常",
+     "to": "SOP60_Node413"
+    }
+   ]
+  },
+  "SOP60_Node410": {
+   "name": "Ju553-同意退款-LC",
+   "type": "judge",
+   "text": "Ju553-同意退款-LC",
+   "to": "SOP60_Node400",
+   "codes": [
+    "Ju553"
+   ],
+   "judge": {
+    "judging_reason": "Seller evidence overdue",
+    "buyer_email_template": "FC-Ju553退貨已配達賣家，不符合優先退款政策，賣家逾期未回/同意退款-Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju553退貨已配達賣家，不符合優先退款政策，賣家逾期未回/同意退款-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node352": {
+   "name": "系統驗證賣家證明",
+   "type": "system",
+   "branches": [
+    {
+     "label": "賣家驗證證據成功",
+     "rules": [
+      {
+       "var": "check_dms_dispute_info_v1_dms_seller_validate_status",
+       "varName": "Check Dms dispute info v1 / Dms Seller Validate Status",
+       "op": "10",
+       "value": [
+        "驗證通過"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node353"
+    },
+    {
+     "label": "賣家驗證證據失敗",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node361"
+    }
+   ]
+  },
+  "SOP60_Node354": {
+   "name": "Pe223&Db206提供簽收單給買家確認",
+   "type": "pending",
+   "text": "Pe810&Db206提供簽收單給買家確認",
+   "to": "SOP60_Node355",
+   "codes": [
+    "Pe223",
+    "Pe810"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 4,
+     "remark": "[Pending Buyer-待買家提供資料]雙方協議，簽收處無法核對，發買家確認收件狀況"
+    }
+   ]
+  },
+  "SOP60_Node284": {
+   "name": "轉物流調查Pe423",
+   "type": "pending",
+   "text": "轉物流調查Pe423",
+   "to": "SOP60_Node285",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 8,
+     "remark": "[Pending Logs-待VM回覆]整合，【物流名稱-單號】，買家反應XXXX，工單#XXXX轉VM確認"
+    }
+   ]
+  },
+  "SOP60_Node521": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node502"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node522"
+    }
+   ]
+  },
+  "SOP60_Node682": {
+   "name": "案件類型",
+   "type": "system",
+   "branches": [
+    {
+     "label": "Review",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_request_type",
+       "varName": "Check GetSopDispute / Request Type",
+       "op": "10",
+       "value": [
+        "Review (1)"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node683"
+    },
+    {
+     "label": "Dispute",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node719"
+    }
+   ]
+  },
+  "SOP60_Node532": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node513": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node421"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node514"
+    }
+   ]
+  },
+  "SOP60_Node708": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node342": {
+   "name": "聯繫賣家提供自行與買方收回退貨商品之證明",
+   "type": "pending",
+   "text": "發訊賣家提供自行與買方收回退貨商品之證明\nDs801 & Pe220",
+   "to": "SOP60_Node761",
+   "codes": [
+    "Ds801",
+    "Pe220"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]雙方協議，賣家已派車，請賣家提供自行收退貨證明"
+    }
+   ]
+  },
+  "SOP60_Node831": {
+   "name": "買家是否有提供物流取件證明",
+   "type": "manual",
+   "question": "買家是否有提供物流取件證明? (請先發買家證據卡確認)\n\n\n1)Open DMS>Case>Buyer evidence\n2)確認買家是否提供有效物流取件證明，若有選\"JU534同意退款\"，否則選\"JU533取消退貨\"",
+   "options": [
+    {
+     "label": "JU534同意退款",
+     "to": "SOP60_Node503"
+    },
+    {
+     "label": "JU533取消退貨",
+     "to": "SOP60_Node500"
+    }
+   ]
+  },
+  "SOP60_Node465": {
+   "name": "Ju513-同意退款-LC",
+   "type": "judge",
+   "text": "Ju513-同意退款-LC",
+   "to": "SOP60_Node818",
+   "codes": [
+    "Ju513"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju513物流調查VM回覆，尋獲商品需提供寄出宅資，未確認到CS提供申請表，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju513物流調查VM回覆，尋獲商品需提供寄出宅資，未確認到CS提供申請表，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node338": {
+   "name": "買家主訴缺件商品是否為貨態異常",
+   "type": "manual",
+   "question": "買家主訴缺件商品是否為貨態異常?\n\n\n1) Open DMS > Case >Chat/Buyer's message\n2) 確認買家反應缺少/空包的品項，物流追蹤是否顯示取件成功\n3) 若是選\"買家主訴缺件商品非貨態異常/分箱空包 (視同買賣雙方未有協議)\"，否則選\"買家主訴缺件商品為貨態異常/買家無任何主張\"\n\n\n■整合物流分箱出貨貨態異常\n因買家無法針對貨態異常之商品發起申退，如案件中確認買家實際要申退的商品為貨態異常，後續將由系統自動退款，故取消買家申請即可",
+   "options": [
+    {
+     "label": "買家主訴缺件商品非貨態異常/分箱空包  (視同買賣雙方未有協議)",
+     "to": "SOP1_Node177"
+    },
+    {
+     "label": "買家主訴缺件商品為貨態異常/買家無任何主張",
+     "to": "SOP60_Node751"
+    }
+   ]
+  },
+  "SOP60_Node458": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node461"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node457"
+    }
+   ]
+  },
+  "SOP60_Node594": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node658": {
+   "name": "Ds805/Db805/Pe812發買家或賣家證據卡",
+   "type": "pending",
+   "text": "依案件發買家或賣家證據卡追蹤證據\nDs805 & Db805 & Pe812",
+   "to": "SOP60_Node657",
+   "codes": [
+    "Db805",
+    "Ds805",
+    "Pe812"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 12,
+     "remark": "[Pending Seller&Buyer-等待買家/賣家提供證據]申退原因XXX，第X次申退，買家主張已自行寄出退貨/賣家派車回收，未有退貨物流資訊，請買/賣家提供退貨資訊，限買家XX/XX前回，限賣家XX/XX前回覆，待追"
+    }
+   ]
+  },
+  "SOP60_Node602": {
+   "name": "Ju823-同意退款-LC",
+   "type": "judge",
+   "text": "Ju823-同意退款-LC",
+   "to": "SOP60_Node594",
+   "codes": [
+    "Ju823"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退款-前單(OSN: XXXXXXX)補寄訂單，退款系統計算金額\n",
+    "buyer_email_template": "(通用)Ju823-補寄訂單，收到補寄商品有問題，但非出貨包裝、物流配送問題，Accept Refund-LC買家",
+    "seller_email_template": "(通用)Ju823-補寄訂單，收到補寄商品有問題，但非出貨包裝、物流配送問題，Accept Refund-AS賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node660": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node659"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node661"
+    }
+   ]
+  },
+  "SOP60_Node535": {
+   "name": "賣家證明是否足夠進入物流調查",
+   "type": "manual",
+   "question": "賣家證明是否足夠進入物流調查?\n\n\n1) Open DMS > Case > Evidence Center.\n2) Verify seller uploaded shipping doc, handover proof, and tracking logs; if all required docs present and legible, select '已可進物流調查'; otherwise select '需賣家補充證明'",
+   "options": [
+    {
+     "label": "需賣家補充證明",
+     "to": "SOP60_Node280"
+    },
+    {
+     "label": "已可進物流調查",
+     "to": "SOP60_Node284"
+    }
+   ]
+  },
+  "SOP60_Node453": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node454"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node455"
+    }
+   ]
+  },
+  "SOP60_Node747": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node745"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node746"
+    }
+   ]
+  },
+  "SOP60_Node471": {
+   "name": "Ju517-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju517-撥款賣家-LC",
+   "to": "SOP60_Node821",
+   "codes": [
+    "Ju517"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju517物流調查VM回覆，VM已確認賠付買家，Close-LC買家",
+    "seller_email_template": "FC-Ju517物流調查VM回覆，VM已確認賠付買家，Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node734": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node735"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node736"
+    }
+   ]
+  },
+  "SOP60_Node603": {
+   "name": "更改真實退貨原因",
+   "type": "note",
+   "text": "補寄訂單有問題：其真實退貨原因，以補寄訂單訴求為主\n更改真實退貨原因，若需轉組處理請將該案件網頁關閉，待後續系統自動轉出",
+   "to": "SOP60_Node588"
+  },
+  "SOP60_Node576": {
+   "name": "Ju819-同意退款-LC",
+   "type": "judge",
+   "text": "Ju819-同意退款-LC",
+   "to": "SOP60_Node575",
+   "codes": [
+    "Ju819"
+   ],
+   "judge": {
+    "judging_reason": "Seller failed fraud check",
+    "remark": "同意退款-賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund",
+    "buyer_email_template": "通用-Ju819賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund-LC買家",
+    "seller_email_template": "通用-Ju819賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node387": {
+   "name": "Ju505-取消申退-LC",
+   "type": "judge",
+   "text": "Ju505-取消申退-LC",
+   "to": "SOP60_Node388",
+   "codes": [
+    "Ju505"
+   ],
+   "judge": {
+    "judging_reason": "Wrong quantity selected",
+    "remark": "取消申退-申退品項與實際需退品項不符，Cancel",
+    "buyer_email_template": "FC-Ju505AOC RR非系統限制，申退品項與實際需退品項不符，Cancel-LC買家",
+    "seller_email_template": "FC-Ju505AOC RR非系統限制，申退品項與實際需退品項不符，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node28": {
+   "name": "賣家是否提供有效補寄證明",
+   "type": "manual",
+   "question": "可否確認買家已收到補寄包裹/賣家是否已提供有效補寄單號證明?\n\n\n1) Open DMS > Order > Replacement Shipment.\n2) Locate 補寄物流單號 and open carrier tracking.\n3) If tracking shows 配送中/已配達 or buyer confirms receipt, select『可確認』; else select『無法確認/未回覆>>視為無協議",
+   "options": [
+    {
+     "label": "可確認",
+     "to": "SOP60_Node630"
+    },
+    {
+     "label": "無法確認/未回覆>>視為無協議",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node823": {
+   "name": "VM是否已同意賠付",
+   "type": "manual",
+   "question": "VM是否已同意賠付\n\n\n1)Open Inhouse system>查詢此訂單對應工單>VM是否回覆同意賠償?\n2)若是且賠償賣家選\"賠償賣家\"，若是且賠償買家選\"賠償買家\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "賠償賣家",
+     "to": "SOP60_Node678"
+    },
+    {
+     "label": "賠償買家",
+     "to": "SOP60_Node496"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node498"
+    }
+   ]
+  },
+  "SOP60_Node29": {
+   "name": "Ds206 & Pe807請賣家提供已補寄之證明",
+   "type": "pending",
+   "text": "請賣家提供已補寄的證明\nDs206 & Pe807",
+   "to": "SOP60_Node28",
+   "codes": [
+    "Ds206",
+    "Pe807"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]雙方協議，賣家同意補寄商品，限【XX/XX】前回覆補寄證明"
+    }
+   ]
+  },
+  "SOP60_Node706": {
+   "name": "物流是否同意賠償",
+   "type": "manual",
+   "question": "物流是否同意賠償\n\n\n1)Open inhouse system>查詢此訂單對應工單\n2)VM是否回覆無法賠償\n3)若是選\"Ju831\"，否則選\"Ju409\"",
+   "options": [
+    {
+     "label": "Ju409",
+     "to": "SOP60_Node426"
+    },
+    {
+     "label": "Ju831",
+     "to": "SOP60_Node709"
+    }
+   ]
+  },
+  "SOP60_Node815": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node538": {
+   "name": "Ju408-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju408-撥款賣家-LC",
+   "to": "SOP60_Node539",
+   "codes": [
+    "Ju408"
+   ],
+   "judge": {
+    "judging_reason": "Strong seller evidence (Damaged returns)",
+    "remark": "撥款賣家-包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed",
+    "buyer_email_template": "FC-Ju408包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed-LC買家",
+    "seller_email_template": "FC-Ju408包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node811": {
+   "name": "查詢寄回申請表是否有填寫紀錄",
+   "type": "manual",
+   "question": "查詢寄回申請表是否有填寫紀錄?\n\n\n1) 於 DMS 讀取該訂單之 OSN。\n2) 開啟 Google Sheet「寄回申請表」，在 D 欄以完全相同字串搜尋該 OSN。\n3) 若 D 欄出現相同 OSN，選「是」；否則選「否」",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node467"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node466"
+    }
+   ]
+  },
+  "SOP60_Node821": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node490": {
+   "name": "Ju525-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju525-取消退貨-LC",
+   "to": "SOP60_Node789",
+   "codes": [
+    "Ju525"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju525物流調查錯包，VM請買家自行寄回/其他退回，買家逾期未回，Cancel-LC買家",
+    "seller_email_template": "FC-Ju525物流調查錯包，VM請買家自行寄回/其他退回，買家逾期未回，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node668": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node662": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node788": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node507": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node416"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node510"
+    }
+   ]
+  },
+  "SOP60_Node829": {
+   "name": "依正確包裹目前狀況選擇對應路線",
+   "type": "manual",
+   "question": "依正確包裹目前狀況選擇對應路線\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認VM說明正確包裹目前狀況為何，若買家逾時未取選\"正確件買家逾時未取\"，若買家仍可取件或已取件選\"已重新上架/仍可取件/已取件\"，若需寄還賣家選\"須提供賣家宅資\"",
+   "options": [
+    {
+     "label": "正確件買家逾時未取",
+     "to": "SOP60_Node520"
+    },
+    {
+     "label": "已重新上架/仍可取件/已取件",
+     "to": "SOP60_Node494"
+    },
+    {
+     "label": "須提供賣家宅資",
+     "to": "SOP60_Node830"
+    }
+   ]
+  },
+  "SOP60_Node420": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node697": {
+   "name": "Pe454 轉VM通知由系統賠償",
+   "type": "pending",
+   "text": "Pe454 轉VM通知由系統賠償",
+   "to": "SOP60_Node698",
+   "codes": [
+    "Pe454"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 8
+    }
+   ]
+  },
+  "SOP60_Node363": {
+   "name": "驗證賣家證據是否有效",
+   "type": "manual",
+   "question": "驗證賣家證據是否有效",
+   "options": [
+    {
+     "label": "賣家證據有效",
+     "to": "SOP60_Node356"
+    },
+    {
+     "label": "賣家證據不足>>視同未達成協議回原流程",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node802": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node483": {
+   "name": "Ju561-同意退款-CB",
+   "type": "judge",
+   "text": "Ju561-同意退款-CB",
+   "to": "SOP60_Node782",
+   "codes": [
+    "Ju561"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "buyer_email_template": "FC-Ju561物流調查VM回覆錯包已歸還/回收，正確件買家逾期未取，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju561物流調查VM回覆錯包已歸還/回收，正確件買家逾期未取，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node689": {
+   "name": "賠付為正物流或逆物流",
+   "type": "manual",
+   "question": "賠付為正物流或逆物流?\n\n\n1) Open inhouse system\n2) 查詢此筆訂單對應工單，VM確認可賠償的物流單號是出貨物流或退貨物流，出貨物流選\"正物流需賠付\"，退貨物流選\"逆物流需賠付\"",
+   "options": [
+    {
+     "label": "正物流需賠付",
+     "to": "SOP60_Node687"
+    },
+    {
+     "label": "逆物流需賠付",
+     "to": "SOP60_Node690"
+    }
+   ]
+  },
+  "SOP60_Node669": {
+   "name": "Ju503-同意退款-CB",
+   "type": "judge",
+   "text": "Ju503-同意退款-CB",
+   "to": "SOP60_Node668",
+   "codes": [
+    "Ju503"
+   ],
+   "judge": {
+    "judging_reason": "Seller evidence overdue",
+    "remark": "同意退款-AOC RR其他特殊情境，買家說明退貨已配達賣家，賣家驗收允退/未回覆，Accept Refund",
+    "buyer_email_template": "FC-Ju503AOC RR其他特殊情境，買家說明退貨已配達，賣家驗收允退/未回覆，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju503AOC RR其他特殊情境，買家說明退貨已配達，賣家驗收允退/未回覆，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node803": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node478"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node823"
+    }
+   ]
+  },
+  "SOP60_Node654": {
+   "name": "商品已寄回賣家(商品已寄回賣家起點)",
+   "type": "manual",
+   "question": "至物流官網查詢此訂單先前申請退貨退款產生的系統逆物流單號是否有集貨貨態，若有選\"使用前次申退系統產出逆物流單號寄回\"，無選\"非使用前次申退系統產出逆物流單號寄回\"",
+   "options": [
+    {
+     "label": "非使用前次申退系統產出逆物流單號寄回",
+     "to": "SOP60_Node655"
+    },
+    {
+     "label": "使用前次申退系統產出逆物流單號寄回",
+     "to": "SOP60_Node675"
+    }
+   ]
+  },
+  "SOP60_Node516": {
+   "name": "Ju537-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju537-撥款賣家-LC",
+   "to": "SOP60_Node477",
+   "codes": [
+    "Ju537"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "撥款賣家-物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close",
+    "buyer_email_template": "FC-Ju537物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close-LC買家",
+    "seller_email_template": "FC-Ju537物流調查，SPX折扣碼補償，商品在買家端，同意以折扣碼補償，Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node400": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node577": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node578"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node579"
+    }
+   ]
+  },
+  "SOP60_Node745": {
+   "name": "Ju405-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju405-同意退貨-CB",
+   "to": "SOP60_Node748",
+   "codes": [
+    "Ju405"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept Return",
+    "buyer_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-CB買家",
+    "seller_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-同意退貨-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node48": {
+   "name": "Ju406-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju406-取消退貨-CB",
+   "to": "SOP60_Node50",
+   "codes": [
+    "Ju406"
+   ],
+   "judge": {
+    "judging_reason": "Buyer failed fraud check (Forward Logistics)",
+    "remark": "取消申退-買家提交證據造假，買家加入黑名單後取消退貨-Cancel",
+    "buyer_email_template": "FC-Ju406買家提交證據造假，買家加入黑名單後取消退貨-Cancel-CB買家",
+    "seller_email_template": "FC-Ju406買家提交證據造假，買家加入黑名單後取消退貨-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node21": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node313": {
+   "name": "比對買賣雙方證據or物流回覆結果",
+   "type": "manual",
+   "question": "比對買賣雙方證據or物流回覆結果",
+   "options": [
+    {
+     "label": "賣家提供物流同意賠償賣家證明",
+     "to": "SOP60_Node453"
+    },
+    {
+     "label": "買賣家皆提供最完整證明(羅生門)",
+     "to": "SOP60_Node450"
+    },
+    {
+     "label": "買家證據>賣家證據",
+     "to": "SOP60_Node441"
+    },
+    {
+     "label": "賣家證據>買家證據",
+     "to": "SOP60_Node458"
+    }
+   ]
+  },
+  "SOP60_Node805": {
+   "name": "物流是否提供證明並拒絕賠償",
+   "type": "manual",
+   "question": "物流是否提供證明並拒絕賠償?\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認VM是否有回應及拒絕賠償原因\n3)若拒賠且有提供調查照片/影片，確認包裹完好配達買家，選\"拒絕賠償，判買家輸\"，若拒賠且有提供調查照片/影片，確認物流收到包裹時就有異常，選\"拒絕賠償，判賣家輸\"，若拒賠且告知超過索賠期限選\"超過索賠期限\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "拒絕賠償，判買家輸",
+     "to": "SOP60_Node536"
+    },
+    {
+     "label": "拒絕賠償，判賣家輸",
+     "to": "SOP60_Node424"
+    },
+    {
+     "label": "超過索賠期限",
+     "to": "SOP60_Node424"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node540"
+    }
+   ]
+  },
+  "SOP60_Node800": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node618": {
+   "name": "Pe421 & Ds421 向賣家確認驗收狀態",
+   "type": "pending",
+   "text": "Pe421 & Ds421\n向賣家確認驗收狀態",
+   "to": "SOP60_Node409",
+   "codes": [
+    "Ds421",
+    "Pe421"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5
+    }
+   ]
+  },
+  "SOP60_Node359": {
+   "name": "Ju238-取消申請-LC",
+   "type": "judge",
+   "text": "通知買家包裹已配達，有簽收單須提供簽收單\n取消退貨\nJu238-取消申請-LC",
+   "to": "SOP60_Node360",
+   "codes": [
+    "Ju238"
+   ],
+   "judge": {
+    "judging_reason": "Item delivered to buyer",
+    "remark": "取消申退-缺件，雙方協議補寄，已配達",
+    "buyer_email_template": "FB缺件-Ju238缺件，雙方協議補寄，已配達，取消申請-Cancel-LC買家",
+    "seller_email_template": "FB缺件-Ju238缺件，雙方協議補寄，已配達，取消申請-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node799": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node371": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node372"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node374"
+    }
+   ]
+  },
+  "SOP60_Node341": {
+   "name": "賣家是否主張已派車",
+   "type": "manual",
+   "question": "賣家是否說明已派車\n\n\n1)Open DMS > Chat Logs and DRC/IH tickets\n2)If seller message/ticket explicitly states pickup arranged with date/time or provides pickup ref, select '賣家已派車'; otherwise select '未確認到賣家已派車'",
+   "options": [
+    {
+     "label": "賣家已派車",
+     "to": "SOP60_Node342"
+    },
+    {
+     "label": "未確認到賣家已派車",
+     "to": "SOP60_Node529"
+    }
+   ]
+  },
+  "SOP60_Node754": {
+   "name": "買家有無改變主意(無商品需求)判斷",
+   "type": "manual",
+   "question": "已合意補寄，且買家無改變主意，請走買家首次申退路線\n\n\n■若已合意補寄，買家後續改變主意-無商品需求\n－補寄未失效/配送中/已寄出，請走非首次申退路線\n－若可確認補寄尚未寄出，可會判退，信件提醒賣家無須寄出補寄",
+   "options": [
+    {
+     "label": "仍走買家首次申退路線",
+     "to": "SOP60_Node838"
+    },
+    {
+     "label": "改走買家非首次申退路線",
+     "to": "SOP60_Node758"
+    }
+   ]
+  },
+  "SOP60_Node481": {
+   "name": "Ju521-同意退款-CB",
+   "type": "judge",
+   "text": "Ju521-同意退款-CB",
+   "to": "SOP60_Node780",
+   "codes": [
+    "Ju521"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju521CB物流調查VM回覆，商品需等待尋找期，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju521CB物流調查VM回覆，商品需等待尋找期，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node793": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node545": {
+   "name": "Ju550-同意退款-LC",
+   "type": "judge",
+   "text": "Ju550-同意退款-LC",
+   "to": "SOP60_Node528",
+   "codes": [
+    "Ju550"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "remark": "同意退款-非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund",
+    "buyer_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node426": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node427"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node428"
+    }
+   ]
+  },
+  "SOP60_Node591": {
+   "name": "SPX物流",
+   "type": "system",
+   "branches": [
+    {
+     "label": "SPX",
+     "rules": [
+      {
+       "var": "check_get_sop_account_seller_phone_number_return_logistics_info_v1_return_forward_lm_shipping_carrier_name_list",
+       "varName": "Check GetSopAccount / Seller Phone Number, Return logistics info v1 / Return forward lm shipping carrier name list",
+       "op": "10",
+       "value": [
+        "SPX"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP49_Node4"
+    },
+    {
+     "label": "非SPX",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node279"
+    }
+   ]
+  },
+  "SOP60_Node783": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node763": {
+   "name": "Ds426&Pe480 發賣家聯繫物流/確認驗收",
+   "type": "pending",
+   "text": "Ds426&Pe480 發賣家聯繫物流/確認驗收",
+   "to": "SOP60_Node764",
+   "codes": [
+    "Ds426",
+    "Pe480"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason"
+    }
+   ]
+  },
+  "SOP60_Node571": {
+   "name": "驗證賣家補充結果",
+   "type": "manual",
+   "question": "驗證買家補充結果",
+   "options": [
+    {
+     "label": "可確認賣家證據編輯/造假 / 提供重複證據",
+     "to": "SOP60_Node572"
+    },
+    {
+     "label": "賣家提供有利證據且非編輯/造假",
+     "to": "SOP1_Node177"
+    },
+    {
+     "label": "仍無法判定證據是否有編輯/造假 /賣家逾期未回",
+     "to": "SOP60_Node559"
+    }
+   ]
+  },
+  "SOP60_Node353": {
+   "name": "確認簽收單狀況",
+   "type": "manual",
+   "question": "確認簽收單狀況，是否可核對完整買家簽收資訊\n\n\n簽收處無法核對情形如下：\na.簽名模糊，無法辨識簽收人姓名\nb.簽收人與收件人資訊不符（如收件人是公司行號，簽收卻是個人；收件人為中文姓名，簽收卻是英文簽名）\nc.簽收章模糊",
+   "options": [
+    {
+     "label": "簽收可核對",
+     "to": "SOP60_Node356"
+    },
+    {
+     "label": "簽收處無法核對",
+     "to": "SOP60_Node354"
+    }
+   ]
+  },
+  "SOP60_Node731": {
+   "name": "Ju830-同意退貨",
+   "type": "judge",
+   "text": "Ju830-同意退貨\n\n\n判決原因請選熱門商品錯誤",
+   "to": "SOP60_Node732",
+   "codes": [
+    "Ju830"
+   ],
+   "judge": {
+    "buyer_email_template": "(通用)-Ju830熱門商品錯誤，買家主張缺件但證據不足/需要退貨/無法計算，Accept Return-AB買家",
+    "seller_email_template": "(通用)-Ju830熱門商品錯誤，買家主張缺件但證據不足/需要退貨/無法計算，Accept Return-AS賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node398": {
+   "name": "Ju506-同意退款-CB",
+   "type": "judge",
+   "text": "Ju506-同意退款-CB",
+   "to": "SOP60_Node400",
+   "codes": [
+    "Ju506"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "buyer_email_template": "FC-Ju506個案派車，已集貨/配送中，符合優先退款政策，Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju506個案派車，已集貨/配送中，符合優先退款政策，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node390": {
+   "name": "(系統自動判讀)買家申退次數",
+   "type": "system",
+   "branches": [
+    {
+     "label": "RR>1",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_no_of_rr_raised",
+       "varName": "Check GetSopDispute / No Of R/R Raised",
+       "op": "10",
+       "value": [
+        "退貨申請次數>=2"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node364"
+    },
+    {
+     "label": "RR=1",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node23"
+    }
+   ]
+  },
+  "SOP60_Node443": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node447"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node448"
+    }
+   ]
+  },
+  "SOP60_Node631": {
+   "name": "Ju813-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju813-取消退貨-CB",
+   "to": "SOP60_Node633",
+   "codes": [
+    "Ju813"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買賣合意補寄，買家申退次數≧2，已確認有補寄單號且有貨態",
+    "buyer_email_template": "(通用)-Ju813缺件協議合意補寄，有補寄單號&貨態即可取消買家退貨-Cancel-CB買家",
+    "seller_email_template": "(通用)-Ju813缺件協議合意補寄，有補寄單號&貨態即可取消買家退貨-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node626": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node627"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node628"
+    }
+   ]
+  },
+  "SOP60_Node279": {
+   "name": "物流類型(ND起點)",
+   "type": "system",
+   "branches": [
+    {
+     "label": "整合物流 (1)",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_forward_logistic_type",
+       "varName": "Check GetSopDispute / Forward Logistic Type",
+       "op": "10",
+       "value": [
+        "整合物流 (1)"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node535"
+    },
+    {
+     "label": "非整合物流",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node837"
+    }
+   ]
+  },
+  "SOP60_Node816": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node340": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node693": {
+   "name": "Pe454 轉VM登記賠付對象",
+   "type": "pending",
+   "text": "Pe454 轉VM登記賠付對象",
+   "to": "SOP60_Node694",
+   "codes": [
+    "Pe454"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 8
+    }
+   ]
+  },
+  "SOP60_Node801": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node534": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node531"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node530"
+    }
+   ]
+  },
+  "SOP60_Node726": {
+   "name": "Ju829-同意退款-CB",
+   "type": "judge",
+   "text": "Ju829-同意退款-CB\n同意退款並賠償賣家\n\n\n判決原因請選熱門商品錯誤",
+   "to": "SOP60_Node728",
+   "codes": [
+    "Ju829"
+   ],
+   "judge": {
+    "buyer_email_template": "(通用)-Ju829熱門商品錯誤，買家缺件同意退款，Accept Refund-CB買家",
+    "seller_email_template": "(通用)-Ju829熱門商品錯誤，買家缺件同意退款，Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node625": {
+   "name": "Ju826-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju826-取消退貨-LC",
+   "to": "SOP60_Node624",
+   "codes": [
+    "Ju826"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買賣合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券",
+    "buyer_email_template": "(通用)Ju826-合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券即可取消買家退貨-Cancel-LC買家",
+    "seller_email_template": "(通用)Ju826-合意折扣碼優惠券退款，買家申退次數≧2，確認賣家已提供折扣碼優惠券即可取消買家退貨-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node574": {
+   "name": "Ju819-同意退款-CB",
+   "type": "judge",
+   "text": "Ju819-同意退款-CB",
+   "to": "SOP60_Node575",
+   "codes": [
+    "Ju819"
+   ],
+   "judge": {
+    "judging_reason": "Seller failed fraud check",
+    "remark": "同意退款-賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund",
+    "buyer_email_template": "通用-Ju819賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund-CB買家",
+    "seller_email_template": "通用-Ju819賣家提交證據造假，賣家加入黑名單後同意退款-Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node536": {
+   "name": "Ju408-撥款賣家-CB",
+   "type": "judge",
+   "text": "Ju408-撥款賣家-CB",
+   "to": "SOP60_Node539",
+   "codes": [
+    "Ju408"
+   ],
+   "judge": {
+    "judging_reason": "Strong seller evidence (Damaged returns)",
+    "remark": "撥款賣家-包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed",
+    "buyer_email_template": "FC-Ju408包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed-CB買家",
+    "seller_email_template": "FC-Ju408包裹毀損，物流證明非物流疏失，拒絕賠償買家，撥款賣家-Closed-CB賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node752": {
+   "name": "Ju833-取消退貨-不分",
+   "type": "judge",
+   "text": "Ju833-取消退貨-不分",
+   "to": "SOP60_Node753",
+   "codes": [
+    "Ju833"
+   ],
+   "judge": {
+    "judging_reason": "Invalid buyer evidence",
+    "remark": "取消申退-缺件，COD環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張",
+    "buyer_email_template": "(通用)-Ju833缺件，COD環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張 ，Cancel-AB",
+    "seller_email_template": "(通用)-Ju833缺件，COD環保無包裝/整合物流，買家主訴缺件商品為貨態異常/買家無任何主張 ，Cancel-AS",
+    "execution": 3
+   }
+  },
+  "SOP60_Node427": {
+   "name": "Ju409-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju409-同意退貨-CB",
+   "to": "SOP60_Node429",
+   "codes": [
+    "Ju409"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退貨-包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return",
+    "buyer_email_template": "FC-Ju409包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return-CB買家",
+    "seller_email_template": "FC-Ju409包裹毀損，整合物流賣家未提供證明/證明不足，Accept Return-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node755": {
+   "name": "缺件/協議金額是否大於系統可退金額",
+   "type": "manual",
+   "question": "缺件/協議金額是否大於系統可退金額?\n\n\n1)Open DMS>Case>Chat\n2)查看聊聊買賣協議內容，確認協議退款金額是否大於買家申退金額，若是選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "否",
+     "to": "SOP60_Node381"
+    },
+    {
+     "label": "是",
+     "to": "SOP60_Node567"
+    }
+   ]
+  },
+  "SOP60_Node357": {
+   "name": "Ju238-取消申請-CB",
+   "type": "judge",
+   "text": "通知買家包裹已配達，有簽收單須提供簽收單\n取消退貨\nJu238-取消申請-CB",
+   "to": "SOP60_Node358",
+   "codes": [
+    "Ju238"
+   ],
+   "judge": {
+    "judging_reason": "Item delivered to buyer",
+    "remark": "取消申退-缺件，雙方協議補寄，已配達",
+    "buyer_email_template": "FB缺件-Ju238缺件，雙方協議補寄，已配達，取消申請-Cancel-CB買家",
+    "seller_email_template": "FB缺件-Ju238缺件，雙方協議補寄，已配達，取消申請-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node737": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node739"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node738"
+    }
+   ]
+  },
+  "SOP60_Node431": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node433"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node435"
+    }
+   ]
+  },
+  "SOP60_Node381": {
+   "name": "賣家有無要求破壞商品",
+   "type": "manual",
+   "question": "賣家有無要求破壞商品?\n\n\n查看聊聊/賣家訊息，是否要求買家需要破壞商品，若有選\"賣家要求破壞商品\"，否則選\"賣家無要求破壞商品/無須破壞同意可直接退款\"",
+   "options": [
+    {
+     "label": "賣家要求破壞商品",
+     "to": "SOP60_Node382"
+    },
+    {
+     "label": "賣家無要求破壞商品/無須破壞同意可直接退款",
+     "to": "SOP60_Node31"
+    }
+   ]
+  },
+  "SOP60_Node760": {
+   "name": "買家是否堅持未收到",
+   "type": "manual",
+   "question": "買家是否堅持未收到補寄?\n\n\n1.查聊聊/買家訊息\n2.若買家反應貨態顯示取件成功但未至門市取件，或包裹顯示已配達，但與家人/管理室/親友確認未收到，選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node749"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node630"
+    }
+   ]
+  },
+  "SOP60_Node657": {
+   "name": "是否有單號可追蹤",
+   "type": "manual",
+   "question": "是否有單號可追蹤?\n\n\n1) Open DMS>Case>Chat/Buyer & Seller's evidence\n2) 確認買賣任一方是否有提供物流單號\n3) 若有選\"已有單號可追蹤\"，否則選\"未提供證據\"",
+   "options": [
+    {
+     "label": "已有單號可追蹤",
+     "to": "SOP60_Node756"
+    },
+    {
+     "label": "未提供證據",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node664": {
+   "name": "Ds420發賣家確認驗收結果",
+   "type": "pending",
+   "text": "發賣家證據卡確認驗收結果\nDs420 & Pe420",
+   "to": "SOP60_Node665",
+   "codes": [
+    "Ds420",
+    "Pe420"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]退貨已配達，不符合優先退款政策，請賣家提供驗收結果，限XX/XX前回覆，待追"
+    }
+   ]
+  },
+  "SOP60_Node524": {
+   "name": "Ju533-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju533-取消退貨-LC",
+   "to": "SOP60_Node801",
+   "codes": [
+    "Ju533"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju533物流調查貨態異常，買家因素逾期未回/未提供，Cancel-LC買家",
+    "seller_email_template": "FC-Ju533物流調查貨態異常，買家因素逾期未回/未提供，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node343": {
+   "name": "提供單號是否可查詢貨態",
+   "type": "manual",
+   "question": "賣家是否已提供可查詢到貨態的單號?\n\n\n1.根據賣家提供寄件單據/物流單號，至對應物流官網查詢貨態\n2.若查得到貨態選\"賣家提供單號可查詢到貨態\"，否則選\"驗證失敗(提供單號查無貨態)\"",
+   "options": [
+    {
+     "label": "賣家提供單號可查詢到貨態",
+     "to": "SOP60_Node393"
+    },
+    {
+     "label": "驗證失敗(提供單號查無貨態)",
+     "to": "SOP60_Node676"
+    }
+   ]
+  },
+  "SOP60_Node440": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node437"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node439"
+    }
+   ]
+  },
+  "SOP60_Node467": {
+   "name": "Ju514-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju514-取消退貨-LC",
+   "to": "SOP60_Node815",
+   "codes": [
+    "Ju514"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju514物流調查VM回覆，買家有填寫寄回申請表，Cancel-LC買家",
+    "seller_email_template": "FC-Ju514物流調查VM回覆，買家有填寫寄回申請表，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node385": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node386"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node387"
+    }
+   ]
+  },
+  "SOP60_Node424": {
+   "name": "買家申請",
+   "type": "manual",
+   "question": "買家申請",
+   "options": [
+    {
+     "label": "退貨後退款 (非空包/缺件不可計算/CB>=560/改變心意)",
+     "to": "SOP60_Node706"
+    },
+    {
+     "label": "僅退款 (空包/缺件可計算/CB<560且非改變心意)",
+     "to": "SOP60_Node430"
+    }
+   ]
+  },
+  "SOP60_Node449": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node433": {
+   "name": "Ju407-同意退款-CB",
+   "type": "judge",
+   "text": "Ju407-同意退款-CB",
+   "to": "SOP60_Node434",
+   "codes": [
+    "Ju407"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "remark": "同意退款-包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju407包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept refund-CB買家",
+    "seller_email_template": "FC-Ju407包裹毀損，整合物流同意賠償賣家，同意退款買家-Accept refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node512": {
+   "name": "Ju551-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju551-同意退貨-LC",
+   "to": "SOP60_Node420",
+   "codes": [
+    "Ju551"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition accepted (consumer protection law/ non-seller fault)",
+    "buyer_email_template": "FC-Ju551賣家自行派車，未成功向買家回收-Accept Return-LC買家",
+    "seller_email_template": "FC-Ju551賣家自行派車，未成功向買家回收-Accept Return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node575": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node439": {
+   "name": "Ju410-同意退款-LC",
+   "type": "judge",
+   "text": "Ju410-同意退款-LC",
+   "to": "SOP60_Node438",
+   "codes": [
+    "Ju410"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退款-包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept Refund",
+    "buyer_email_template": "FC-Ju410包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept refund-LC買家",
+    "seller_email_template": "FC-Ju410包裹毀損物流拒賠/無回應，賣家證明無效/未提供，退款買家-Accept refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node7": {
+   "name": "Ju401-撥款賣家-CB",
+   "type": "judge",
+   "text": "Ju401-撥款賣家-CB",
+   "to": "SOP60_Node8",
+   "codes": [
+    "Ju401"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement (Offline settlement)",
+    "remark": "撥款賣家-協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close",
+    "buyer_email_template": "FC-Ju401協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close-CB買家",
+    "seller_email_template": "FC-Ju401協議流程，賣家已私下匯款，確認匯款完成，撥款賣家-Close-CB賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node718": {
+   "name": "Ju832-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju832-同意退貨-LC",
+   "to": "SOP60_Node715",
+   "codes": [
+    "Ju832"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，整合物流超過物流索賠期限，退款買家-Accept Refund",
+    "buyer_email_template": "(通用)-Ju832包裹毀損，整合物流，超過物流索賠期限，Accept Refund-LC買家",
+    "seller_email_template": "(通用)-Ju832包裹毀損，整合物流，超過物流索賠期限，Accept Refund-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node445": {
+   "name": "Ju413-同意退款-LC",
+   "type": "judge",
+   "text": "Ju413-同意退款-LC",
+   "to": "SOP60_Node446",
+   "codes": [
+    "Ju413"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "remark": "同意退款-包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept Refund",
+    "buyer_email_template": "FC-Ju413包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept refund-LC買家",
+    "seller_email_template": "FC-Ju413包裹毀損，非整合物流，買家證據>賣家證據，同意退款-Accept refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node282": {
+   "name": "發訊賣家提供出貨證明Ds404&Pe404",
+   "type": "pending",
+   "text": "Ds404&Pe404\n發訊賣家\n提供出貨證明\nor物流配送情形",
+   "to": "SOP60_Node312",
+   "codes": [
+    "Ds404",
+    "Pe404"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]缺件，非整合，【物流名稱-單號】，貨態為XXXX，買家反應XXXX，待賣家提供出貨證明以及物流聯繫證明，待追"
+    }
+   ]
+  },
+  "SOP60_Node391": {
+   "name": "Ds208 & Pe807 發賣家證據卡",
+   "type": "pending",
+   "text": "Ds208 & Pe807\n發賣家證據卡",
+   "to": "SOP60_Node392",
+   "codes": [
+    "Ds208",
+    "Pe807"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 5,
+     "remark": "[Pending Seller-待賣家提供資料]雙方協議，賣家同意補寄商品，限【XX/XX】前回覆補寄證明"
+    }
+   ]
+  },
+  "SOP60_Node312": {
+   "name": "賣家是否已提供相關證明",
+   "type": "manual",
+   "question": "賣家是否已提供相關證明\n\n\n*因買家證據不足導致無法接續判斷物流問題，亦適用逾期未回/證明不足>>後續依照真實原因路線處理\n\n\n1) Open DMS > Case > Evidence Center and Chat Logs.\n2) Verify seller has submitted shipping proof or logistics screenshots showing tracking number and status.\n3) If evidence is present and readable, select '已提供'; otherwise select '逾期未回/證明不足'",
+   "options": [
+    {
+     "label": "已提供",
+     "to": "SOP60_Node313"
+    },
+    {
+     "label": "逾期未回/證明不足(出貨證明/物流配送情形)",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node19": {
+   "name": "Ju812-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju812-取消退貨-LC",
+   "to": "SOP60_Node21",
+   "codes": [
+    "Ju812"
+   ],
+   "judge": {
+    "judging_reason": "Seller resent item to buyer",
+    "remark": "取消申退-買家申退次數≦1，已確認買賣雙方合意補寄",
+    "buyer_email_template": "通用-Ju812協議合意補寄，買家申退次數≦1，確認雙方要補寄即可取消買家退貨-Cancel-LC買家",
+    "seller_email_template": "通用-Ju812協議合意補寄，買家申退次數≦1，確認雙方要補寄即可取消買家退貨-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node692": {
+   "name": "案件類型",
+   "type": "system",
+   "branches": [
+    {
+     "label": "Review",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_request_type",
+       "varName": "Check GetSopDispute / Request Type",
+       "op": "10",
+       "value": [
+        "Review (1)"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node693"
+    },
+    {
+     "label": "Dispute",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node696"
+    }
+   ]
+  },
+  "SOP60_Node775": {
+   "name": "申退訂單是否為補寄單",
+   "type": "manual",
+   "question": "申退訂單是否為補寄單?\n\n\n1)Open DMS>Case>Chat\n2)查看買賣聊聊紀錄，確認此訂單是否是為了補寄商品而成立(提及要下單補寄後成立)\n3)若是選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node581"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node776"
+    }
+   ]
+  },
+  "SOP60_Node351": {
+   "name": "驗證賣家證明",
+   "type": "validate",
+   "text": "驗證賣家證明",
+   "to": "SOP60_Node352"
+  },
+  "SOP60_Node492": {
+   "name": "Ju527-同意退款-LC",
+   "type": "judge",
+   "text": "Ju527-同意退款-LC",
+   "to": "SOP60_Node792",
+   "codes": [
+    "Ju527"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju527物流調查錯包，正確件已尋獲，賣家已提供宅資，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju527物流調查錯包，正確件已尋獲，賣家已提供宅資，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node695": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node34": {
+   "name": "Ju403C-同意退款-CB",
+   "type": "judge",
+   "text": "Ju403C-同意退款-CB",
+   "to": "SOP60_Node35",
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "退款買家-協議流程，賣家同意直接退款，且可確認品項與金額-Accept Refund",
+    "buyer_email_template": "FC-Ju403協議流程，賣家同意直接退款，且可確認品項與金額-Accept refund-CB買家",
+    "seller_email_template": "FC-Ju403協議流程，賣家同意直接退款，且可確認品項與金額-Accept refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node749": {
+   "name": "補寄/分箱出貨物流類型",
+   "type": "manual",
+   "question": "補寄/分箱出貨的物流類型(非整合物流or整合物流)",
+   "options": [
+    {
+     "label": "非整合物流",
+     "to": "SOP60_Node349"
+    },
+    {
+     "label": "整合物流",
+     "to": "SOP53_Node808"
+    }
+   ]
+  },
+  "SOP60_Node421": {
+   "name": "Ju552-同意退款-CB",
+   "type": "judge",
+   "text": "Ju552-同意退款-CB",
+   "to": "SOP60_Node420",
+   "codes": [
+    "Ju552"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "buyer_email_template": "FC-Ju552賣家自行派車，賣家逾期未回/證據不足-Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju552賣家自行派車，賣家逾期未回/證據不足-Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node462": {
+   "name": "依VM回覆選擇對應路線",
+   "type": "manual",
+   "question": "依VM回覆選擇對應路線\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認VM回覆，若為需回收商品選\"需提供回收宅資\"，若為已尋獲商品需寄回選\"尋獲商品需寄給用戶\"，若為仍在尋找中選\"等候尋找期\"，若為提供折扣碼補償選\"SPX折扣碼補償\"，否則選\"其他\"",
+   "options": [
+    {
+     "label": "需提供回收宅資",
+     "to": "SOP60_Node808"
+    },
+    {
+     "label": "尋獲商品需寄給用戶",
+     "to": "SOP60_Node809"
+    },
+    {
+     "label": "等候尋找期",
+     "to": "SOP60_Node472"
+    },
+    {
+     "label": "SPX折扣碼補償",
+     "to": "SOP60_Node474"
+    },
+    {
+     "label": "其他",
+     "to": "SOP60_Node807"
+    }
+   ]
+  },
+  "SOP60_Node36": {
+   "name": "Ju403C-同意退款-LC",
+   "type": "judge",
+   "text": "Ju403C-同意退款-LC",
+   "to": "SOP60_Node37",
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "退款買家-協議流程，賣家同意直接退款，且可確認品項與金額-Accept Refund",
+    "buyer_email_template": "FC-Ju403協議流程，賣家同意直接退款，且可確認品項與金額-Accept refund-LC買家",
+    "seller_email_template": "FC-Ju403協議流程，賣家同意直接退款，且可確認品項與金額-Accept refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node808": {
+   "name": "請買家提供宅資",
+   "type": "manual",
+   "question": "確認買家是否有提供收件資訊?\n\n\n1)Open DMS>Case>Buyer evidence\n2)確認買家是否有提供完整收件資訊(包含姓名、電話、地址)\n3)若有選\"同意退款\"，沒有選\"取消退貨\"",
+   "options": [
+    {
+     "label": "取消退貨",
+     "to": "SOP60_Node463"
+    },
+    {
+     "label": "同意退款",
+     "to": "SOP60_Node464"
+    }
+   ]
+  },
+  "SOP60_Node555": {
+   "name": "請依買家申退原因請買家補充證明",
+   "type": "pending",
+   "text": "發買家證據卡\n請依買家申退原因請買家補充證明",
+   "to": "SOP60_Node556",
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 4
+    }
+   ]
+  },
+  "SOP60_Node744": {
+   "name": "買賣協議最後處理方式",
+   "type": "manual",
+   "question": "買賣協議最後處理方式是同意退款or同意退貨?\n\n\n若賣家欲利用補寄單回收商品：\n賣家欲用補寄單回收舊(原)商品/雙方合意用補寄單退貨舊(原)商品。應可依合意判決退貨\n\n\n1.查聊聊確認買賣協議狀況\n2.若買賣協議使用此訂單退貨退款選\"同意退貨\"，否則選\"同意退款\"",
+   "options": [
+    {
+     "label": "同意退款",
+     "to": "SOP60_Node585"
+    },
+    {
+     "label": "同意退貨",
+     "to": "SOP60_Node747"
+    }
+   ]
+  },
+  "SOP60_Node830": {
+   "name": "查詢賣家是否已有提供宅資",
+   "type": "manual",
+   "question": "查詢賣家是否已有提供宅資\n\n\n1)Open inhouse system>查詢案件對應工單\n2)確認工單內是否有賣家提供收件資訊紀錄(姓名/電話/地址)\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node492"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node493"
+    }
+   ]
+  },
+  "SOP60_Node809": {
+   "name": "CS是否已提供寄回申請表予用戶",
+   "type": "manual",
+   "question": "CS是否已提供寄回申請表予用戶?\n\n\n1) Open Inhouse System > 查詢案件對應工單\n2) 檢視工單紀錄是否有 CS 提供寄回申請表給用戶，如有選「是」，否則選「否」",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node810"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node465"
+    }
+   ]
+  },
+  "SOP60_Node796": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node523": {
+   "name": "Ju532-同意退款-LC",
+   "type": "judge",
+   "text": "Ju532-同意退款-LC",
+   "to": "SOP60_Node800",
+   "codes": [
+    "Ju532"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju532物流調查貨態異常，VM告知已配達/已收回/同意退款，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju532物流調查貨態異常，VM告知已配達/已收回/同意退款，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node484": {
+   "name": "Ju032-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju032-取消退貨-CB",
+   "to": "SOP60_Node783",
+   "codes": [
+    "Ju032"
+   ],
+   "judge": {
+    "judging_reason": "Item delivered to buyer",
+    "remark": "取消申退-SPX通知包裹在店可取",
+    "buyer_email_template": "FA未收到-Ju032SPX通知包裹在店可取，取消申請-AB買家",
+    "seller_email_template": "FA未收到-Ju032SPX通知包裹在店可取，取消申請-AS賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node739": {
+   "name": "Ju547-取消申退-CB",
+   "type": "judge",
+   "text": "Ju547-取消申退-CB",
+   "to": "SOP60_Node740",
+   "codes": [
+    "Ju547"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition not accepted (item does not meet return conditions)",
+    "remark": "取消申退-不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel",
+    "buyer_email_template": "FC-Ju547不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel-CB買家",
+    "seller_email_template": "FC-Ju547不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node622": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node621"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node625"
+    }
+   ]
+  },
+  "SOP60_Node761": {
+   "name": "賣家是否有提供派車證明",
+   "type": "manual",
+   "question": "賣家是否有提供派車證明?\n\n\n1.查聊聊/賣家訊息，確認賣家是否有提供派車證明\n2.若賣家有提供派車單據/物流單號，選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node343"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node676"
+    }
+   ]
+  },
+  "SOP60_Node6": {
+   "name": "協議-賣家私下匯款",
+   "type": "manual",
+   "question": "可否確認買家已收到匯款?\n\n\n1) Open DMS > Order > Chat/Discuss and Evidence Center. 2) If buyer confirms receipt or seller provides remittance proof (buyer account and timestamp), select '買家已收到匯款/賣家提供匯款資訊'; else select '無法確認買家已收到匯款'",
+   "options": [
+    {
+     "label": "買家已收到匯款/賣家提供匯款資訊",
+     "to": "SOP60_Node9"
+    },
+    {
+     "label": "無法確認買家已收到匯款",
+     "to": "SOP60_Node13"
+    }
+   ]
+  },
+  "SOP60_Node494": {
+   "name": "Ju032-取消退貨-不分",
+   "type": "judge",
+   "text": "Ju032-取消退貨-不分",
+   "to": "SOP60_Node794",
+   "codes": [
+    "Ju032"
+   ],
+   "judge": {
+    "judging_reason": "Item delivered to buyer",
+    "remark": "取消申退-SPX通知包裹在店可取\n",
+    "buyer_email_template": "FA未收到-Ju032SPX通知包裹在店可取，取消申請-AB買家",
+    "seller_email_template": "FA未收到-Ju032SPX通知包裹在店可取，取消申請-AS賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node280": {
+   "name": "發訊買/賣家提供出貨證明Pe403 & Ds403 & Db431",
+   "type": "pending",
+   "text": "Pe403 & Ds403 & Db431\n請依案件實際狀況\n發訊買家/賣家/買賣雙方提供對應證明",
+   "to": "SOP60_Node283",
+   "codes": [
+    "Db431",
+    "Ds403",
+    "Pe403"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 12,
+     "remark": "[Pending Seller&Buyer-等待買家/賣家提供證據]整合，【物流名稱-單號】，貨態為XXXX，買家反應XXXX，發買/賣家提供轉物流證明，限買家XX/XX前回，限賣家XX/XX前回覆，待追"
+    }
+   ]
+  },
+  "SOP60_Node452": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node446": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node472": {
+   "name": "Ju518-同意退款-LC",
+   "type": "judge",
+   "text": "Ju518-同意退款-LC",
+   "to": "SOP60_Node820",
+   "codes": [
+    "Ju518"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju518物流調查VM回覆，商品需等待尋找期，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju518物流調查VM回覆，商品需等待尋找期，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node461": {
+   "name": "Ju414-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju414-取消退貨-CB",
+   "to": "SOP60_Node460",
+   "codes": [
+    "Ju414"
+   ],
+   "judge": {
+    "judging_reason": "Strong seller evidence",
+    "remark": "取消申退-包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel",
+    "buyer_email_template": "FC-Ju414包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel-CB買家",
+    "seller_email_template": "FC-Ju414包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node772": {
+   "name": "賣家是否已同意退款",
+   "type": "manual",
+   "question": "賣家是否已同意退款\n\n\n1)Open DMS>Case>Chat/Seller message\n2)確認賣家是否已同意退款買家\n3)\n雙方協議買家提供帳戶並由賣家匯款 → 選「是，採線下匯款」。\n雙方協議由賣家提供折價券/優惠券 → 選「是，提供折價券/優惠券」。\n賣家已同意退款買家，但未提及退款方式 → 選「是，系統退款」。\n以上皆非 → 選「否」。",
+   "options": [
+    {
+     "label": "是，採線下匯款",
+     "to": "SOP60_Node6"
+    },
+    {
+     "label": "是，提供折價券/優惠券",
+     "to": "SOP60_Node390"
+    },
+    {
+     "label": "是，系統退款",
+     "to": "SOP60_Node755"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node774"
+    }
+   ]
+  },
+  "SOP60_Node24": {
+   "name": "Ju825-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju825-取消退貨-LC",
+   "to": "SOP60_Node26",
+   "codes": [
+    "Ju825"
+   ],
+   "judge": {
+    "judging_reason": "buyer and seller reached an agreement (shipping/ shop discounts)",
+    "remark": "取消申退-買家申退次數≦1，已確認買賣雙方合意折扣碼優惠券退款",
+    "buyer_email_template": "(通用)Ju825-協議折扣碼優惠券退款，買家申退次數≦1，確認雙方合意折扣碼優惠券退款即可取消買家退貨-Cancel-LC買家",
+    "seller_email_template": "(通用)Ju825-協議折扣碼優惠券退款，買家申退次數≦1，確認雙方合意折扣碼優惠券退款即可取消買家退貨-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node792": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node677": {
+   "name": "VM是否已同意賠付",
+   "type": "manual",
+   "question": "VM是否已同意賠付\n\n\n1)Open Inhouse system>查詢此訂單對應工單>VM是否回覆同意賠償?\n2)若是且賠賣家選\"賠付賣家\"，若是且賠買家選\"賠付買家\"，否則選\"一般路線\"",
+   "options": [
+    {
+     "label": "一般路線",
+     "to": "SOP60_Node462"
+    },
+    {
+     "label": "賠付賣家",
+     "to": "SOP60_Node678"
+    },
+    {
+     "label": "賠付買家",
+     "to": "SOP60_Node471"
+    }
+   ]
+  },
+  "SOP60_Node817": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node716": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node717"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node718"
+    }
+   ]
+  },
+  "SOP60_Node819": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node813": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node738": {
+   "name": "Ju547-取消申退-LC",
+   "type": "judge",
+   "text": "Ju547-取消申退-LC",
+   "to": "SOP60_Node740",
+   "codes": [
+    "Ju547"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition not accepted (item does not meet return conditions)",
+    "remark": "取消申退-不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel",
+    "buyer_email_template": "FC-Ju547不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel-LC買家",
+    "seller_email_template": "FC-Ju547不合理情境，踰越鑑賞，申退品項/數量有其他符合鑑賞期商品，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node336": {
+   "name": "合意換貨、補寄 、分箱出貨",
+   "type": "manual",
+   "question": "物流情境判斷",
+   "options": [
+    {
+     "label": "整合物流分箱出貨",
+     "to": "SOP60_Node338"
+    },
+    {
+     "label": "補寄/分箱出貨",
+     "to": "SOP60_Node16"
+    }
+   ]
+  },
+  "SOP60_Node49": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node48"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node51"
+    }
+   ]
+  },
+  "SOP60_Node362": {
+   "name": "賣家提供證據狀況",
+   "type": "manual",
+   "question": "賣家提供證據狀況",
+   "options": [
+    {
+     "label": "有提供",
+     "to": "SOP60_Node363"
+    },
+    {
+     "label": "逾期未回>>視同未達成協議回原流程",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node505": {
+   "name": "Ju809-撥款賣家-不分",
+   "type": "judge",
+   "text": "Ju809-撥款賣家-不分",
+   "to": "SOP60_Node506",
+   "codes": [
+    "Ju809"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition not accepted (item does not meet return conditions)",
+    "remark": "撥款賣家-逾鑑賞期申退，經審理後拒絕申退。Close",
+    "buyer_email_template": "(通用)-Ju809逾鑑賞期申退，拒絕申退撥款賣家-買家",
+    "seller_email_template": "(通用)-Ju809逾鑑賞期申退，拒絕申退撥款賣家-賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node770": {
+   "name": "是否為熱門推薦商品流程",
+   "type": "manual",
+   "question": "是否為熱門推薦商品流程?\n\n\n1)Open DMS>Case>Trade info\n2)確認是否有Hot listing item\n3)若有選\"是\"，否則選\"否\"",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node720"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node771"
+    }
+   ]
+  },
+  "SOP60_Node457": {
+   "name": "Ju414-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju414-取消退貨-LC",
+   "to": "SOP60_Node460",
+   "codes": [
+    "Ju414"
+   ],
+   "judge": {
+    "judging_reason": "Strong seller evidence",
+    "remark": "取消申退-包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel",
+    "buyer_email_template": "FC-Ju414包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel-LC買家",
+    "seller_email_template": "FC-Ju414包裹毀損，非整合物流，買家證據<賣家證據，取消申退-Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node572": {
+   "name": "將賣家加入高風險黑名單",
+   "type": "note",
+   "text": "將賣家加入高風險黑名單",
+   "to": "SOP60_Node570"
+  },
+  "SOP60_Node552": {
+   "name": "Ju818-取消退貨",
+   "type": "judge",
+   "text": "Ju818-取消退貨",
+   "to": "SOP60_Node553",
+   "codes": [
+    "Ju818"
+   ],
+   "judge": {
+    "judging_reason": "Buyer faked evidence using AI",
+    "remark": "取消申退-買家使用AI偽造證據，買家加入黑名單後取消退貨-Cancel",
+    "buyer_email_template": "通用-Ju818買家使用AI偽造證據，買家加入黑名單後取消退貨-Cancel-AB買家",
+    "seller_email_template": "通用-Ju818買家使用AI偽造證據，買家加入黑名單後取消退貨-Cancel-AS賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node736": {
+   "name": "Ju493-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju493-撥款賣家-LC",
+   "to": "SOP60_Node740",
+   "codes": [
+    "Ju493"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition not accepted (item does not meet return conditions)",
+    "remark": "撥款賣家-非例外商品，不合理情境，Close",
+    "buyer_email_template": "FC-Ju493非例外商品，不合理情境，Close-LC買家",
+    "seller_email_template": "FC-Ju493非例外商品，不合理情境，Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node781": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node456": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node464": {
+   "name": "Ju512-同意退款-LC",
+   "type": "judge",
+   "text": "Ju512-同意退款-LC",
+   "to": "SOP60_Node814",
+   "codes": [
+    "Ju512"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju512物流調查VM回覆，買家已提供且貨態配達，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju512物流調查VM回覆，買家已提供且貨態配達，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node550": {
+   "name": "是否使用AI編輯/造假",
+   "type": "manual",
+   "question": "是否使用AI編輯/造假?\n\n\n1) Open DMS > Case > Evidence Center.\n2) Use built-in file info to check generation metadata and AI flags; review for typical AI artifacts (inconsistent lighting/text).\n3) If strong AI indicators present, select 'AI生成編輯/造假'; otherwise select '非AI生成編輯/造假'",
+   "options": [
+    {
+     "label": "非AI生成編輯/造假",
+     "to": "SOP60_Node49"
+    },
+    {
+     "label": "AI生成編輯/造假",
+     "to": "SOP60_Node552"
+    }
+   ]
+  },
+  "SOP60_Node509": {
+   "name": "結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node496": {
+   "name": "Ju530-撥款賣家-LC",
+   "type": "judge",
+   "text": "Ju530-撥款賣家-LC",
+   "to": "SOP60_Node796",
+   "codes": [
+    "Ju530"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju530物流調查錯包，需賠付給買家，Close-LC買家",
+    "seller_email_template": "FC-Ju530物流調查錯包，需賠付給買家，Close-LC賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node422": {
+   "name": "Ju551-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju551-同意退貨-CB",
+   "to": "SOP60_Node420",
+   "codes": [
+    "Ju551"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition accepted (consumer protection law/ non-seller fault)",
+    "buyer_email_template": "FC-Ju551賣家自行派車，未成功向買家回收-Accept Return-CB買家",
+    "seller_email_template": "FC-Ju551賣家自行派車，未成功向買家回收-Accept Return-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node684": {
+   "name": "Ju516-同意退款-LC",
+   "type": "judge",
+   "text": "Ju516-同意退款-LC",
+   "to": "SOP60_Node685",
+   "codes": [
+    "Ju516"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage (forward logistics)",
+    "buyer_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node20": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node479": {
+   "name": "Ju519-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju519-取消退貨-CB",
+   "to": "SOP60_Node785",
+   "codes": [
+    "Ju519"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju519CB物流調查VM回覆，買家逾期未回宅資，Cancel-CB買家",
+    "seller_email_template": "FC-Ju519CB物流調查VM回覆，買家逾期未回宅資，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node746": {
+   "name": "Ju405-同意退貨-LC",
+   "type": "judge",
+   "text": "Ju405-同意退貨-LC",
+   "to": "SOP60_Node748",
+   "codes": [
+    "Ju405"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept Return",
+    "buyer_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-LC買家",
+    "seller_email_template": "FC-Ju405協議流程，買賣合意退回商品，核對買家申退與協議退回相符-Accept return-LC賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node18": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node17"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node19"
+    }
+   ]
+  },
+  "SOP60_Node558": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node787": {
+   "name": "General",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node527": {
+   "name": "Ju550-同意退款-CB",
+   "type": "judge",
+   "text": "Ju550-同意退款-CB",
+   "to": "SOP60_Node528",
+   "codes": [
+    "Ju550"
+   ],
+   "judge": {
+    "judging_reason": "Item returned to seller",
+    "remark": "同意退款-非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund",
+    "buyer_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-CB買家",
+    "seller_email_template": "FC-Ju550非個案派車，已集貨/配送中，符合優先退款政策-Accept Refund-CB賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node704": {
+   "name": "Ju516-同意退款-LC",
+   "type": "judge",
+   "text": "Ju516-同意退款-LC",
+   "to": "SOP60_Node705",
+   "codes": [
+    "Ju516"
+   ],
+   "judge": {
+    "judging_reason": "3PL lost/ damage",
+    "buyer_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju516物流調查VM回覆，VM已確認賠付賣家，Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node364": {
+   "name": "可確認有提供折扣碼優惠券",
+   "type": "manual",
+   "question": "確認賣家是否有提供折扣碼優惠券?\n\n\n1) Open DMS > Case > Chat Logs & Evidence Center.\n2) 若賣家提供有效折扣碼/優惠券資訊，選『賣家已提供折扣碼/優惠劵』；否則選『賣家未提供折扣碼/優惠劵』",
+   "options": [
+    {
+     "label": "賣家已提供折扣碼/優惠劵",
+     "to": "SOP60_Node766"
+    },
+    {
+     "label": "賣家未提供折扣碼/優惠劵",
+     "to": "SOP60_Node391"
+    }
+   ]
+  },
+  "SOP60_Node820": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node768": {
+   "name": "買家是否為風險用戶",
+   "type": "system",
+   "branches": [
+    {
+     "label": "買家非風險用戶",
+     "rules": [
+      {
+       "var": "check_dms_blacklist_info_v1_buyer_blacklist_risk_level",
+       "varName": "Check Dms blacklist info v1 / Buyer Blacklist Risk Level",
+       "op": "10",
+       "value": [
+        "買家非風險用戶"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node395"
+    },
+    {
+     "label": "買家為風險用戶",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node675"
+    }
+   ]
+  },
+  "SOP60_Node434": {
+   "name": "End",
+   "type": "end",
+   "text": "請重新點選SOP TOOLS",
+   "to": null
+  },
+  "SOP60_Node416": {
+   "name": "Ju507-取消退貨-CB",
+   "type": "judge",
+   "text": "Ju507-取消退貨-CB",
+   "to": "SOP60_Node418",
+   "codes": [
+    "Ju507"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju507個案派車貨態異常，買家因素未成功向買家回收，買家逾期未回/未提供已收回證明，Cancel-CB買家",
+    "seller_email_template": "FC-Ju507個案派車貨態異常，買家因素未成功向買家回收，買家逾期未回/未提供已收回證明，Cancel-CB賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node372": {
+   "name": "Ju815-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju815-同意退貨-CB",
+   "to": "SOP60_Node373",
+   "codes": [
+    "Ju815"
+   ],
+   "judge": {
+    "judging_reason": "Buyer and seller reached an agreement",
+    "remark": "同意退貨-買賣合意退回訂單所有商品，已確認買家申退品項與買賣合意退回品項相符",
+    "buyer_email_template": "通用-Ju815協議，買賣合意退回商品，核對買家申退與協議退回相符，賣家已派車，逾期未回/驗證失敗-同意退貨-CB買家",
+    "seller_email_template": "通用-Ju815協議，買賣合意退回商品，核對買家申退與協議退回相符，賣家已派車，逾期未回/驗證失敗-同意退貨-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node549": {
+   "name": "可否肯定買家證據編輯/造假",
+   "type": "manual",
+   "question": "可否肯定買家證據編輯/造假\n\n\n1) Open DMS > Case > Evidence Center.\n2) 檢視原始檔之EXIF/metadata與影像是否存在明顯剪輯痕跡/矛盾時間戳。\n3) 若存在強證據，選『可確認買家證據編輯/造假』；否則選『無法肯定買家證據編輯/造假』",
+   "options": [
+    {
+     "label": "可確認買家證據編輯/造假",
+     "to": "SOP60_Node47"
+    },
+    {
+     "label": "無法肯定買家證據編輯/造假",
+     "to": "SOP60_Node555"
+    }
+   ]
+  },
+  "SOP60_Node579": {
+   "name": "Ju820-同意退款-LC",
+   "type": "judge",
+   "text": "Ju820-同意退款-LC",
+   "to": "SOP60_Node580",
+   "codes": [
+    "Ju820"
+   ],
+   "judge": {
+    "judging_reason": "Seller faked evidence using AI",
+    "remark": "同意退款-賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund",
+    "buyer_email_template": "通用-Ju820賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund-LC買家",
+    "seller_email_template": "通用-Ju820賣家使用AI偽造證據，賣家加入黑名單後同意退款-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node703": {
+   "name": "Pe454 轉VM登記賠付對象",
+   "type": "pending",
+   "text": "Pe454 轉VM登記賠付對象",
+   "to": "SOP60_Node704",
+   "codes": [
+    "Pe454"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 8
+    }
+   ]
+  },
+  "SOP60_Node514": {
+   "name": "Ju552-同意退款-LC",
+   "type": "judge",
+   "text": "Ju552-同意退款-LC",
+   "to": "SOP60_Node420",
+   "codes": [
+    "Ju552"
+   ],
+   "judge": {
+    "judging_reason": "Invalid seller evidence",
+    "buyer_email_template": "FC-Ju552賣家自行派車，賣家逾期未回/證據不足-Accept Refund-LC買家",
+    "seller_email_template": "FC-Ju552賣家自行派車，賣家逾期未回/證據不足-Accept Refund-LC賣家",
+    "execution": 2
+   }
+  },
+  "SOP60_Node44": {
+   "name": "哪方提交疑似證據顯示有編輯/造假(編輯造假起點)",
+   "type": "manual",
+   "question": "哪方提交疑似證據顯示有編輯/造假?\n\n\n1) Open DMS > Case > Evidence Center.\n2) 以檔案上傳者及對應訊息紀錄判定提報方。3) 若來源為買家選『買家』；來源為賣家選『賣家』",
+   "options": [
+    {
+     "label": "買家",
+     "to": "SOP60_Node549"
+    },
+    {
+     "label": "賣家",
+     "to": "SOP60_Node568"
+    }
+   ]
+  },
+  "SOP60_Node681": {
+   "name": "Pe454 轉VM通知由系統賠償",
+   "type": "pending",
+   "text": "Pe454 轉VM通知由系統賠償",
+   "to": "SOP60_Node682",
+   "codes": [
+    "Pe454"
+   ],
+   "pending": [
+    {
+     "button_text": "Pending Reason",
+     "pending_by": 8
+    }
+   ]
+  },
+  "SOP60_Node735": {
+   "name": "Ju493-撥款賣家-CB",
+   "type": "judge",
+   "text": "Ju493-撥款賣家-CB",
+   "to": "SOP60_Node740",
+   "codes": [
+    "Ju493"
+   ],
+   "judge": {
+    "judging_reason": "Want to return item in original/sealed condition not accepted (item does not meet return conditions)",
+    "remark": "撥款賣家-非例外商品，不合理情境，Close",
+    "buyer_email_template": "FC-Ju493非例外商品，不合理情境，Close-CB買家",
+    "seller_email_template": "FC-Ju493非例外商品，不合理情境，Close-CB賣家",
+    "execution": 6
+   }
+  },
+  "SOP60_Node779": {
+   "name": "轉VM確認是否已可退款",
+   "type": "manual",
+   "question": "轉VM確認是否已可退款 (請先轉VM)\n\n\n1) Open Inhouse System > 查詢案件對應工單\n2) 讀取既有 VM 回覆\n3) 若回覆顯示包裹已歸還或已配達 → 選「JU520」，否則選「貨態異常」",
+   "options": [
+    {
+     "label": "JU520",
+     "to": "SOP60_Node480"
+    },
+    {
+     "label": "貨態異常",
+     "to": "SOP60_Node521"
+    }
+   ]
+  },
+  "SOP60_Node504": {
+   "name": "是否已逾鑑賞期且要判決撥款賣家",
+   "type": "manual",
+   "question": "是否已逾鑑賞期且要判決撥款賣家\n\n\n1) Open DMS > Order > Timeline，計算自收貨日起鑑賞期。2) 若逾期且滿足撥款規則(依政策/證據)，選『是>>撥款賣家』；否則選『否>>依照SOP判定』",
+   "options": [
+    {
+     "label": "是>>撥款賣家",
+     "to": "SOP60_Node505"
+    },
+    {
+     "label": "否>>依照SOP判定",
+     "to": "SOP1_Node177"
+    }
+   ]
+  },
+  "SOP60_Node710": {
+   "name": "Ju831-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju831-同意退貨-CB",
+   "to": "SOP60_Node708",
+   "codes": [
+    "Ju831"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，整合物流超過物流索賠期限，Accept Return",
+    "buyer_email_template": "(通用)-Ju831包裹毀損，整合物流，超過物流索賠期限，Accept Return-CB買家",
+    "seller_email_template": "(通用)-Ju831包裹毀損，整合物流，超過物流索賠期限，Accept Return-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node717": {
+   "name": "Ju832-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju832-同意退貨-CB",
+   "to": "SOP60_Node715",
+   "codes": [
+    "Ju832"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，整合物流超過物流索賠期限，退款買家-Accept Refund",
+    "buyer_email_template": "(通用)-Ju832包裹毀損，整合物流，超過物流索賠期限，Accept Refund-CB買家",
+    "seller_email_template": "(通用)-Ju832包裹毀損，整合物流，超過物流索賠期限，Accept Refund-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node487": {
+   "name": "Ju523-取消退貨-LC",
+   "type": "judge",
+   "text": "Ju523-取消退貨-LC",
+   "to": "SOP60_Node786",
+   "codes": [
+    "Ju523"
+   ],
+   "judge": {
+    "judging_reason": "Buyer evidence overdue",
+    "buyer_email_template": "FC-Ju523物流調查錯包，買家未提供錯包收件宅資，Cancel-LC買家",
+    "seller_email_template": "FC-Ju523物流調查錯包，買家未提供錯包收件宅資，Cancel-LC賣家",
+    "execution": 3
+   }
+  },
+  "SOP60_Node585": {
+   "name": "CB/Local",
+   "type": "system",
+   "branches": [
+    {
+     "label": "CB",
+     "rules": [
+      {
+       "var": "check_get_sop_dispute_seller_type",
+       "varName": "Check GetSopDispute / Seller Type",
+       "op": "10",
+       "value": [
+        "CB"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node584"
+    },
+    {
+     "label": "Local",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node586"
+    }
+   ]
+  },
+  "SOP60_Node700": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node447": {
+   "name": "Ju412-同意退貨-CB",
+   "type": "judge",
+   "text": "Ju412-同意退貨-CB",
+   "to": "SOP60_Node449",
+   "codes": [
+    "Ju412"
+   ],
+   "judge": {
+    "judging_reason": "Strong buyer evidence",
+    "remark": "同意退貨-包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept Return",
+    "buyer_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-CB買家",
+    "seller_email_template": "FC-Ju412包裹毀損，非整合物流，買家證據>賣家證據，同意退貨-Accept return-CB賣家",
+    "execution": 7
+   }
+  },
+  "SOP60_Node388": {
+   "name": "到：結束",
+   "type": "end",
+   "text": "End",
+   "to": null
+  },
+  "SOP60_Node757": {
+   "name": "買家是否為風險用戶",
+   "type": "system",
+   "branches": [
+    {
+     "label": "買家非風險用戶",
+     "rules": [
+      {
+       "var": "check_dms_blacklist_info_v1_buyer_blacklist_risk_level",
+       "varName": "Check Dms blacklist info v1 / Buyer Blacklist Risk Level",
+       "op": "10",
+       "value": [
+        "買家非風險用戶"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node656"
+    },
+    {
+     "label": "買家為風險用戶",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node663"
+    }
+   ]
+  },
+  "SOP60_Node834": {
+   "name": "DJu151-拒絕賠償",
+   "type": "message",
+   "text": "DJu151-拒絕賠償",
+   "to": null
+  },
+  "SOP60_Node835": {
+   "name": "是否為AOC RR",
+   "type": "system",
+   "branches": [
+    {
+     "label": "AOC",
+     "rules": [
+      {
+       "var": "check_dms_dispute_info_v1_dispute_after_order_completed_outside_buyer_window_dms_dispute_info_v1_dispute_after_order_completed_within_buyer_window__split_condition_1_92fec47689",
+       "varName": "Check Dms dispute info v1 / Dispute After Order Completed Outside Buyer Window, Dms dispute info v1 / Dispute After Order Completed Within Buyer Window - condition values: AOC",
+       "op": "10",
+       "value": [
+        "AOC"
+       ]
+      }
+     ],
+     "default": false,
+     "to": "SOP60_Node840"
+    },
+    {
+     "label": "非AOC",
+     "rules": [],
+     "default": true,
+     "to": "SOP60_Node504"
+    }
+   ]
+  },
+  "SOP60_Node837": {
+   "name": "買賣是否達成協議",
+   "type": "manual",
+   "question": "1)Open DMS>Case>Chat/Seller message2)確認賣家是否達成協議寄回商品/補寄、換貨",
+   "options": [
+    {
+     "label": "是",
+     "to": "SOP60_Node776"
+    },
+    {
+     "label": "否",
+     "to": "SOP60_Node282"
+    }
+   ]
+  },
+  "SOP60_Node838": {
+   "name": "是否已確認到補寄貨態異常",
+   "type": "manual",
+   "question": "■若補寄貨態已有異常，請走非首次申退路線\n配送2次以上未成功配達買家(相同配送貨態重覆2次以上，包含2次)，或超過2天沒更新貨態請賣家再次確認，若未回覆或無法提供貨態即退款買家\n● 物流商有站所，貨態相同但站所不同，視為有更新；貨態及站所皆相同，視為無更新\n● 物流商無站所，僅以貨態是否變更判定，貨態相同即視為無更新",
+   "options": [
+    {
+     "label": "仍走買家首次申退路線",
+     "to": "SOP60_Node18"
+    },
+    {
+     "label": "改走買家非首次申退路線",
+     "to": "SOP60_Node758"
+    }
+   ]
+  },
+  "SOP60_Node839": {
+   "name": "AOC RR 是否距離取消日>14天",
+   "type": "manual",
+   "question": "AOC RR 是否距離取消日>14天",
+   "options": [
+    {
+     "label": "距離取消日<=14天",
+     "to": "SOP60_Node731"
+    },
+    {
+     "label": "距離取消日>14天",
+     "to": "SOP63_Node284"
+    }
+   ]
+  },
+  "SOP60_Node840": {
+   "name": "AOC RR 是否距離取消日>14天",
+   "type": "manual",
+   "question": "AOC RR 是否為受理退貨情境\n拒絕退貨/受理退貨情境：(TW/PH)",
+   "options": [
+    {
+     "label": "受理退貨情境",
+     "to": "SOP60_Node839"
+    },
+    {
+     "label": "拒絕退貨情境",
+     "to": "SOP60_Node505"
+    }
+   ]
+  }
+ }
+};
+const N = SOP.nodes;
+const KEY = 'rrqp2:sopproto:v1';
+const DEFAULT_CFG = {start:'SOP60_Node772', maxSteps:4, path:[
+  {node:'SOP60_Node772', pick:2}, {node:'SOP60_Node755', pick:0}, {node:'SOP60_Node381', pick:1}, {node:'SOP60_Node31', pick:0}],
+  system:{'SOP60_Node33':1}};
+const store = { get(){ try{ return JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ return null; } },
+                set(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} } };
+let saved = store.get() || {};
+let cfg = saved.cfg || JSON.parse(JSON.stringify(DEFAULT_CFG));
+let mode = 'student';
+let ans = saved.ans || [];        // 專員作答：[{node, pick}]
+let submitted = !!saved.submitted;
+let rec = null;                   // 講師點選中的路徑
+let recSys = {};
+
+const STOP = new Set(['judge','end','pending']);
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function nextOf(id, pick){ const n=N[id]; if(!n) return null; if(n.type==='manual') return (n.options[pick]||{}).to||null; return n.to||null; }
+function sysPick(id, sysVals){ const n=N[id]; if(id in sysVals) return {i:sysVals[id], guessed:false};
+  const d=n.branches.findIndex(b=>b.default); return {i:d>=0?d:0, guessed:true}; }
+
+/** 依選擇走樹：回傳畫面要顯示的列、目前要回答的節點、是否已走完 */
+function walk(choices, sysVals, maxSteps, teacher){
+  const rows=[]; let id=cfg.start, k=0, guard=0;
+  while(id && guard++<200){
+    const n=N[id];
+    if(!n){ rows.push({kind:'ext', id}); return {rows, done:true}; }
+    if(n.type==='system'){
+      if(teacher && !(id in sysVals)) return {rows, sysAsk:id};
+      const p=sysPick(id, sysVals); rows.push({kind:'sys', id, label:n.branches[p.i].label, guessed:p.guessed, i:p.i});
+      id=n.branches[p.i].to; continue; }
+    if(n.type==='manual'){
+      if(k>=maxSteps) return {rows, done:true, limit:true};
+      const c=choices[k];
+      if(!c || c.node!==id) return {rows, ask:id, step:k};
+      rows.push({kind:'man', id, pick:c.pick, label:n.options[c.pick].label, step:k}); k++;
+      id=n.options[c.pick].to; continue; }
+    if(STOP.has(n.type)){ rows.push({kind:'term', id}); return {rows, done:true}; }
+    rows.push({kind:'pass', id}); id=n.to;   // note / message 等：自動帶過
+  }
+  return {rows, done:true};
+}
+
+function renderCase(){
+  document.getElementById('case').innerHTML = `
+  <h2>General Info</h2>
+  <div class="grid">
+   <div class="kv">Return Status: <span class="tag green">Judging</span></div><div class="kv">Return ID: <span>（模擬案件）</span></div>
+   <div class="kv">Case Status: <span>Assigned</span></div><div class="kv">Pending Reason: <span>New Case</span></div>
+   <div class="kv">Request Type: <span>Buyer Request</span></div><div class="kv">No of RR Raised: <span>1</span></div>
+   <div class="kv">Assignee: <span>agent@example.com</span></div><div class="kv">Execution: <span>-</span></div>
+  </div>
+  <h3>Buyer Return Info</h3>
+  <div class="grid">
+   <div class="kv">Request Proposal: <span>Refund Only | Refund Amount: $890</span></div><div class="kv">Return Reason: <span>Product does not fit</span></div>
+   <div class="kv">Return Reason Remark: <span>褲子腰圍太小，穿不下</span></div><div class="kv">Images and Videos: <span>-</span></div>
+  </div>
+  <h3>Seller Info</h3>
+  <div class="grid"><div class="kv">Shop Name: <span>示範服飾小舖</span> <span class="tag blue">C2C Local</span></div><div class="kv">Seller Category: <span class="tag">Normal</span></div></div>
+  <h3>Product Info</h3>
+  <table><tr><th>Products</th><th>Unit Price</th><th>Purchase qty</th><th>Sub Total</th></tr>
+   <tr><td>彈性直筒牛仔褲（深藍 / M）</td><td>$890</td><td>1</td><td>$890</td></tr></table>
+  <h3>Chat History</h3>
+  <div class="chat">
+   <div class="msg b"><div class="av">買</div><div><div class="who">demo_buyer (Buyer)</div><div class="bub">你好，褲子腰圍太小穿不下，可以退嗎？<small>2026-10-30 20:11 +0800</small></div></div></div>
+   <div class="msg s"><div class="av">賣</div><div><div class="who">demo_shop (Seller)</div><div class="bub">不好意思～寄回運費比較貴，我直接退您 300 元，褲子不用寄回，您可以送人或改褲，可以嗎？<small>2026-10-30 21:02 +0800</small></div></div></div>
+   <div class="msg b"><div class="av">買</div><div><div class="who">demo_buyer (Buyer)</div><div class="bub">好，退 300 元可以，那我申請退款。<small>2026-10-30 21:15 +0800</small></div></div></div>
+   <div class="msg s"><div class="av">賣</div><div><div class="who">demo_shop (Seller)</div><div class="bub">好的，申請後我這邊會同意，謝謝您～<small>2026-10-30 21:20 +0800</small></div></div></div>
+  </div>
+  <h3>Discuss・With Buyer</h3>
+  <div class="sys">ⓘ System Info: The buyer has proposed Refund of NT$890<br><span class="note">2026-10-30 21:31 +0800</span></div>
+  <p class="note" style="margin-top:18px">這是虛構的示範案件，只用來試做 SOP 路徑題的作答方式。</p>`;
+}
+
+function rowHtml(r, mark){
+  const n=N[r.id];
+  if(r.kind==='man') return `<div class="row ${submitted||mode==='teacher'?'':'click'} ${mark||''}" data-step="${r.step}"><span class="ic m">人</span><span class="q">${esc(n.name)}</span><span class="a">${esc(r.label)}</span></div>`;
+  if(r.kind==='sys') return `<div class="row"><span class="ic s">系</span><span class="q">${esc(n.name)}</span><span class="a">${esc(r.label)}${r.guessed&&mode==='teacher'?'（預設）':''}</span></div>`;
+  if(r.kind==='term') return `<div class="row"><span class="ic j">${n.type==='judge'?'判':n.type==='pending'?'待':'終'}</span><span class="q">${esc(n.name)}</span></div>`;
+  if(r.kind==='ext') return `<div class="row"><span class="ic x">↗</span><span class="q">跳至其他流程（${esc(r.id)}）</span></div>`;
+  return `<div class="row"><span class="ic x">·</span><span class="q">${esc(n.name)}</span></div>`;
+}
+function askHtml(id, picked){
+  const n=N[id];
+  const [title,...rest]=String(n.question||n.name).split('\n');
+  return `<div class="cur"><div class="qt"><b>${esc(title)}</b>${esc(rest.join('\n').replace(/^\n+/,''))}</div>
+   ${n.options.map((o,i)=>`<button class="opt ${picked===i?'pick':''}" data-pick="${i}">${esc(o.label)}</button>`).join('')}</div>`;
+}
+function sysAskHtml(id){
+  const n=N[id];
+  return `<div class="cur"><div class="qt"><b>系統判讀：${esc(n.name)}</b>請選這個案件的系統值（專員作答時會自動帶過）。</div>
+   ${n.branches.map((b,i)=>`<button class="opt" data-sys="${i}">${esc(b.label)}</button>`).join('')}</div>`;
+}
+const same = (a,b) => a.length===b.length && a.every((x,i)=>x.node===b[i].node && x.pick===b[i].pick);
+
+function render(){
+  const sop=document.getElementById('sop'), stat=document.getElementById('stat'), act=document.getElementById('act'), retry=document.getElementById('retry');
+  document.getElementById('cfg').classList.toggle('hide', mode!=='teacher');
+  if(mode==='teacher'){
+    const w=walk(rec, recSys, cfg.maxSteps, true);
+    let h=w.rows.map(r=>rowHtml(r)).join('');
+    if(w.sysAsk) h+=sysAskHtml(w.sysAsk); else if(w.ask) h+=askHtml(w.ask); else h+=`<div class="endbox">${w.limit?'已到步數上限':'已走到終點'}，可以儲存為標準答案。</div>`;
+    sop.innerHTML=h; stat.textContent=`已點 ${rec.length} / ${cfg.maxSteps} 步`;
+    act.textContent='儲存為標準答案'; act.disabled=!w.done; retry.classList.add('hide');
+    sop.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{ rec.push({node:w.ask, pick:+b.dataset.pick}); render(); });
+    sop.querySelectorAll('[data-sys]').forEach(b=>b.onclick=()=>{ recSys[w.sysAsk]=+b.dataset.sys; render(); });
+    return;
+  }
+  const w=walk(ans, cfg.system||{}, cfg.maxSteps, false);
+  let h='';
+  if(submitted){
+    const ok=same(ans, cfg.path);
+    h+=`<div class="result ${ok?'ok':'bad'}">${ok?'✔ 全對，得分':'✘ 路徑不正確，0 分'}</div>`;
+    const firstBad=ans.findIndex((x,i)=>!cfg.path[i]||x.node!==cfg.path[i].node||x.pick!==cfg.path[i].pick);
+    h+=w.rows.map(r=>rowHtml(r, r.kind==='man'?((firstBad<0||r.step<firstBad)?'okm':'badm'):'')).join('');
+    if(!ok){ const cw=walk(cfg.path, cfg.system||{}, cfg.maxSteps, false);
+      h+=`<h3 style="margin:14px 0 8px">正確路徑</h3>`+cw.rows.map(r=>rowHtml(r,'okm')).join(''); }
+  } else {
+    h+=w.rows.map(r=>rowHtml(r)).join('');
+    if(w.ask) h+=askHtml(w.ask); else h+=`<div class="endbox">${w.limit?'已到這題的步數上限':'已走到終點'}。交卷前都可以點上面的步驟重選。</div>`;
+  }
+  sop.innerHTML=h;
+  stat.textContent=`已答 ${ans.length} / ${cfg.maxSteps} 步`;
+  act.textContent=submitted?'已交卷':'交卷'; act.disabled=submitted||!w.done;
+  retry.classList.toggle('hide', !submitted);
+  sop.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{ ans.push({node:w.ask, pick:+b.dataset.pick}); save(); render(); });
+  if(!submitted) sop.querySelectorAll('.row.click').forEach(el=>el.onclick=()=>{ ans=ans.slice(0, +el.dataset.step); save(); render(); });
+}
+function save(){ store.set({cfg, ans, submitted}); }
+
+document.getElementById('act').onclick=()=>{
+  if(mode==='teacher'){ cfg={start:cfg.start, maxSteps:cfg.maxSteps, path:rec.slice(), system:Object.assign({},recSys)}; ans=[]; submitted=false; save(); alertBox('已儲存標準答案，專員作答已清空。'); render(); return; }
+  submitted=true; save(); render();
+};
+document.getElementById('retry').onclick=()=>{ ans=[]; submitted=false; save(); render(); };
+function alertBox(t){ const s=document.getElementById('stat'); s.textContent=t; }
+function setMode(m){ mode=m; document.getElementById('mStudent').classList.toggle('on', m==='student'); document.getElementById('mTeacher').classList.toggle('on', m==='teacher');
+  if(m==='teacher'){ rec=[]; recSys={}; document.getElementById('startQ').value=''; fillStart(); document.getElementById('maxIn').value=cfg.maxSteps; } render(); }
+document.getElementById('mStudent').onclick=()=>setMode('student');
+document.getElementById('mTeacher').onclick=()=>setMode('teacher');
+const label = id => (N[id]?N[id].name:'')+'｜'+id;
+// 依樹的順序（從根節點往下）列出人工判斷節點；名稱重複的加註前一步
+const parentOf = {};
+const order = []; (function(){ const seen=new Set(), q=[SOP.root];
+  const kids = id => { const n=N[id]; if(!n) return [];
+    if(n.type==='manual') return n.options.map(o=>({to:o.to, via:n.name+' → '+o.label}));
+    if(n.type==='system') return n.branches.map(b=>({to:b.to, via:n.name+' → '+b.label}));
+    return [{to:n.to, via:parentOf[id]||''}]; };
+  while(q.length){ const id=q.shift(); if(!id||seen.has(id)||!N[id]) continue; seen.add(id); order.push(id);
+    kids(id).forEach(k=>{ if(k.to && !(k.to in parentOf)) parentOf[k.to]=k.via; q.push(k.to); }); } })();
+const manualIds = order.filter(k=>N[k].type==='manual');
+const nameCount = {}; manualIds.forEach(k=>nameCount[N[k].name]=(nameCount[N[k].name]||0)+1);
+const optLabel = k => N[k].name + (nameCount[N[k].name]>1 && parentOf[k] ? '（前一步：'+parentOf[k]+'）' : '');
+function fillStart(){ const q=document.getElementById('startQ').value.trim(); const ids=manualIds.filter(k=>!q||N[k].name.includes(q)||k.includes(q));
+  if(!ids.includes(cfg.start)) ids.unshift(cfg.start);
+  document.getElementById('startSel').innerHTML = ids.map(k=>`<option value="${k}" ${k===cfg.start?'selected':''}>${esc(optLabel(k))}</option>`).join(''); }
+document.getElementById('startQ').oninput=fillStart;
+document.getElementById('startSel').onchange=e=>{ const id=e.target.value; if(N[id]&&N[id].type==='manual'){ cfg.start=id; rec=[]; recSys={}; render(); } };
+document.getElementById('maxIn').onchange=e=>{ const v=Math.max(1,Math.min(15,+e.target.value||1)); cfg.maxSteps=v; rec=rec.slice(0,v); render(); };
+document.getElementById('resetRec').onclick=()=>{ rec=[]; recSys={}; render(); };
+renderCase(); render();
+</script>
+</body>
+</html>
