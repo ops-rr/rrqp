@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-05p';
+const VERSION = 'V2-2026-11-06a';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -223,6 +223,7 @@ async function activeTopic(topicId) {
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
   source: x.source || '', requestId: x.requestId || '', requestedBy: (req && req.requestedBy) || '', wantedTags: (req && req.wantedTags) || [], approvedBy: x.approvedBy || '', updatedAt: x.updatedAt || null,
   ...gapOf(x), gapState: x.gapState || '', enPending: (x.enPending || []).length,
+  locks: lockCount(x.question), translateWanted: !!x.translateWanted, fromSample: x.fromSample || '',
   importNotes: x.status === 'pending' ? (x.importNotes || []).filter((n) => n.level !== 'warn').length : 0 });
 /** 判斷標準缺口：講師修正後 AI 分析的結果（criteriaGap）優先於匯入時的回報（suggest.criteriaGap） */
 function gapOf(x) {
@@ -443,6 +444,27 @@ const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review:
   criteriaGap: x.criteriaGap || null, gapState: x.gapState || '', aiKey: x.aiKey === undefined ? null : x.aiKey });
 /** 正解的字串形式（與 rrqp2_tool.py key_str 相同）：A / B = 選項 id；G = s1=a,s2=na,… */
 const keyStr = (q) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + ((q.subAnswers || {})[x.id] || '')).join(',') : String((q && q.answer) || ''));
+
+// ───────── 鎖定區域（V2.3）：AI 出變化題時不能改的地方，講師在範例頁點鎖頭設定 ─────────
+// 鎖定標記存在題目裡、跟著該筆資料移動（上下移動訊息不會錯位）：陣列元素用 lock，付款用 payment.lock，物流商用 logistics.carrierLock，申退備註用 request.remarkLock
+// 申請的方案、金額、原因、折抵與 DRC 提案一律不能改，不需要鎖。與 rrqp2_tool.py lock_units 相同。
+function lockUnits(q) {
+  const out = [], x = q || {};
+  const arr = (a, pre) => (a || []).forEach((it, i) => { if (it && typeof it === 'object') out.push({ key: pre + '.' + i, obj: it, flag: 'lock' }); });
+  arr((x.order || {}).items, 'order.items');
+  if (x.payment && typeof x.payment === 'object') out.push({ key: 'payment', obj: x.payment, flag: 'lock' });
+  if (x.logistics && typeof x.logistics === 'object') { out.push({ key: 'logistics.carrier', obj: x.logistics, flag: 'carrierLock' }); arr(x.logistics.events, 'logistics.events'); }
+  arr(x.chat, 'chat');
+  ['buyer', 'seller'].forEach((sd) => ((x.drc || {})[sd] || []).forEach((d, i) => { if (d && typeof d === 'object' && d.type !== 'offer') out.push({ key: 'drc.' + sd + '.' + i, obj: d, flag: 'lock' }); }));
+  if (x.request && typeof x.request === 'object') { out.push({ key: 'request.remark', obj: x.request, flag: 'remarkLock' }); arr(x.request.items, 'request.items'); }
+  return out;
+}
+const lockOf = (q, key) => lockUnits(q).find((u) => u.key === key);
+const isLocked = (q, key) => { const u = lockOf(q, key); return !!(u && u.obj[u.flag]); };
+function setLock(q, key, on) { const u = lockOf(q, key); if (!u) return false; if (on) u.obj[u.flag] = true; else delete u.obj[u.flag]; return true; }
+const lockCount = (q) => lockUnits(q).filter((u) => u.obj[u.flag]).length;
+/** 移除所有鎖定標記（題庫題目、試卷不帶鎖定標記，避免專員從資料看出重點） */
+function stripLocks(q) { const c = JSON.parse(JSON.stringify(q || {})); lockUnits(c).forEach((u) => { delete u.obj[u.flag]; }); return c; }
 const blindStr = (q, bl) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + (((bl || {}).subAnswers || {})[x.id] || '')).join(',') : String((bl && bl.answer) || ''));
 /**
  * 草稿題目要不要分析判斷標準缺口（與 rrqp2_tool.py draft_gap 相同）；回傳 basis 字串，不需要時回傳 ''
@@ -785,6 +807,7 @@ const ACTIONS = {
   tw_updateSample: async (b) => {
     const m = await needTW();
     const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found: ' + b.sampleId);
+    if (cur.translateWanted) fail('這個範例正在等排程翻譯英文，翻譯完成（或取消送翻譯）後才能修改 / Waiting for translation');
     const patch = { updatedAt: now(), updatedBy: m.email };
     if (b.question) {
       const q = Object.assign({}, b.question); STRIP.forEach((k) => delete q[k]);
@@ -815,7 +838,7 @@ const ACTIONS = {
   tw_approveSample: async (b) => {
     const m = await needTW();
     const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found');
-    if (!(cur.tags || []).length) fail('請至少選一個標籤 / Pick at least one tag');
+    if (cur.translateWanted) fail('英文翻譯中，請等排程翻譯完成 / Waiting for translation');
     const jd = judgementOf(cur.question || {});
     if (!jd.pointZh.trim() || ((cur.question || {}).type !== 'C' && !jd.answer)) fail('請填寫判斷重點與正解 / Key point and answer are required');
     // 匯入時不因格式問題拒收，核准前一定要符合目前的規則
@@ -824,6 +847,24 @@ const ACTIONS = {
     if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
+  },
+
+  /** 送翻譯：講師確認內容（正解、判斷重點）後，由排程翻譯待翻譯的英文欄位（聊聊／DRC／備註用 DMS 翻譯，其他用 LLM） */
+  tw_requestTranslate: async (b) => {
+    const m = await needTW();
+    const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found');
+    if (!(cur.enPending || []).length) fail('沒有待翻譯的欄位 / Nothing to translate');
+    const q = cur.question || {}, jd = judgementOf(q);
+    const noKey = q.type === 'G' ? (q.group || []).some((x) => !(q.subAnswers || {})[x.id]) : (q.type !== 'C' && !jd.answer);
+    if (!jd.pointZh.trim() || noKey) fail('請先點選正解並填寫判斷重點，確認內容沒問題後再送翻譯 / Set the answer and key point first');
+    await saveSample(b.sampleId, cur, { translateWanted: true, translateAskedAt: now(), translateAskedBy: m.email, translateNote: '', updatedAt: now() });
+    return { sampleId: b.sampleId, translateWanted: true };
+  },
+  tw_cancelTranslate: async (b) => {
+    await needTW();
+    const cur = await S.get('samples/' + b.sampleId) || fail('找不到範例 / Sample not found');
+    await saveSample(b.sampleId, cur, { translateWanted: false, updatedAt: now() });
+    return { sampleId: b.sampleId, translateWanted: false };
   },
 
   /** 退回（待審）或停用（已核准） */
@@ -1977,6 +2018,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
+    locks: { units: lockUnits, isLocked, set: setLock, count: lockCount, strip: stripLocks },   // 鎖定區域（V2.3）
     group: { normalize: normGroup, score: groupScore, answerText: answerTextOf },   // 題組（G 題）
     gap: { draftBasis: draftGapBasis, keyStr },                                      // 草稿的判斷標準缺口
     dms: { find: findReason, normalize: normalizeReason, defaults: DEFAULT_DMS, solutions: SOLUTIONS },

@@ -344,26 +344,32 @@
   }
 
   // ───────── 題目呈現 ─────────
-  function itemTable(items) {
+  /** 鎖定區域的鎖頭（V2.3）：lk = 'edit' 講師可點選；'show' 只標出已鎖定；其他不顯示 */
+  function lockBtn(lk, key, on) {
+    if (lk === 'edit') return `<button type="button" class="lockbtn ${on ? 'on' : ''}" data-lock="${esc(key)}" title="${esc(t(on ? 'lkOn' : 'lkOff'))}" aria-pressed="${on}">${on ? '🔒' : '🔓'}</button>`;
+    return lk === 'show' && on ? `<span class="lockbtn on" title="${esc(t('lkOn'))}">🔒</span>` : '';
+  }
+  function itemTable(items, lk, pre) {
     if (!items || !items.length) return `<div class="soft">${t('none')}</div>`;
     const total = items.reduce((s, it) => s + (+it.qty || 0) * (+it.price || 0), 0);
     return `<table class="items"><tr><th>${esc(t('item'))}</th><th>${esc(t('variation'))}</th><th>${esc(t('qty'))}</th><th>${esc(t('price'))}</th></tr>${
-      items.map((it) => `<tr><td>${esc(L(it.name))}</td><td>${esc(L(it.variation)) || t('none')}</td><td>${esc(it.qty)}</td><td>$${esc(it.price)}</td></tr>`).join('')
+      items.map((it, i) => `<tr class="${it.lock && lk ? 'locked' : ''}"><td>${lockBtn(lk, pre + '.' + i, !!it.lock)}${esc(L(it.name))}</td><td>${esc(L(it.variation)) || t('none')}</td><td>${esc(it.qty)}</td><td>$${esc(it.price)}</td></tr>`).join('')
     }<tr><td colspan="3" style="text-align:right" class="soft">${esc(t('subtotal'))}</td><td><b>$${total}</b></td></tr></table>`;
   }
-  function chatMsg(m) {
+  function chatMsg(m, i, lk) {
     let inner;
     if (m.type === 'sticker') inner = `<span class="sticker" title="${esc(t('sticker'))}: ${esc(m.sticker)}">${m.sticker === 'thanks' ? '🙏' : '👌'}</span>`;
     else if (m.type === 'media' || m.type === 'image') inner = `<div class="media">${m.kind === 'video' ? '🎬' : '🖼️'} ${esc(L(m.desc) || '')}</div>`;
     else inner = esc(L(m.text));
     const who = m.from === 'seller' ? 'seller' : 'buyer';
-    return `<div class="msg ${who}"><div class="t">${esc(t(who))} · ${esc(m.t)}</div>${inner}</div>`;
+    return `<div class="msg ${who} ${m.lock && lk ? 'locked' : ''}"><div class="t">${lk ? lockBtn(lk, 'chat.' + i, !!m.lock) : ''}${esc(t(who))} · ${esc(m.t)}</div>${inner}</div>`;
   }
   /** skipFirstOffer：買家 DRC 第一筆是申請時的 System Info，和右邊的申請資訊重複，不顯示（資料仍保留，檢查規則要用） */
-  function drcItems(arr, skipFirstOffer) {
-    if (skipFirstOffer && arr && arr.length && arr[0] && arr[0].type === 'offer') arr = arr.slice(1);
-    if (!arr || !arr.length) return `<div class="soft small">${t('none')}</div>`;
-    return arr.map((d) => `<div class="item"><span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
+  function drcItems(arr, skipFirstOffer, lk, side) {
+    let rows = (arr || []).map((d, i) => [d, i]);
+    if (skipFirstOffer && rows.length && rows[0][0] && rows[0][0].type === 'offer') rows = rows.slice(1);
+    if (!rows.length) return `<div class="soft small">${t('none')}</div>`;
+    return rows.map(([d, i]) => `<div class="item ${d.lock && lk ? 'locked' : ''}">${d.type !== 'offer' ? lockBtn(lk, 'drc.' + side + '.' + i, !!d.lock) : ''}<span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
   }
   /** DMS 申退原因：中文介面顯示「中文（English）」；講師端用設定頁的 DMS 規則，專員端用內建表 */
   let dmsRules = null;                       // 由 t_topics 載入（getTopics / getLibMeta）
@@ -371,20 +377,21 @@
   const findReason = (r) => (DB() && DB().dms ? DB().dms.find(dmsNow(), r) : null);
   const reasonLabel = (r) => { const e = findReason(r); const en = e ? e.en : r; return lang === 'zh' && e ? `${e.zh}（${en}）` : en || ''; };
   /** 題目情境（左欄 + 右欄的申請資訊）；講師與專員共用 */
-  function caseHtml(q) {
+  function caseHtml(q, lk) {
     const r = q.request || {};
     const left = `${q.cutoff ? `<div class="cutoff">⏱ ${esc(t('cutoffBanner', { t: q.cutoff }))}</div>` : ''}<div class="prompt">${esc(L(q.prompt))}</div>
       <div class="parties">${esc(t('buyer'))} ${esc(q.buyer?.username)} (${esc(q.buyer?.id)}) · ${esc(t('seller'))} ${esc(q.seller?.username)} (${esc(q.seller?.id)})</div>
-      ${q.order ? `<h4>${esc(t('orderItems'))}</h4>${itemTable(q.order.items)}` : ''}
-      ${q.payment ? `<h4>${esc(t('payment'))}</h4><div class="box kv"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
-      ${q.logistics ? `<h4>${esc(t('logistics'))} · ${esc(L(q.logistics.carrier))}</h4><div class="box">${(q.logistics.events || []).map((e) => `<span class="soft">${esc(e.t)}</span> ${esc(L(e.status))}`).join('<br>')}</div>` : ''}
-      <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).length ? q.chat.map(chatMsg).join('') : `<div class="small soft">${esc(t('noChat'))}</div>`}</div>
-      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer, true)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller)}</div></div>`;
+      ${q.order ? `<h4>${esc(t('orderItems'))}</h4>${itemTable(q.order.items, lk, 'order.items')}` : ''}
+      ${q.payment ? `<h4>${lockBtn(lk, 'payment', !!q.payment.lock)}${esc(t('payment'))}</h4><div class="box kv ${q.payment.lock && lk ? 'locked' : ''}"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
+      ${q.logistics ? `<h4>${esc(t('logistics'))} · ${lockBtn(lk, 'logistics.carrier', !!q.logistics.carrierLock)}<span class="${q.logistics.carrierLock && lk ? 'locked' : ''}">${esc(L(q.logistics.carrier))}</span></h4><div class="box">${(q.logistics.events || []).map((e, i) => `<div class="${e.lock && lk ? 'locked' : ''}">${lockBtn(lk, 'logistics.events.' + i, !!e.lock)}<span class="soft">${esc(e.t)}</span> ${esc(L(e.status))}</div>`).join('')}</div>` : ''}
+      <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).length ? q.chat.map((m, i) => chatMsg(m, i, lk)).join('') : `<div class="small soft">${esc(t('noChat'))}</div>`}</div>
+      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer, true, lk, 'buyer')}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller, false, lk, 'seller')}</div></div>`;
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
       ${r.deduction ? `<span>${esc(t('deduction'))}</span><span>−$${esc(r.deduction)}</span>` : ''}
-      <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${esc(t('remark'))}</span><span>${L(r.remark) ? esc(L(r.remark)) : '<span class="soft">—</span>'}</span></div>
-      ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items)}` : ''}`;
+      <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${lockBtn(lk, 'request.remark', !!r.remarkLock)}${esc(t('remark'))}</span><span class="${r.remarkLock && lk ? 'locked' : ''}">${L(r.remark) ? esc(L(r.remark)) : '<span class="soft">—</span>'}</span></div>
+      ${lk === 'edit' ? `<div class="small soft" style="margin-top:4px">🔒 ${esc(t('lkReqFixed'))}</div>` : ''}
+      ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items, lk, 'request.items')}` : ''}`;
     return { left, req };
   }
 
@@ -561,7 +568,20 @@
     { wide: true, onMount: (el, close) => {
       el.classList.add('qe-modal');
       const box = $('#qe_body', el);
-      const render = () => { const y = box.scrollTop; box.innerHTML = body(); box.scrollTop = y; };
+      const render = () => {
+        const y = box.scrollTop; box.innerHTML = body(); box.scrollTop = y;
+        // 鎖定區域（V2.3）：欄位唯讀、不能刪除；上下移動不影響鎖定
+        const L2 = DB() && DB().locks ? DB().locks.units(q).filter((u) => u.obj[u.flag]).map((u) => u.key) : [];
+        if (!L2.length) return;
+        const pre = L2.map((k) => k + '.');
+        $$('[data-p],[data-type]', box).forEach((f) => {
+          const p = f.dataset.p || f.dataset.type;
+          if (!pre.some((x) => (p + '.').startsWith(x))) return;
+          f.disabled = true; const c = f.closest('.qe-card'); if (c) c.classList.add('qe-locked');
+        });
+        $$('[data-act="del"]', box).forEach((b) => { if (L2.includes(b.dataset.arr + '.' + b.dataset.i)) b.remove(); });
+        box.insertAdjacentHTML('afterbegin', `<div class="banner info" style="margin-bottom:10px">🔒 ${esc(t('qeLockedNote', { n: L2.length }))}</div>`);
+      };
       render();
       box.addEventListener('input', (e) => {
         const p = e.target.dataset.p; if (!p) return;
@@ -624,7 +644,7 @@
   Object.assign(I18N.zh, {
     wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RR AI Quiz Assistant；完成後這裡會自動更新。',
     wkEnQ: '英文待翻譯 {n} 題', wkRvQ: '待 AI 檢查 {n} 題', wkEnF: '英文待翻譯 {n} 個欄位', wkRv1: '待 AI 檢查', wkGap1: '待分析判斷標準',
-    enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。傳上方的「處理」指令會自動翻譯；也可以直接自己改英文，改過就不會再自動翻譯。',
+    enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。範例請按右上角「送翻譯」由排程翻譯（也可以傳「處理」指令）；也可以直接自己改英文，改過就不會再自動翻譯。',
     enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查（前後矛盾＋盲答）', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
     rvAsk: '要求 AI 檢查', rvAsked: '已排入 AI 檢查，請傳「{cmd}」', rvWanted: '已排入 AI 檢查',
     lv_must: '必改', lv_suggest: '建議', lv_note: '提醒', blindOk: '盲答與正解一致', blindDiff: '盲答與正解不同', blindPicked: 'AI 沒看答案時選了 {a}：', blindHint: '請確認正解，或題目內容是否足以支持正解。', mkEn: '譯', mkRv: 'AI',
@@ -636,7 +656,7 @@
   Object.assign(I18N.en, {
     wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RR AI Quiz Assistant on SeaTalk; this page updates automatically when done.',
     wkEnQ: 'English pending: {n} question(s)', wkRvQ: 'AI check pending: {n} question(s)', wkEnF: '{n} English field(s) pending', wkRv1: 'AI check pending', wkGap1: 'Criteria analysis pending',
-    enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. Send the Process command above to translate them automatically, or edit the English yourself — fields you edit are not translated again.',
+    enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. For samples, press Translate (top right) to let the scheduler translate them (or send the Process command), or edit the English yourself — fields you edit are not translated again.',
     enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check (consistency + blind answer)', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
     rvAsk: 'Request AI check', rvAsked: 'AI check requested. Send "{cmd}"', rvWanted: 'AI check requested',
     lv_must: 'Must fix', lv_suggest: 'Suggestion', lv_note: 'Note', blindOk: 'Blind answer matches the key', blindDiff: 'Blind answer differs from the key', blindPicked: 'Without seeing the key, the AI chose {a}: ', blindHint: 'Check the key, or whether the case supports it.', mkEn: 'EN', mkRv: 'AI',
@@ -674,7 +694,7 @@
   }
   function enPendingHtml(m) {
     if (!m.enPending.length) return '';
-    return `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('enPendingTitle'))}</b>：${m.enPending.map((p) => esc(pathLabel(p))).join('、')}<div class="small" style="margin-top:2px">${esc(t('enPendingHint'))}</div></div>`;
+    return `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('enPendingTitle'))}</b>：${m.enPending.length > 8 ? esc(t('enPendingN', { n: m.enPending.length })) : m.enPending.map((p) => esc(pathLabel(p))).join('、')}<div class="small" style="margin-top:2px">${esc(t('enPendingHint'))}</div></div>`;
   }
   /** 盲答：AI 沒看答案自己作答的結果（只顯示目前版本的） */
   function blindHtml(m, q) {
@@ -1950,6 +1970,13 @@
     answer: '正解', agreedYes: '已達成協議', agreedNo: '未達成協議', changeHint: '變化提示（給 AI 出題時參考）', changeHintPh: '例如：可以換商品與數量，但保留賣家只用貼圖回應的關鍵',
     approve: '核准', reject: '退回', deactivate: '停用', reactivate: '重新啟用', rejectReason: '原因（選填）', approved: '已核准，AI 出題時會使用這個範例', rejected: '已退回', deactivated: '已停用',
     tagsNeeded: '請至少選一個標籤', reviewOnlyTw: '範例庫僅開放 TW 講師',
+    noteTitle: '情境備註（為什麼導入這個範例）', optional: '（選填）', enPendingN: '{n} 個欄位',
+    lkTitle: '鎖定區域', lkCount: '已鎖定 {n} 處', lkOn: '已鎖定：AI 出變化題時不能改（點一下解鎖）', lkOff: '點一下鎖定：AI 出變化題時不能改',
+    lkHint: '在下方案件內容點 🔓 鎖定判斷依據（聊聊、DRC、物流、商品、付款、申退備註都可以鎖）。鎖定的內容 AI 只能原文保留；要修改請先解鎖、改完再鎖定。',
+    lkWaitHint: '英文翻譯中，翻譯完成後才能修改。', lkReqFixed: '申請的方案、金額、原因、折抵與 DRC 提案固定不變，不用鎖',
+    qeLockedNote: '有 {n} 處已鎖定，鎖定的欄位不能修改。要修改請先關閉編輯器、在範例頁點 🔒 解鎖，改完再鎖定。',
+    trSend: '送翻譯（{n} 欄）', trHint: '確認正解、判斷重點與內容後再送翻譯；排程下次執行時翻好英文（聊聊、DRC、申退備註用 DMS 翻譯）',
+    trSent: '已送翻譯，排程下次執行時會翻好英文並通知', trWaiting: '已送翻譯，等待排程翻譯英文；翻譯完成前不能修改內容。', trCancel: '取消送翻譯',
   });
   Object.assign(I18N.en, {
     library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
@@ -1971,6 +1998,13 @@
     answer: 'Answer', agreedYes: 'Agreement reached', agreedNo: 'No agreement', changeHint: 'Variation hint (for AI question generation)', changeHintPh: 'e.g. change the product and quantity, but keep the seller replying only with a sticker',
     approve: 'Approve', reject: 'Reject', deactivate: 'Deactivate', reactivate: 'Reactivate', rejectReason: 'Reason (optional)', approved: 'Approved; AI generation will use this sample', rejected: 'Rejected', deactivated: 'Deactivated',
     tagsNeeded: 'Pick at least one tag', reviewOnlyTw: 'Only TW trainers can use the sample library',
+    noteTitle: 'Scenario note (why this sample was imported)', optional: '(optional)', enPendingN: '{n} field(s)',
+    lkTitle: 'Locked areas', lkCount: '{n} locked', lkOn: 'Locked: the AI cannot change this when writing variations (click to unlock)', lkOff: 'Click to lock: the AI cannot change this when writing variations',
+    lkHint: 'Click 🔓 in the case below to lock the evidence for the judgement (chat, DRC, logistics, items, payment, remark). The AI must keep locked content as is; to edit it, unlock, edit, then lock again.',
+    lkWaitHint: 'English is being translated; editing is available after translation.', lkReqFixed: 'The request solution, amount, reason, deduction and DRC offers never change; no need to lock them',
+    qeLockedNote: '{n} area(s) are locked and cannot be edited. To edit, close the editor, click 🔒 on the sample page to unlock, edit, then lock again.',
+    trSend: 'Translate ({n} fields)', trHint: 'Check the answer, key point and content first; the scheduler translates the English on its next run (chat, DRC and remark via DMS translation)',
+    trSent: 'Sent for translation. The scheduler will translate on its next run and notify the group.', trWaiting: 'Waiting for the scheduler to translate the English; content cannot be edited until then.', trCancel: 'Cancel translation',
   });
   const reqChip = (s) => `<span class="chip ${s === 'done' ? 'ok' : s === 'failed' ? 'warn' : s === 'processing' || s === 'queued' ? 'info' : ''}">${esc(t('r_' + s))}</span>`;
   const smChip = (s) => `<span class="chip ${s === 'active' ? 'ok' : s === 'pending' ? 'info' : 'warn'}">${esc(t('sm_' + s))}</span>`;
@@ -2176,16 +2210,20 @@
     const qPointZh = () => String((work.question.point && work.question.point.zh) || '');
     const qOptions = () => (work.question.options || []);
     function draw() {
-      const sg = s.suggest, q = work.question, { left, req } = caseHtml(q), grp = topicGroup(meta, s.topicId);
+      const sg = s.suggest, q = work.question, trw = !!s.translateWanted, { left, req } = caseHtml(q, trw ? 'show' : 'edit'), grp = topicGroup(meta, s.topicId);
+      const nLock = DB().locks ? DB().locks.count(q) : 0, nEn = metaOf(s).enPending.length;
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
-          <span class="spacer"></span><button class="btn sm ghost" id="json">${esc(t('qeJsonAdv'))}</button>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG">${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="qedit">✎ ${esc(t('qeOpen'))}</button>
+          <span class="spacer"></span><button class="btn sm ghost" id="json" ${trw ? 'disabled' : ''}>${esc(t('qeJsonAdv'))}</button>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('qeOpen'))}</button>
           ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
-          <button class="btn" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
+          <button class="btn" id="save" ${dirty && !trw ? '' : 'disabled'}>${esc(t('save'))}</button>
+          ${nEn && !trw ? `<button class="btn primary" id="trSend" title="${esc(t('trHint'))}">${esc(t('trSend', { n: nEn }))}</button>` : ''}
           ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
         ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
+        ${trw ? `<div class="banner info row"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
+        ${s.translateNote && !trw ? `<div class="banner warn">${esc(s.translateNote)}</div>` : ''}
         ${(() => {   // 匯入時的提醒（遮蔽、格式問題）＋依目前規則重新檢查的結果；格式錯誤修好才能核准
           const errs = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
           const masks = (s.importNotes || []).filter((n) => n.level === 'mask'), warns = (s.importNotes || []).filter((n) => n.level === 'warn');
@@ -2196,16 +2234,17 @@
             ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return '・' + esc(m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text); }).join('<br>')}</div>` : ''}</div>`;
         })()}
         ${(s.enSource || []).length ? `<div class="small muted">${esc(t('enFromDms', { n: s.enSource.length }))}</div>` : ''}
-        <div class="libgrid">
-          <div class="card pad"><h4>${esc(t('yourExpect'))}</h4>${(s.wantedTags || []).length ? s.wantedTags.map((x) => `<span class="chip" style="margin:2px">${esc(tagName(x))}</span>`).join('') : '<span class="soft">—</span>'}
-            ${s.note ? `<div class="small" style="margin-top:6px">${esc(s.note)}</div>` : ''}<div class="small soft" style="margin-top:6px">${esc(s.requestedBy || '')}</div></div>
-          <div class="card pad"><h4>${esc(t('aiSuggest'))}</h4>${sg ? `${(sg.tags || []).map((x) => `<span class="chip info" style="margin:2px">${esc(tagName(x))}</span>`).join('')}
+        <div class="${sg ? 'libgrid' : ''}">
+          <div class="card pad"><h4>${esc(t('noteTitle'))}</h4>${s.note ? `<div style="white-space:pre-wrap">${esc(s.note)}</div>` : '<span class="soft">—</span>'}
+            ${(s.wantedTags || []).length ? `<div style="margin-top:6px">${s.wantedTags.map((x) => `<span class="chip" style="margin:2px">${esc(tagName(x))}</span>`).join('')}</div>` : ''}
+            <div class="small soft" style="margin-top:6px">${esc(s.requestedBy || '')}</div></div>
+          ${sg ? `<div class="card pad"><h4>${esc(t('aiSuggest'))}</h4>${(sg.tags || []).map((x) => `<span class="chip info" style="margin:2px">${esc(tagName(x))}</span>`).join('')}
             <div style="margin-top:6px"><b>${esc(sg.answer || '')}</b> · ${esc(sg.pointZh || '')}</div><div class="small muted">${esc(sg.reason || '')}</div>
-            <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button>` : '<span class="soft">—</span>'}</div>
+            <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button></div>` : ''}
         </div>
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
         ${(() => {   // 處理指令：英文待翻譯、待 AI 檢查、待分析判斷標準
-          const m = metaOf(s), a = m.enPending.length, rv = needsReview(m), gp = sampleNeedsGap(s);
+          const m = metaOf(s), a = trw ? 0 : m.enPending.length, rv = needsReview(m), gp = sampleNeedsGap(s);   // 英文：主要用「送翻譯」，指令是備用
           return a || rv || gp ? cmdBox('處理 ' + s.sampleId, [a && t('wkEnF', { n: a }), rv && t('wkRv1'), gp && t('wkGap1')].filter(Boolean).join(' · ')) : '';
         })()}
         ${(() => { const m = metaOf(s); return m.enPending.length ? `<div class="card" style="overflow:hidden">${enPendingHtml(m)}</div>` : ''; })()}
@@ -2218,10 +2257,11 @@
           <div class="small" style="margin-top:6px">${esc(sg.criteriaGap.situation)}</div>${sg.criteriaGap.suggestion ? `<pre class="gapsug">${esc(sg.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
         <div class="card pad libedit">
           <div class="form">
-            <span class="k">${esc(t('colTags'))}</span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
+            <span class="k">${esc(t('colTags'))} <span class="soft">${esc(t('optional'))}</span></span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
             <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(qPointZh())}" maxlength="100">
             ${qOptions().length ? `<label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${qOptions().map((o) => `<option value="${esc(o.id)}" ${work.question.answer === o.id ? 'selected' : ''}>${esc(o.id + '. ' + L(o.text))}</option>`).join('')}</select>` : ''}
-            <label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>
+            ${work.changeHint ? `<label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>` : ''}
+            <span class="k">${esc(t('lkTitle'))}</span><div><span class="chip ${nLock ? 'ok' : 'warn'}">🔒 ${esc(t('lkCount', { n: nLock }))}</span> <span class="small muted">${esc(t(trw ? 'lkWaitHint' : 'lkHint'))}</span></div>
           </div><div id="e_err" class="banner err" hidden></div></div>
         <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
           ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key')}` : ''}
@@ -2241,7 +2281,18 @@
         ['options', 'answer', 'modelAnswer', 'rubric'].forEach((k) => delete q[k]);
         qDirty = true; dirty = true; draw(); toast(t('grpToG'), 5000);
       };
-      $('#e_hint').oninput = (e) => { work.changeHint = e.target.value; mark(); };
+      const eh = $('#e_hint'); if (eh) eh.oninput = (e) => { work.changeHint = e.target.value; mark(); };
+      $$('[data-lock]', main).forEach((b) => b.addEventListener('click', () => {
+        const k = b.dataset.lock; DB().locks.set(work.question, k, !DB().locks.isLocked(work.question, k)); qDirty = true; dirty = true; draw();
+      }));
+      const ts = $('#trSend'); if (ts) ts.onclick = async () => {
+        if (dirty && !(await save())) return;
+        ts.disabled = true;
+        try { await api('tw_requestTranslate', { sampleId: s.sampleId }); toast(t('trSent'), 4500); viewSample(s.sampleId); } catch (e) { toast(e.message, 5000); ts.disabled = false; }
+      };
+      const tc = $('#trCancel'); if (tc) tc.onclick = async () => {
+        try { await api('tw_cancelTranslate', { sampleId: s.sampleId }); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
+      };
       const ap = $('#applyAi'); if (ap) ap.onclick = () => {
         const sg = s.suggest; work.tags = (sg.tags || []).slice();
         if (sg.pointZh) work.question.point = Object.assign({ en: '' }, work.question.point, { zh: sg.pointZh });
@@ -2255,7 +2306,6 @@
         if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
       };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {
-        if (!work.tags.length) { toast(t('tagsNeeded')); return; }
         if (dirty && !(await save())) return;
         try { await api('tw_approveSample', { sampleId: s.sampleId }); toast(t('approved'), 4000); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); }
       };

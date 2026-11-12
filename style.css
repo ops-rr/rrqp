@@ -341,3 +341,12 @@ pre.gapsug { white-space: pre-wrap; font: inherit; font-size: 13px; background: 
 .grp .rvgrid { margin-top: 6px; }
 @media (max-width: 640px) { .grp-opts .ropt, .grp-opts .opt { flex-basis: 100%; } }
 .grp-opts .opt .hint { white-space: nowrap; }
+
+/* ───────── V2.3 鎖定區域 ───────── */
+.lockbtn { border: 0; background: transparent; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 4px 0 0; opacity: .45; vertical-align: baseline; }
+.lockbtn:hover, .lockbtn.on { opacity: 1; }
+span.lockbtn { cursor: default; }
+.locked { outline: 2px solid #E8A33D; outline-offset: 1px; border-radius: 6px; background-color: #FFF8EC; }
+tr.locked td { background: #FFF8EC; }
+.msg.locked { background: #FFF8EC; }
+.qe-card.qe-locked { border-color: #E8A33D; background: #FFF8EC; }
