@@ -441,7 +441,7 @@
 
   // ───────── 題組（G 題）：一題多個小題，全對得滿分，否則每對一小題得 滿分 ÷（2 × 小題數） ─────────
   Object.assign(I18N.zh, {
-    impNotesTitle: '匯入提醒（審核時請確認）', impErrs: '不符合格式規則，修正後才能核准：', todoTitle: '待講師填寫（填好才能送翻譯與核准）：', todoSub: '正解（{m} 小題中還差 {n} 題）', todoAns: '正解', todoPoint: '判斷重點', impMasked: '已自動遮蔽疑似真實資料：', impFreeO: '訂單商品第 {n} 項單價是 0，是否為贈品？', impFreeR: '申退商品第 {n} 項單價是 0，是否為贈品？',
+    impNotesTitle: '審核前請確認', impInfo: '匯入細節（{n}）', todoFill: '待填', impErrs: '不符合格式規則，修正後才能核准：', todoTitle: '待講師填寫（填好才能送翻譯與核准）：', todoSub: '正解（{m} 小題中還差 {n} 題）', todoAns: '正解', todoPoint: '判斷重點', impMasked: '已自動遮蔽疑似真實資料：', impFreeO: '訂單商品第 {n} 項單價是 0，是否為贈品？', impFreeR: '申退商品第 {n} 項單價是 0，是否為贈品？',
     enFromDms: '聊聊／DRC／備註的英文有 {n} 欄來自 DMS 翻譯（和專員在 DMS 英文介面看到的相同）',
     grpConvert: '轉成題組', grpTitle: '題組（{n} 小題）', grpKeyHint: '點選每個小題的正解', grpNoAns: '未設定正解', grpScoring: '計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × {n}）',
     grpMine: '你的答案', grpKey: '正解', grpOkN: '答對 {a} / {b} 小題', grpTopicOnly: '這個主題使用題組：全部出 G 題（{n} 小題）', qeTypeG: 'G：題組',
@@ -450,7 +450,7 @@
     blindSubs: 'AI 沒看答案時，以下小題和正解不同：', tImportUpdate: '已經有主題「{n}」。要用檔案內容更新它嗎？判斷標準有改時版本號會 +1 並保留舊版；已有的標籤不會被修改。', tUpdated: '已更新主題 {n}',
   });
   Object.assign(I18N.en, {
-    impNotesTitle: 'Import notes (check when reviewing)', impErrs: 'Does not meet the format rules; fix before approving:', todoTitle: 'To fill in by the trainer (needed before translation and approval): ', todoSub: 'answers ({n} of {m} sub-questions missing)', todoAns: 'answer', todoPoint: 'key point', impMasked: 'Possible real data was masked automatically:', impFreeO: 'Order item {n} has a unit price of 0 — a free gift?', impFreeR: 'Requested item {n} has a unit price of 0 — a free gift?',
+    impNotesTitle: 'Check before approving', impInfo: 'Import details ({n})', todoFill: 'Required', impErrs: 'Does not meet the format rules; fix before approving:', todoTitle: 'To fill in by the trainer (needed before translation and approval): ', todoSub: 'answers ({n} of {m} sub-questions missing)', todoAns: 'answer', todoPoint: 'key point', impMasked: 'Possible real data was masked automatically:', impFreeO: 'Order item {n} has a unit price of 0 — a free gift?', impFreeR: 'Requested item {n} has a unit price of 0 — a free gift?',
     enFromDms: '{n} chat / DRC / remark field(s) use the DMS translation (same as agents see in DMS)',
     grpConvert: 'Convert to question set', grpTitle: 'Question set ({n} parts)', grpKeyHint: 'Pick the correct answer for each part', grpNoAns: 'No answer set', grpScoring: 'Scoring: all correct = full points; otherwise each correct part earns full ÷ (2 × {n})',
     grpMine: 'Your answer', grpKey: 'Correct', grpOkN: '{a} / {b} parts correct', grpTopicOnly: 'This topic uses question sets: all questions are type G ({n} parts)', qeTypeG: 'G: Question set',
@@ -2399,24 +2399,22 @@
         ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
         ${trw ? `<div class="banner info row"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
         ${s.translateNote && !trw ? `<div class="banner warn">${esc(s.translateNote)}</div>` : ''}
-        ${(() => {   // 匯入時的提醒（遮蔽、格式問題）＋依目前規則重新檢查的結果；格式錯誤修好才能核准
+        ${(() => {   // 審核前請確認：只列講師要處理的事（遮蔽、格式錯誤、贈品、未知訊息…）；純資訊收合成「匯入細節」；核准後只留格式錯誤
           const all = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
-          const { errors: errs, todo } = DB() && DB().splitKeyTodo ? DB().splitKeyTodo(all) : { errors: all, todo: [] };   // 正解／判斷重點未填＝講師待填，不算格式錯誤
-          const masks = (s.importNotes || []).filter((n) => n.level === 'mask'), warns = (s.importNotes || []).filter((n) => n.level === 'warn');
-          const todoTxt = (() => {
-            if (!todo.length) return '';
-            const parts = [], nSub = todo.filter((e) => /^subAnswers\./.test(e)).length;
-            if (nSub) parts.push(t('todoSub', { n: nSub, m: (q.group || []).length }));
-            if (todo.some((e) => /^answer /.test(e))) parts.push(t('todoAns'));
-            if (todo.some((e) => /^point/.test(e))) parts.push(t('todoPoint'));
-            return parts.join('、');
-          })();
-          if (!errs.length && !masks.length && !warns.length && !todoTxt) return '';
+          const { errors: errs } = DB() && DB().splitKeyTodo ? DB().splitKeyTodo(all) : { errors: all };   // 正解／判斷重點未填改標在下方欄位旁
+          const pending = s.status === 'pending';
+          const masks = pending ? (s.importNotes || []).filter((n) => n.level === 'mask') : [];
+          const warnAll = pending ? (s.importNotes || []).filter((n) => n.level === 'warn') : [];
+          const INFO_RE = /^(（核對用）|申請金額 .*與申退品項小計|買家在申請中附了照片|買家申請附了 .*已留下區塊|聊聊有 \d+ 則照片|已略過 \d+ 則|判斷時點 [\d\- :]+：(已移除|之後沒有))/;
+          const warns = warnAll.filter((n) => !INFO_RE.test(n.text)), info = warnAll.filter((n) => INFO_RE.test(n.text));
+          if (!errs.length && !masks.length && !warns.length && !info.length) return '';
+          const freeTxt = (n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text; };
+          const infoHtml = info.length ? `<details class="small soft" style="margin-top:4px"><summary style="cursor:pointer">${esc(t('impInfo', { n: info.length }))}</summary>${info.map((n) => '・' + esc(n.text)).join('<br>')}</details>` : '';
+          if (!errs.length && !masks.length && !warns.length) return `<div style="margin:-4px 0 4px">${infoHtml}</div>`;
           return `<div class="banner ${errs.length ? 'err' : 'warn'}"><b>${esc(t('impNotesTitle'))}</b>
-            ${todoTxt ? `<div style="margin-top:4px">📝 ${esc(t('todoTitle'))}${esc(todoTxt)}</div>` : ''}
             ${errs.length ? `<div style="margin-top:4px"><b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 10).map(esc).join('<br>')}</div>` : ''}
             ${masks.length ? `<div style="margin-top:4px"><b>${esc(t('impMasked'))}</b><br>${masks.map((n) => '・' + esc(pathLabel(n.path)) + '：' + esc(n.text)).join('<br>')}</div>` : ''}
-            ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return '・' + esc(m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text); }).join('<br>')}</div>` : ''}</div>`;
+            ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => '・' + esc(freeTxt(n))).join('<br>')}</div>` : ''}${infoHtml}</div>`;
         })()}
         ${(s.enSource || []).length ? `<div class="small muted">${esc(t('enFromDms', { n: s.enSource.length }))}</div>` : ''}
         <div class="${sg ? 'libgrid' : ''}">
@@ -2443,8 +2441,8 @@
         <div class="card pad libedit">
           <div class="form">
             <span class="k">${esc(t('colTags'))} <span class="soft">${esc(t('optional'))}</span></span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
-            <label class="k" for="e_point">${esc(t('point'))}</label><input type="text" id="e_point" value="${esc(qPointZh())}" maxlength="100">
-            ${qOptions().length ? `<label class="k" for="e_ans">${esc(t('answer'))}</label><select id="e_ans"><option value=""></option>${qOptions().map((o) => `<option value="${esc(o.id)}" ${work.question.answer === o.id ? 'selected' : ''}>${esc(o.id + '. ' + L(o.text))}</option>`).join('')}</select>` : ''}
+            <label class="k" for="e_point">${esc(t('point'))}${qPointZh().trim() ? '' : `<span class="tag-noans">${esc(t('todoFill'))}</span>`}</label><input type="text" id="e_point" value="${esc(qPointZh())}" maxlength="100">
+            ${qOptions().length ? `<label class="k" for="e_ans">${esc(t('answer'))}${work.question.answer ? '' : `<span class="tag-noans">${esc(t('todoFill'))}</span>`}</label><select id="e_ans"><option value=""></option>${qOptions().map((o) => `<option value="${esc(o.id)}" ${work.question.answer === o.id ? 'selected' : ''}>${esc(o.id + '. ' + L(o.text))}</option>`).join('')}</select>` : ''}
             ${work.changeHint ? `<label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>` : ''}
             <span class="k">${esc(t('lkTitle'))}</span><div><span class="chip ${nLock ? 'ok' : 'warn'}">🔒 ${esc(t('lkCount', { n: nLock }))}</span> <span class="small muted">${esc(t(trw ? 'lkWaitHint' : 'lkHint'))}</span></div>
           </div><div id="e_err" class="banner err" hidden></div></div>
