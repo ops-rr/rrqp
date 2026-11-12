@@ -288,15 +288,18 @@
       const tp = topics || await getTopics();
       const box = $('#createBox');
       if (box.innerHTML) { box.innerHTML = ''; return; }
+      const seedMode = me.role === 'tw';   // V2.3：TW 講師改成「選範例出題」（BPO 講師看不到範例，維持選標籤）
+      let seedRows = [];
       const topicOpts = tp.topics.filter((x) => x.active).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
       box.innerHTML = `<form class="card pad" id="cform" style="display:flex;flex-direction:column;gap:16px">
         <h2>${esc(t('newDraft'))}</h2>
         <div class="form">
           <label class="k" for="f_name">${esc(t('name'))}</label><input type="text" id="f_name" required maxlength="60" placeholder="${lang === 'zh' ? '例：寄錯商品-第1梯' : 'e.g. Wrong item - Batch 1'}">
           <label class="k" for="f_topic">${esc(t('topic'))}</label><select id="f_topic">${topicOpts}</select>
-          <span class="k">${esc(t('tags'))}</span><div><div class="tags" id="f_tags"></div><div class="small soft" style="margin-top:4px">${esc(t('tagsHint'))}</div></div>
-          <label class="k" for="f_target">${esc(t('target'))}</label><div class="row"><input type="number" id="f_target" min="1" max="50" value="10"></div>
-          <span class="k">${esc(t('mix'))}</span><div><div class="small" id="f_grp" hidden></div><div class="row" id="f_mix">
+          ${seedMode ? `<span class="k">${esc(t('spPick'))}</span><div><div id="f_seeds"></div><div class="small soft" style="margin-top:4px">${esc(t('spHint'))}</div><div class="small" id="f_seedSum" style="margin-top:4px"></div></div>` : ''}
+          <span class="k" ${seedMode ? 'hidden' : ''}>${esc(t('tags'))}</span><div ${seedMode ? 'hidden' : ''}><div class="tags" id="f_tags"></div><div class="small soft" style="margin-top:4px">${esc(t('tagsHint'))}</div></div>
+          <label class="k" for="f_target" ${seedMode ? 'hidden' : ''}>${esc(t('target'))}</label><div class="row" ${seedMode ? 'hidden' : ''}><input type="number" id="f_target" min="1" max="50" value="10"></div>
+          <span class="k" ${seedMode ? 'hidden' : ''}>${esc(t('mix'))}</span><div ${seedMode ? 'hidden' : ''}><div class="small" id="f_grp" hidden></div><div class="row" id="f_mix">
             <label class="small">${esc(t('typeA'))} <input type="number" id="f_A" min="0" max="50" value="3"></label>
             <label class="small">${esc(t('typeB'))} <input type="number" id="f_B" min="0" max="50" value="5"></label>
             <label class="small">${esc(t('typeC'))} <input type="number" id="f_C" min="0" max="50" value="2"></label>
@@ -311,7 +314,25 @@
         $$('#f_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked)));
       };
       const grpOf = () => { const x = tp.topics.find((y) => y.topicId === $('#f_topic').value); return (x && x.group) || null; };
+      const drawSeeds = async () => {
+        if (!seedMode) return;
+        $('#f_seeds').innerHTML = `<span class="spin"></span>`;
+        try { seedRows = (await api('tw_seedOptions', { topicId: $('#f_topic').value })).samples; } catch (e) { $('#f_seeds').textContent = e.message; return; }
+        $('#f_seeds').innerHTML = seedRows.length ? `<table class="list"><thead><tr><th></th><th>${esc(t('colSample'))}</th><th>${esc(t('point'))}</th><th>${esc(t('answer'))}</th><th>🔒</th><th>${esc(t('spBanked'))}</th><th>${esc(t('spCount'))}</th></tr></thead><tbody>${
+          seedRows.map((x) => `<tr ${x.locks ? '' : `title="${esc(t('spNoLock'))}" style="opacity:.5"`}><td><input type="checkbox" data-seed="${esc(x.sampleId)}" ${x.locks ? '' : 'disabled'}></td>
+            <td><b>${esc(x.sampleId)}</b>${x.fromSample ? ` <span class="chip">⧉ ${esc(x.fromSample)}</span>` : ''}</td><td class="small">${esc(x.pointZh)}</td><td class="small">${esc(x.answer)}</td>
+            <td class="small">${x.locks || `<span class="chip warn">${esc(t('spNoLockShort'))}</span>`}</td><td class="small">${x.banked}</td>
+            <td><input type="number" data-seedn="${esc(x.sampleId)}" min="1" max="20" value="5" style="width:64px" ${x.locks ? '' : 'disabled'}></td></tr>`).join('')}</tbody></table>` : `<div class="empty-state small">${esc(t('spNone'))}</div>`;
+        $$('#f_seeds input').forEach((c) => c.addEventListener('input', sum));
+        sum();
+      };
+      const pickedSeeds = () => $$('#f_seeds [data-seed]:checked').map((c) => ({ sampleId: c.dataset.seed, count: +($(`[data-seedn="${c.dataset.seed}"]`).value) || 0 }));
       const sum = () => {
+        if (seedMode) {
+          const p = pickedSeeds(), n = p.reduce((a, x) => a + x.count, 0), ok = p.length && n >= 1 && n <= 50 && p.every((x) => x.count >= 1 && x.count <= 20);
+          $('#f_seedSum').innerHTML = p.length ? `<span class="chip ${ok ? 'ok' : 'warn'}">${esc(t('spSum', { s: p.length, n }))}</span>` : '';
+          $('#f_go').disabled = !ok; return;
+        }
         const g = grpOf();
         $('#f_grp').hidden = !g; $('#f_mix').hidden = !!g;
         if (g) { $('#f_grp').innerHTML = `<span class="chip info">${esc(t('grpTopicOnly', { n: g.length }))}</span>`; const n0 = +$('#f_target').value || 0; $('#f_go').disabled = n0 < 1 || n0 > 50; return; }
@@ -324,14 +345,15 @@
         $('#f_B').value = Math.max(0, n - a - c); sum();
       });
       ['#f_A', '#f_B', '#f_C'].forEach((s) => $(s).addEventListener('input', sum));
-      $('#f_topic').addEventListener('change', () => { drawTags(); sum(); });
+      $('#f_topic').addEventListener('change', () => { drawTags(); drawSeeds(); sum(); });
       $('#f_cancel').onclick = () => { box.innerHTML = ''; };
-      drawTags(); sum(); $('#f_name').focus();
+      drawTags(); drawSeeds(); sum(); $('#f_name').focus();
       $('#cform').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = $('#f_go'); btn.disabled = true; $('#f_err').hidden = true;
         try {
-          const r = await api('t_createDraft', {
+          const seeds = seedMode ? pickedSeeds() : null;
+          const r = await api('t_createDraft', seeds ? { name: $('#f_name').value.trim(), topicId: $('#f_topic').value, target: seeds.reduce((a, x) => a + x.count, 0), seeds } : {
             name: $('#f_name').value.trim(), topicId: $('#f_topic').value, target: +$('#f_target').value,
             tags: $$('#f_tags input:checked').map((c) => c.value),
             mix: grpOf() ? { G: +$('#f_target').value } : { A: +$('#f_A').value || 0, B: +$('#f_B').value || 0, C: +$('#f_C').value || 0 },
@@ -344,6 +366,19 @@
   }
 
   // ───────── 題目呈現 ─────────
+  // V2.3：照搬 DMS 版面，照片／影片不載入，只留區塊（講師可填描述）；貼圖用公開貼圖包圖片
+  Object.assign(I18N.zh, { phPhoto: '照片', phVideo: '影片', phNoDesc: '（尚未描述）', phCard: '[商品卡片]', phOther: '[系統訊息]',
+    phOtherHint: 'DMS 類型 {n}：請對照 DMS 確認，可在「編輯題目」刪除或改成其他類型', phDescPh: '描述（講師填寫，例如：外箱破損、內容物完好）',
+    reqMedia: '買家附件（{n}）', itemPhoto: '商品照', sysInfo: 'System Info：申請 {s} ${a}', shopeeBy: '蝦皮', stickerFail: '[貼圖]', stickerDescPh: '貼圖說明（選填，例如：道歉）' });
+  Object.assign(I18N.en, { phPhoto: 'Photo', phVideo: 'Video', phNoDesc: '(no description yet)', phCard: '[Product card]', phOther: '[System message]',
+    phOtherHint: 'DMS type {n}: check it in DMS; delete it or change its type in “Edit question”', phDescPh: 'Description (filled in by the trainer)',
+    reqMedia: 'Buyer attachments ({n})', itemPhoto: 'Product photo', sysInfo: 'System Info: requested {s} ${a}', shopeeBy: 'Shopee', stickerFail: '[Sticker]', stickerDescPh: 'Sticker meaning (optional, e.g. Sorry)' });
+  /** 照片／影片區塊；lk === 'edit' 時顯示描述輸入框（data-desc = 題目內路徑） */
+  function mediaPh(x, path, lk) {
+    const d = L(x.desc), zh = (x.desc && x.desc.zh) || '';
+    return `<div class="ph"><span class="ph-k">${x.kind === 'video' ? '🎬' : '📷'} ${esc(t(x.kind === 'video' ? 'phVideo' : 'phPhoto'))}</span>${lk === 'edit' ? '' : `<div class="ph-d ${d ? '' : 'empty'}">${d ? esc(d) : esc(t('phNoDesc'))}</div>`}
+      ${lk === 'edit' ? `<textarea class="ph-in" data-desc="${esc(path)}" placeholder="${esc(t('phDescPh'))}">${esc(zh)}</textarea>` : ''}</div>`;
+  }
   /** 鎖定區域的鎖頭（V2.3）：lk = 'edit' 講師可點選；'show' 只標出已鎖定；其他不顯示 */
   function lockBtn(lk, key, on) {
     if (lk === 'edit') return `<button type="button" class="lockbtn ${on ? 'on' : ''}" data-lock="${esc(key)}" title="${esc(t(on ? 'lkOn' : 'lkOff'))}" aria-pressed="${on}">${on ? '🔒' : '🔓'}</button>`;
@@ -352,24 +387,32 @@
   function itemTable(items, lk, pre) {
     if (!items || !items.length) return `<div class="soft">${t('none')}</div>`;
     const total = items.reduce((s, it) => s + (+it.qty || 0) * (+it.price || 0), 0);
-    return `<table class="items"><tr><th>${esc(t('item'))}</th><th>${esc(t('variation'))}</th><th>${esc(t('qty'))}</th><th>${esc(t('price'))}</th></tr>${
-      items.map((it, i) => `<tr class="${it.lock && lk ? 'locked' : ''}"><td>${lockBtn(lk, pre + '.' + i, !!it.lock)}${esc(L(it.name))}</td><td>${esc(L(it.variation)) || t('none')}</td><td>${esc(it.qty)}</td><td>$${esc(it.price)}</td></tr>`).join('')
-    }<tr><td colspan="3" style="text-align:right" class="soft">${esc(t('subtotal'))}</td><td><b>$${total}</b></td></tr></table>`;
+    return `<table class="items"><tr><th style="width:64px"></th><th>${esc(t('item'))}</th><th>${esc(t('variation'))}</th><th>${esc(t('qty'))}</th><th>${esc(t('price'))}</th></tr>${
+      items.map((it, i) => `<tr class="${it.lock && lk ? 'locked' : ''}"><td><span class="ph-thumb">${esc(t('itemPhoto'))}</span></td><td>${lockBtn(lk, pre + '.' + i, !!it.lock)}${esc(L(it.name))}</td><td>${esc(L(it.variation)) || t('none')}</td><td>${esc(it.qty)}</td><td>$${esc(it.price)}</td></tr>`).join('')
+    }<tr><td colspan="4" style="text-align:right" class="soft">${esc(t('subtotal'))}</td><td><b>$${total}</b></td></tr></table>`;
   }
   function chatMsg(m, i, lk) {
     let inner;
-    if (m.type === 'sticker') inner = `<span class="sticker" title="${esc(t('sticker'))}: ${esc(m.sticker)}">${m.sticker === 'thanks' ? '🙏' : '👌'}</span>`;
-    else if (m.type === 'media' || m.type === 'image') inner = `<div class="media">${m.kind === 'video' ? '🎬' : '🖼️'} ${esc(L(m.desc) || '')}</div>`;
+    const url = m.type === 'sticker' && DB() && DB().stickerUrl ? DB().stickerUrl(m) : '';
+    if (m.type === 'sticker' && url) {
+      const sd = L(m.desc), sz = (m.desc && m.desc.zh) || '';
+      inner = `<img class="stk" src="${esc(url)}" alt="${esc(t('stickerFail'))}" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'stk-fail',textContent:this.alt}))">`
+        + (lk === 'edit' ? `<input class="ph-in" data-desc="chat.${i}.desc" placeholder="${esc(t('stickerDescPh'))}" value="${esc(sz)}">` : sd ? `<div class="stk-d">${esc(sd)}</div>` : '');
+    }
+    else if (m.type === 'sticker') inner = `<span class="sticker" title="${esc(t('sticker'))}: ${esc(m.sticker)}">${m.sticker === 'thanks' ? '🙏' : '👌'}</span>`;
+    else if (m.type === 'media' || m.type === 'image') inner = mediaPh(m, `chat.${i}.desc`, lk);
+    else if (m.type === 'card') inner = `<div class="ph"><span class="ph-k">${m.kind === 'card' ? '🛍️ ' + esc(t('phCard')) : '💬 ' + esc(t('phOther'))}</span>${lk && m.kind !== 'card' ? `<div class="ph-d">${esc(t('phOtherHint', { n: m.code ?? '?' }))}</div>` : ''}</div>`;
     else inner = esc(L(m.text));
     const who = m.from === 'seller' ? 'seller' : 'buyer';
     return `<div class="msg ${who} ${m.lock && lk ? 'locked' : ''}"><div class="t">${lk ? lockBtn(lk, 'chat.' + i, !!m.lock) : ''}${esc(t(who))} · ${esc(m.t)}</div>${inner}</div>`;
   }
-  /** skipFirstOffer：買家 DRC 第一筆是申請時的 System Info，和右邊的申請資訊重複，不顯示（資料仍保留，檢查規則要用） */
-  function drcItems(arr, skipFirstOffer, lk, side) {
-    let rows = (arr || []).map((d, i) => [d, i]);
-    if (skipFirstOffer && rows.length && rows[0][0] && rows[0][0].type === 'offer') rows = rows.slice(1);
+  /** DRC：照 DMS 顯示，買家第一筆提案顯示成 System Info；蝦皮（退貨退款小組）訊息另外標示（V2.3） */
+  function drcItems(arr, skipFirstOffer, lk, side, r) {
+    const rows = (arr || []).map((d, i) => [d, i]);
     if (!rows.length) return `<div class="soft small">${t('none')}</div>`;
-    return rows.map(([d, i]) => `<div class="item ${d.lock && lk ? 'locked' : ''}">${d.type !== 'offer' ? lockBtn(lk, 'drc.' + side + '.' + i, !!d.lock) : ''}<span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer' ? `<b>${esc(d.solution)} $${esc(d.amount)}</b>` : esc(L(d.text))}</div>`).join('');
+    return rows.map(([d, i]) => `<div class="item ${d.lock && lk ? 'locked' : ''}">${d.type !== 'offer' ? lockBtn(lk, 'drc.' + side + '.' + i, !!d.lock) : ''}<span class="soft">${esc(d.t || '')}</span> ${d.type === 'offer'
+      ? (side === 'buyer' && i === 0 ? `<div class="sysinfo">${sysInfoHtml(r, d)}</div>` : `<div class="sysinfo">${esc(t('ceOffer'))}: ${esc(d.solution)} $${esc(fmtAmt(d.amount))}</div>`)
+      : d.by === 'shopee' ? `<div class="shopee"><b>${esc(t('shopeeBy'))}</b>　${esc(L(d.text))}</div>` : esc(L(d.text))}</div>`).join('');
   }
   /** DMS 申退原因：中文介面顯示「中文（English）」；講師端用設定頁的 DMS 規則，專員端用內建表 */
   let dmsRules = null;                       // 由 t_topics 載入（getTopics / getLibMeta）
@@ -385,12 +428,13 @@
       ${q.payment ? `<h4>${lockBtn(lk, 'payment', !!q.payment.lock)}${esc(t('payment'))}</h4><div class="box kv ${q.payment.lock && lk ? 'locked' : ''}"><span>${esc(t('method'))}</span><span>${esc(L(q.payment.method))}</span><span>${esc(t('status'))}</span><span>${esc(L(q.payment.status))}</span></div>` : ''}
       ${q.logistics ? `<h4>${esc(t('logistics'))} · ${lockBtn(lk, 'logistics.carrier', !!q.logistics.carrierLock)}<span class="${q.logistics.carrierLock && lk ? 'locked' : ''}">${esc(L(q.logistics.carrier))}</span></h4><div class="box">${(q.logistics.events || []).map((e, i) => `<div class="${e.lock && lk ? 'locked' : ''}">${lockBtn(lk, 'logistics.events.' + i, !!e.lock)}<span class="soft">${esc(e.t)}</span> ${esc(L(e.status))}</div>`).join('')}</div>` : ''}
       <h4>${esc(t('chat'))}</h4><div class="chat">${(q.chat || []).length ? q.chat.map((m, i) => chatMsg(m, i, lk)).join('') : `<div class="small soft">${esc(t('noChat'))}</div>`}</div>
-      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer, true, lk, 'buyer')}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller, false, lk, 'seller')}</div></div>`;
+      <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcItems(q.drc?.buyer, true, lk, 'buyer', r)}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcItems(q.drc?.seller, false, lk, 'seller', r)}</div></div>`;
     const req = `<h4>${esc(t('request'))}</h4>
       <div class="box kv"><span>${esc(t('solution'))}</span><span><b>${esc(r.solution)}</b></span><span>${esc(t('amount'))}</span><span><b>$${esc(r.amount)}</b></span>
       ${r.deduction ? `<span>${esc(t('deduction'))}</span><span>−$${esc(r.deduction)}</span>` : ''}
       <span>${esc(t('reason'))}</span><span>${esc(reasonLabel(r.reason))}</span><span>${lockBtn(lk, 'request.remark', !!r.remarkLock)}${esc(t('remark'))}</span><span class="${r.remarkLock && lk ? 'locked' : ''}">${L(r.remark) ? esc(L(r.remark)) : '<span class="soft">—</span>'}</span></div>
       ${lk === 'edit' ? `<div class="small soft" style="margin-top:4px">🔒 ${esc(t('lkReqFixed'))}</div>` : ''}
+      ${(r.media || []).length ? `<h4>${esc(t('reqMedia', { n: r.media.length }))}</h4><div class="phs">${r.media.map((x, i) => `<div class="${x.lock && lk ? 'locked' : ''}">${lockBtn(lk, 'request.media.' + i, !!x.lock)}${mediaPh(x, 'request.media.' + i + '.desc', lk)}</div>`).join('')}</div>` : ''}
       ${r.items ? `<h4>${esc(t('reqItems'))}</h4>${itemTable(r.items, lk, 'request.items')}` : ''}`;
     return { left, req };
   }
@@ -425,7 +469,8 @@
   function groupHtml(q, mode, picks = {}, disabled = false) {
     const g = q.group || [], key = q.subAnswers || {};
     return `<div class="grp">${g.map((x, i) => {
-      const head = `<div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b></div>`;
+      const noAns = mode !== 'quiz' && mode !== 'result' && !key[x.id];   // 講師端：未設定正解的提醒放在題目後面
+      const head = `<div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b>${noAns ? `<span class="tag-noans">${esc(t('grpNoAns'))}</span>` : ''}</div>`;
       if (mode === 'quiz') return `<div class="grp-sub">${head}<div class="grp-opts">${x.options.map((o) => `<label class="ropt ${picks[x.id] === o.id ? 'on' : ''} ${o.id === 'na' ? 'na' : ''}"><input type="radio" name="sub_${esc(x.id)}" data-sub="${esc(x.id)}" value="${esc(o.id)}" ${picks[x.id] === o.id ? 'checked' : ''}> ${esc(L(o.text))}</label>`).join('')}</div></div>`;
       if (mode === 'result') {
         const mine = grpOpt(x, picks[x.id]), right = grpOpt(x, key[x.id]), ok = !!mine && picks[x.id] === key[x.id];
@@ -435,7 +480,7 @@
         const on = key[x.id] === o.id;
         return mode === 'key' ? `<button type="button" class="opt sm ${on ? 'correct' : ''}" data-subkey="${esc(x.id)}" data-val="${esc(o.id)}" ${disabled ? 'disabled' : ''}>${esc(L(o.text))}${on ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</button>`
           : `<div class="opt sm ${on ? 'correct' : ''}">${esc(L(o.text))}${on ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`;
-      }).join('')}${key[x.id] ? '' : `<span class="chip warn">${esc(t('grpNoAns'))}</span>`}</div></div>`;
+      }).join('')}</div></div>`;
     }).join('')}</div>`;
   }
   /** 講師點選正解：work.subAnswers 更新後呼叫 onChange */
@@ -489,163 +534,235 @@
   };
 
   /** 開啟題目內容編輯器；回傳修改後的題目，取消時回傳 null */
-  async function questionEditor(question, { rules = null, title = '', group = null, allowKeyTodo = false } = {}) {
-    rules = rules || dmsNow();
+  // ───────── 原地編輯（V2.3）：按「編輯題目」後，案件畫面原地變成可編輯；範例頁、草稿頁、題庫頁共用 ─────────
+  // 只改中文（英文欄位改過後列入待翻譯，按「送翻譯」由排程翻譯）；鎖定的部分唯讀，要先解鎖
+  Object.assign(I18N.zh, {
+    ceBar: '編輯中：直接修改下方內容。只改中文，改過的欄位英文會列入待翻譯。按「儲存」存檔並結束編輯，按「取消」全部還原。',
+    ceBarLock: '🔒 已鎖定的部分唯讀，點 🔒 解鎖後才能修改。', ceLockedRO: '已鎖定：解鎖後才能修改', ceIns: '＋ 在這裡插入訊息', ceInsDrc: '＋ 新增 DRC 訊息',
+    ceAddItem: '＋ 新增商品', ceAddReqItem: '＋ 新增申退商品', ceAddEv: '＋ 新增物流事件', ceAddPhoto: '＋ 照片', ceAddVideo: '＋ 影片', ceAddOpt: '＋ 新增選項',
+    ceText: '文字', ceSticker: '貼圖（OK）', ceStickerTy: '貼圖（謝謝）', ceStk: '貼圖', ceImage: '照片', ceVideo: '影片', ceAmtAuto: '＝申退小計 − 折抵，自動計算',
+    ceGrpNote: '題組的小題與選項來自主題設定，不在這裡改；正解請在結束編輯後點選。', ceErrs: '還有以下問題，修正後才能儲存：', ceEdit: '編輯題目',
+    ceOffer: '提案', ceIdPh: 'ID', ceUserPh: '帳號', ceDesc: '描述（講師填寫）', ceStkDesc: '貼圖說明（選填）', ceOptPh: '選項文字',
+  });
+  Object.assign(I18N.en, {
+    ceBar: 'Editing: change the content below. Edit Chinese only; changed fields are queued for English translation. Save to finish, Cancel to discard.',
+    ceBarLock: '🔒 Locked parts are read-only; click 🔒 to unlock first.', ceLockedRO: 'Locked: unlock to edit', ceIns: '＋ Insert message here', ceInsDrc: '＋ Add DRC message',
+    ceAddItem: '＋ Add item', ceAddReqItem: '＋ Add requested item', ceAddEv: '＋ Add event', ceAddPhoto: '＋ Photo', ceAddVideo: '＋ Video', ceAddOpt: '＋ Add option',
+    ceText: 'Text', ceSticker: 'Sticker (OK)', ceStickerTy: 'Sticker (Thanks)', ceStk: 'Sticker', ceImage: 'Photo', ceVideo: 'Video', ceAmtAuto: '= requested subtotal − deduction (auto)',
+    ceGrpNote: 'Sub-questions and options come from the topic settings; pick the answers after you finish editing.', ceErrs: 'Please fix the following before saving:', ceEdit: 'Edit question',
+    ceOffer: 'Offer', ceIdPh: 'ID', ceUserPh: 'Username', ceDesc: 'Description (trainer)', ceStkDesc: 'Sticker meaning (optional)', ceOptPh: 'Option text',
+  });
+  /**
+   * host：放編輯器的元素；question：題目（會複製一份）
+   * opts = { rules, locks（範例頁：顯示鎖頭、鎖定唯讀）, point（顯示判斷重點欄）, keyTodo（正解／判斷重點可留白）, onDirty }
+   * 回傳 { get() → { question } 或 { errors } }
+   */
+  function caseEditor(host, question, opts = {}) {
+    const rules = opts.rules || dmsNow();
     const q = clone(question);
-    if (DB() && DB().dms) DB().dms.normalize(q, rules);     // 舊名稱換成規則表的正式名稱
+    if (DB() && DB().dms) DB().dms.normalize(q, rules);
     q.order = q.order || { items: [] }; q.order.items = q.order.items || [];
     q.request = q.request || {}; q.request.items = q.request.items || [];
     q.payment = q.payment || { method: { zh: '', en: '' }, status: { zh: '', en: '' } };
     q.logistics = q.logistics || { carrier: { zh: '', en: '' }, events: [] }; q.logistics.events = q.logistics.events || [];
     q.chat = q.chat || []; q.drc = q.drc || { buyer: [], seller: [] }; q.drc.buyer = q.drc.buyer || []; q.drc.seller = q.drc.seller || [];
     q.buyer = q.buyer || {}; q.seller = q.seller || {};
-
-    const fld = 'border:1px solid var(--line2);border-radius:8px;padding:6px 8px;font-size:14px;background:#fff;min-width:0';
-    const inp = (p, ph, w, num) => `<input data-p="${p}" ${num ? 'data-num="1" type="number" step="any" min="0"' : 'type="text"'} value="${esc(getP(q, p) ?? '')}" placeholder="${esc(ph || '')}" style="${fld};${w ? 'width:' + w : 'width:100%'}">`;
-    const txt = (p, ph, rows = 2) => `<textarea data-p="${p}" rows="${rows}" placeholder="${esc(ph || '')}" style="${fld};width:100%;resize:vertical">${esc(getP(q, p) ?? '')}</textarea>`;
-    const bi = (p, rows) => `<div class="qe-bi">${rows ? txt(p + '.zh', '中文', rows) : inp(p + '.zh', '中文')}${rows ? txt(p + '.en', 'English', rows) : inp(p + '.en', 'English')}</div>`;
-    const sel = (p, opts) => `<select data-p="${p}" style="${fld}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(getP(q, p) ?? '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-    const ctl = (arr, i, n) => `<span class="qe-ctl">${i > 0 ? `<button type="button" class="btn sm ghost" data-act="up" data-arr="${arr}" data-i="${i}" title="${esc(t('qeUp'))}">↑</button>` : ''}${i < n - 1 ? `<button type="button" class="btn sm ghost" data-act="down" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDown'))}">↓</button>` : ''}<button type="button" class="btn sm ghost danger" data-act="del" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDel'))}">✕</button></span>`;
-    const lab = (k) => `<div class="qe-lab">${esc(t(k))}</div>`;
-    const sec = (k, body, note) => `<section class="qe-sec"><h3>${esc(t(k))}</h3>${note ? `<div class="small muted" style="margin:-4px 0 8px">${esc(note)}</div>` : ''}${body}</section>`;
-    const items = (arr) => `${(getP(q, arr) || []).map((_, i, a) => `<div class="qe-card"><div class="qe-row"><div class="qe-grow">${lab('qeName')}${bi(`${arr}.${i}.name`)}</div>${ctl(arr, i, a.length)}</div>
-        <div class="qe-row"><div class="qe-grow">${lab('qeVar')}${bi(`${arr}.${i}.variation`)}</div><div>${lab('qeQty')}${inp(`${arr}.${i}.qty`, '', '80px', true)}</div><div>${lab('qePrice')}${inp(`${arr}.${i}.price`, '', '110px', true)}</div></div></div>`).join('')}
-        <button type="button" class="btn sm" data-act="add" data-arr="${arr}">${esc(t('qeAddItem'))}</button>`;
-    const fromOpts = [['buyer', t('buyer')], ['seller', t('seller')]];
+    const touch = () => { if (opts.onDirty) opts.onDirty(); };
+    const isL = (k) => !!(opts.locks && DB().locks && DB().locks.isLocked(q, k));
+    const lk = (k) => (opts.locks ? lockBtn('edit', k, isL(k)) : '');
+    const zv = (p) => { const v = getP(q, p); return v && typeof v === 'object' ? (v.zh || '') : ''; };
+    // 中文欄位（data-z = 雙語欄位路徑）、一般值（data-p）、下拉（data-p）
+    const fz = (p, ph, rows, ro) => rows
+      ? `<textarea class="ce-in" data-z="${p}" rows="${rows}" placeholder="${esc(ph || '')}" ${ro ? 'disabled' : ''}>${esc(zv(p))}</textarea>`
+      : `<input class="ce-in" data-z="${p}" value="${esc(zv(p))}" placeholder="${esc(ph || '')}" ${ro ? 'disabled' : ''}>`;
+    const fv = (p, ph, w, num, ro) => `<input class="ce-in" data-p="${p}" ${num ? 'data-num="1" type="number" step="any" min="0"' : ''} value="${esc(getP(q, p) ?? '')}" placeholder="${esc(ph || '')}" style="${w ? 'width:' + w : ''}" ${ro ? 'disabled' : ''}>`;
+    const fs = (p, list, ro) => `<select class="ce-in" data-p="${p}" ${ro ? 'disabled' : ''}>${list.map(([v, l]) => `<option value="${esc(v)}" ${String(getP(q, p) ?? '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    const tools = (arr, i, n, ro) => `<span class="ce-tools">${i > 0 ? `<button type="button" data-act="up" data-arr="${arr}" data-i="${i}" title="${esc(t('qeUp'))}">↑</button>` : ''}${i < n - 1 ? `<button type="button" data-act="down" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDown'))}">↓</button>` : ''}${ro ? '' : `<button type="button" class="x" data-act="del" data-arr="${arr}" data-i="${i}" title="${esc(t('qeDel'))}">✕</button>`}</span>`;
+    const insBtn = (arr, i, label) => `<button type="button" class="ce-ins" data-act="ins" data-arr="${arr}" data-i="${i}">${esc(label)}</button>`;
+    const roNote = (ro) => (ro ? `<div class="ce-ro">${esc(t('ceLockedRO'))}</div>` : '');
     const solOpts = [['Refund Only', 'Refund Only'], ['Return and Refund', 'Return and Refund']];
-    const chatHtml = () => q.chat.map((m, i) => `<div class="qe-card ${m.from === 'seller' ? 'qe-seller' : ''}"><div class="qe-row">
-        <div>${lab('qeTime')}${inp(`chat.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div><div>${lab('qeFrom')}${sel(`chat.${i}.from`, fromOpts)}</div>
-        <div>${lab('qeType')}<select data-type="chat.${i}" style="${fld}">${[['text', t('qeText')], ['sticker', t('qeSticker')], ['media', t('qeMedia')]].map(([v, l]) => `<option value="${v}" ${m.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
-        <span class="spacer"></span>${ctl('chat', i, q.chat.length)}</div>
-        ${m.type === 'sticker' ? `<div>${lab('qeSticker')}${sel(`chat.${i}.sticker`, [['ok', t('qeStickerOk')], ['thanks', t('qeStickerThanks')]])}</div>`
-          : m.type === 'media' ? `<div class="qe-row"><div>${lab('qeKind')}${sel(`chat.${i}.kind`, [['image', t('qeImage')], ['video', t('qeVideo')]])}</div><div class="qe-grow">${lab('qeDesc')}${bi(`chat.${i}.desc`, 2)}</div></div>`
-          : `<div>${bi(`chat.${i}.text`, 2)}</div>`}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="chat">${esc(t('qeAddMsg'))}</button>`;
-    const drcHtml = (side) => q.drc[side].map((d, i) => `<div class="qe-card"><div class="qe-row"><div>${lab('qeTime')}${inp(`drc.${side}.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div>
-        <div>${lab('qeType')}<select data-type="drc.${side}.${i}" style="${fld}">${(side === 'buyer' && i === 0 ? [['offer', t('qeOffer')], ['text', t('qeDrcText')]] : [['text', t('qeDrcText')]].concat(d.type === 'offer' ? [['offer', t('qeOffer') + ' ✕']] : [])).map(([v, l]) => `<option value="${v}" ${d.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div><span class="spacer"></span>${ctl('drc.' + side, i, q.drc[side].length)}</div>
-        ${d.type === 'offer' ? `<div class="qe-row"><div>${lab('qeSolution')}${sel(`drc.${side}.${i}.solution`, solOpts)}</div><div>${lab('qeAmount')}${inp(`drc.${side}.${i}.amount`, '', '120px', true)}</div></div>` : bi(`drc.${side}.${i}.text`, 2)}</div>`).join('') + `<button type="button" class="btn sm" data-act="add" data-arr="drc.${side}">${esc(t('qeAddDrc'))}</button>`;
-    const subHtml = () => `<div class="small muted" style="margin-bottom:6px">${esc(t('grpKeyHint'))}</div>${(q.group || []).map((x, i) => `<div class="qe-card"><div><b>${i + 1}. ${esc(L(x.text))}</b></div><div class="qe-row">${x.options.map((o) => `<label class="small" style="display:inline-flex;gap:4px;align-items:center"><input type="radio" name="qe_sub_${esc(x.id)}" data-qsub="${esc(x.id)}" value="${esc(o.id)}" ${(q.subAnswers || {})[x.id] === o.id ? 'checked' : ''}> ${esc(L(o.text))}</label>`).join('')}</div></div>`).join('')}`;
-    const optHtml = () => (q.type === 'G' ? subHtml() : q.type === 'C' ? '' : `${lab('qeOptions')}${(q.options || []).map((o, i) => `<div class="qe-row"><input type="radio" name="qe_ans" value="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b><div class="qe-grow">${bi(`options.${i}.text`)}</div>${(q.options || []).length > 2 ? ctl('options', i, q.options.length) : ''}</div>`).join('')}
-        ${(q.options || []).length < 8 ? `<button type="button" class="btn sm" data-act="add" data-arr="options">${esc(t('qeAddOpt'))}</button>` : ''}`);
-
-    const rlist = (rules.reasons || []).map((x) => x.en);
-    const reasonOpts = (rlist.includes(q.request.reason) ? [] : [[q.request.reason || '', (q.request.reason || '—') + ' ⚠']]).concat(rlist.map((r) => [r, reasonLabel(r)]));
     const allowed = () => { const e = (rules.reasons || []).find((x) => x.en === q.request.reason); return e ? e.solutions : ['Return and Refund', 'Refund Only']; };
-    /** 申退原因只允許一種方案時，自動帶入 */
     const fitSolution = () => { const a = allowed(); if (a.length === 1 && q.request.solution !== a[0]) q.request.solution = a[0]; };
-    const solHint = () => { const a = allowed(); return a.length < 2 ? t('qeSolOnly', { s: a.join(' / ') }) : ''; };
     const recalc = () => {
       const sum = q.request.items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
       const ded = Number(q.request.deduction) || 0;
       q.request.amount = Math.round((sum - ded) * 100) / 100;
       if (!q.request.deduction) delete q.request.deduction;
-      // 買家 DRC 第一筆固定是申請的 System Info：沒有就補上，方案與金額跟著申請
-      if (!q.drc.buyer.length || q.drc.buyer[0].type !== 'offer') q.drc.buyer.unshift({ t: (q.drc.buyer[0] && q.drc.buyer[0].t) || '', type: 'offer', solution: q.request.solution, amount: q.request.amount });
-      const first = q.drc.buyer[0];
-      first.solution = q.request.solution; first.amount = q.request.amount;
+      if (!q.drc.buyer.length || q.drc.buyer[0].type !== 'offer') q.drc.buyer.unshift({ t: (q.drc.buyer[0] && q.drc.buyer[0].t) || (q.chat[0] && q.chat[0].t) || '', type: 'offer', solution: q.request.solution, amount: q.request.amount });
+      q.drc.buyer[0].solution = q.request.solution; q.drc.buyer[0].amount = q.request.amount;
     };
     recalc();
 
-    const body = () => `
-      ${sec('qeCutoff', `<div class="qe-row"><div>${inp('cutoff', 'YYYY-MM-DD HH:mm', '170px')}</div><div class="small muted qe-grow">${esc(t('qeCutoffHint'))}</div></div>`)}
-      ${sec('qeParties', `<div class="qe-row"><div class="qe-grow">${lab('qeBuyer')}${inp('buyer.username')}</div><div>${lab('qeId')}${inp('buyer.id', '', '130px', true)}</div><div class="qe-grow">${lab('qeSeller')}${inp('seller.username')}</div><div>${lab('qeId')}${inp('seller.id', '', '130px', true)}</div></div>`)}
-      ${sec('qeOrder', items('order.items'))}
-      ${sec('qePayment', `<div class="qe-row"><div class="qe-grow">${lab('qeMethod')}${bi('payment.method')}</div><div class="qe-grow">${lab('qePayStatus')}${bi('payment.status')}</div></div>`)}
-      ${sec('qeLogistics', `${lab('qeCarrier')}${bi('logistics.carrier')}<div style="margin-top:8px">${lab('qeEvents')}</div>${q.logistics.events.map((e, i) => `<div class="qe-row"><div>${inp(`logistics.events.${i}.t`, 'YYYY-MM-DD HH:mm', '170px')}</div><div class="qe-grow">${bi(`logistics.events.${i}.status`)}</div>${ctl('logistics.events', i, q.logistics.events.length)}</div>`).join('')}<button type="button" class="btn sm" data-act="add" data-arr="logistics.events">${esc(t('qeAddEvent'))}</button>`)}
-      ${sec('qeChat', chatHtml())}
-      ${sec('qeDrc', `<div class="qe-two"><div><b class="small">${esc(t('drcBuyer'))}</b>${drcHtml('buyer')}</div><div><b class="small">${esc(t('drcSeller'))}</b>${drcHtml('seller')}</div></div>`, t('qeDrcSync'))}
-      ${sec('qeRequest', `<div class="qe-row"><div>${lab('qeSolution')}${sel('request.solution', solOpts.map(([v, l]) => [v, allowed().includes(v) ? l : l + ' ✕']))}<div class="small" style="color:var(--warn);margin-top:2px">${esc(solHint())}</div></div><div class="qe-grow">${lab('qeReason')}${sel('request.reason', reasonOpts)}</div><div>${lab('qeDeduction')}${inp('request.deduction', '0', '120px', true)}</div><div>${lab('qeAmount')}<div class="qe-amount" id="qe_amt">$${esc(q.request.amount)}</div></div></div>
-        <div class="small muted" style="margin:4px 0 10px">${esc(t('qeAmountAuto'))}</div>${lab('qeRemark')}${bi('request.remark', 2)}
-        <div style="margin-top:10px">${lab('qeReqItems')}<div class="small muted" style="margin-bottom:6px">${esc(t('qeOrderHint'))}</div>${items('request.items')}</div>`)}
-      ${sec('qeQuestion', `${lab('qePrompt')}${bi('prompt')}<div class="qe-row" style="margin-top:8px"><div>${lab('qeQType')}${sel('type', [['A', t('qeTypeA')], ['B', t('qeTypeB')], ['C', t('qeTypeC')]].concat(group || q.type === 'G' ? [['G', t('qeTypeG')]] : []))}</div></div>
-        <div style="margin-top:8px">${optHtml()}</div>
-        <div style="margin-top:8px">${lab('qePoint')}${bi('point')}</div>
-        ${q.type === 'B' || q.type === 'C' ? `<div style="margin-top:8px">${lab('qeModel')}${bi('modelAnswer', 3)}</div><div style="margin-top:8px">${lab('qeRubric')}${bi('rubric', 3)}</div>` : ''}
-        <div style="margin-top:8px">${lab('qeExpl')}${bi('explanation', 4)}</div>`)}`;
-
-    return modal(`<div class="qe"><div class="row qe-head"><h2>${esc(t('qeTitle'))}${title ? ' · ' + esc(title) : ''}</h2></div>
-        <div class="qe-body" id="qe_body"></div>
-        <div class="qe-foot"><div id="qe_err" class="banner err" hidden></div><div class="row"><span class="spacer"></span><button class="btn" data-close="">${esc(t('qeCancel'))}</button><button class="btn brand" id="qe_ok" type="button">${esc(t('qeApply'))}</button></div></div></div>`,
-    { wide: true, onMount: (el, close) => {
-      el.classList.add('qe-modal');
-      const box = $('#qe_body', el);
-      const render = () => {
-        const y = box.scrollTop; box.innerHTML = body(); box.scrollTop = y;
-        // 鎖定區域（V2.3）：欄位唯讀、不能刪除；上下移動不影響鎖定
-        const L2 = DB() && DB().locks ? DB().locks.units(q).filter((u) => u.obj[u.flag]).map((u) => u.key) : [];
-        if (!L2.length) return;
-        const pre = L2.map((k) => k + '.');
-        $$('[data-p],[data-type]', box).forEach((f) => {
-          const p = f.dataset.p || f.dataset.type;
-          if (!pre.some((x) => (p + '.').startsWith(x))) return;
-          f.disabled = true; const c = f.closest('.qe-card'); if (c) c.classList.add('qe-locked');
-        });
-        $$('[data-act="del"]', box).forEach((b) => { if (L2.includes(b.dataset.arr + '.' + b.dataset.i)) b.remove(); });
-        box.insertAdjacentHTML('afterbegin', `<div class="banner info" style="margin-bottom:10px">🔒 ${esc(t('qeLockedNote', { n: L2.length }))}</div>`);
-      };
-      render();
-      box.addEventListener('input', (e) => {
-        const p = e.target.dataset.p; if (!p) return;
-        setP(q, p, e.target.dataset.num ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value);
-        if (/^request\.(items|deduction)/.test(p)) { recalc(); $('#qe_amt', el).textContent = '$' + q.request.amount; }
-      });
-      box.addEventListener('change', (e) => {
-        const tgt = e.target;
-        if (tgt.name === 'qe_ans') { q.answer = tgt.value; return; }
-        if (tgt.dataset.qsub) { q.subAnswers = Object.assign({}, q.subAnswers, { [tgt.dataset.qsub]: tgt.value }); return; }
-        if (tgt.dataset.type) {   // 換類型：只保留共用欄位
-          const cur = getP(q, tgt.dataset.type), v = tgt.value, base = { t: cur.t };
-          if (tgt.dataset.type.startsWith('chat')) Object.assign(base, { from: cur.from, type: v }, v === 'text' ? { text: { zh: '', en: '' } } : v === 'sticker' ? { sticker: 'ok' } : { kind: 'image', desc: { zh: '', en: '' } });
-          else Object.assign(base, { type: v }, v === 'offer' ? { solution: q.request.solution || 'Refund Only', amount: q.request.amount || 0 } : { text: { zh: '', en: '' } });
-          setP(q, tgt.dataset.type, base); recalc(); render(); return;
-        }
-        const p = tgt.dataset.p; if (!p) return;
-        if (p === 'type') {
-          if (q.type === 'G') {   // 改成題組：小題從主題範本帶入，原本的選項與文字作答欄位移除
-            if (!group && !q.group) { toast(t('grpNone')); q.type = 'B'; render(); return; }
-            if (!q.group) q.group = clone(group);
-            q.subAnswers = {}; ['options', 'answer', 'modelAnswer', 'rubric'].forEach((k) => delete q[k]); toast(t('grpToG'), 5000); render(); return;
-          }
-          delete q.group; delete q.subAnswers;
-          if (q.type === 'C') { delete q.options; delete q.answer; } else if (!q.options) { q.options = [{ id: 'a', text: { zh: '', en: '' } }, { id: 'b', text: { zh: '', en: '' } }]; } if (q.type === 'A') { delete q.modelAnswer; delete q.rubric; } else { q.modelAnswer = q.modelAnswer || { zh: '', en: '' }; q.rubric = q.rubric || { zh: '', en: '' }; } render();
-        }
-        if (p === 'request.solution') { recalc(); render(); }
-        if (p === 'request.reason') { fitSolution(); recalc(); render(); }
-      });
-      box.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-act]'); if (!b) return;
-        const arrP = b.dataset.arr, arr = getP(q, arrP) || [], i = +b.dataset.i;
-        if (b.dataset.act === 'del') arr.splice(i, 1);
-        else if (b.dataset.act === 'up') [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
-        else if (b.dataset.act === 'down') [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
-        else if (b.dataset.act === 'add') {
-          const last = arr.at(-1);
-          if (/items$/.test(arrP)) arr.push(arrP.startsWith('request') && q.order.items[0] ? clone(Object.assign({}, q.order.items[0], { qty: 1 })) : { name: { zh: '', en: '' }, variation: { zh: '', en: '' }, qty: 1, price: 0 });
-          else if (arrP === 'chat') arr.push({ t: (last && last.t) || '', from: last && last.from === 'buyer' ? 'seller' : 'buyer', type: 'text', text: { zh: '', en: '' } });
-          else if (arrP.startsWith('drc')) arr.push({ t: (last && last.t) || '', type: 'text', text: { zh: '', en: '' } });
-          else if (arrP === 'logistics.events') arr.push({ t: (last && last.t) || '', status: { zh: '', en: '' } });
-          else if (arrP === 'options') arr.push({ id: '', text: { zh: '', en: '' } });
-          setP(q, arrP, arr);
-        }
-        if (arrP === 'options') { const old = (q.options || []).findIndex((o) => o.id === q.answer); q.options.forEach((o, k) => { o.id = String.fromCharCode(97 + k); }); if (old < 0 || old >= q.options.length) q.answer = q.answer && q.options.some((o) => o.id === q.answer) ? q.answer : undefined; }
-        recalc(); render();
-      });
-      $('#qe_ok', el).onclick = () => {
+    const itemsHtml = (arr, addKey) => {
+      const list = getP(q, arr) || [];
+      return `<table class="items ce-items"><tr><th style="width:56px"></th><th>${esc(t('item'))}</th><th>${esc(t('variation'))}</th><th style="width:70px">${esc(t('qty'))}</th><th style="width:90px">${esc(t('price'))}</th><th style="width:64px"></th></tr>${
+        list.map((it, i) => { const ro = isL(arr + '.' + i); return `<tr class="${ro ? 'locked' : ''}"><td><span class="ph-thumb">${esc(t('itemPhoto'))}</span></td>
+          <td>${lk(arr + '.' + i)}${fz(`${arr}.${i}.name`, '', 0, ro)}</td><td>${fz(`${arr}.${i}.variation`, '', 0, ro)}</td>
+          <td>${fv(`${arr}.${i}.qty`, '', '', true, ro)}</td><td>${fv(`${arr}.${i}.price`, '', '', true, ro)}</td><td>${tools(arr, i, list.length, ro)}</td></tr>`; }).join('')}
+        <tr><td colspan="6" style="text-align:center"><button type="button" class="ce-ins" data-act="add" data-arr="${arr}">${esc(t(addKey))}</button></td></tr></table>`;
+    };
+    const msgTypeOpts = (m) => [['text', t('ceText')], ['image', t('ceImage')], ['video', t('ceVideo')], ['ok', t('ceSticker')], ['thanks', t('ceStickerTy')]]
+      .concat(m.type === 'sticker' && m.pack ? [['pack', t('ceStk')]] : []).concat(m.type === 'card' ? [['card', m.kind === 'card' ? t('phCard') : t('phOther')]] : []);
+    const msgTypeOf = (m) => (m.type === 'media' ? (m.kind === 'video' ? 'video' : 'image') : m.type === 'sticker' ? (m.pack ? 'pack' : m.sticker === 'thanks' ? 'thanks' : 'ok') : m.type);
+    const chatHtml = () => {
+      const n = q.chat.length;
+      return q.chat.map((m, i) => {
+        const ro = isL('chat.' + i), who = m.from === 'seller' ? 'seller' : 'buyer';
+        const head = ro ? `<div class="t">${lk('chat.' + i)}${esc(t(who))} · ${esc(m.t)}${tools('chat', i, n, true)}</div>`
+          : `<div class="ce-mhead">${lk('chat.' + i)}${fs(`chat.${i}.from`, [['buyer', t('buyer')], ['seller', t('seller')]])}${fv(`chat.${i}.t`, 'YYYY-MM-DD HH:mm', '150px')}
+            <select class="ce-in" data-type="chat.${i}">${msgTypeOpts(m).map(([v, l]) => `<option value="${v}" ${msgTypeOf(m) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${tools('chat', i, n, false)}</div>`;
+        let body;
+        if (ro) body = chatMsg(m, i, 'show').replace(/^[\s\S]*?<\/div>/, '').replace(/<\/div>$/, '');   // 鎖定：照原樣顯示
+        else if (m.type === 'text') body = fz(`chat.${i}.text`, '', 3);
+        else if (m.type === 'media') body = `<div class="ph"><span class="ph-k">${m.kind === 'video' ? '🎬' : '📷'} ${esc(t(m.kind === 'video' ? 'phVideo' : 'phPhoto'))}</span>${fz(`chat.${i}.desc`, t('phDescPh'), 2)}</div>`;
+        else if (m.type === 'sticker' && m.pack) body = `<img class="stk" src="${esc(DB().stickerUrl(m))}" alt="${esc(t('stickerFail'))}" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'stk-fail',textContent:this.alt}))">${fz(`chat.${i}.desc`, t('stickerDescPh'))}`;
+        else if (m.type === 'sticker') body = `<span class="sticker">${m.sticker === 'thanks' ? '🙏' : '👌'}</span>`;
+        else body = `<div class="ph"><span class="ph-k">${m.kind === 'card' ? '🛍️ ' + esc(t('phCard')) : '💬 ' + esc(t('phOther'))}</span>${m.kind !== 'card' ? `<div class="ph-d">${esc(t('phOtherHint', { n: m.code ?? '?' }))}</div>` : ''}</div>`;
+        return `${insBtn('chat', i, t('ceIns'))}<div class="msg ${who} ${ro ? 'locked' : ''} ce-msg">${head}${body}${roNote(ro)}</div>`;
+      }).join('') + insBtn('chat', n, t('ceIns'));
+    };
+    const sysInfo = (d) => `<div class="sysinfo">${sysInfoHtml(q.request, d)}</div>`;
+    const drcHtml = (side) => {
+      const list = q.drc[side], n = list.length;
+      return (list.map((d, i) => {
+        if (side === 'buyer' && i === 0 && d.type === 'offer') return `<div class="item"><span class="soft">${fv('drc.buyer.0.t', 'YYYY-MM-DD HH:mm', '150px')}</span>${sysInfo(d)}</div>`;
+        const key = 'drc.' + side + '.' + i, ro = d.type !== 'offer' && isL(key);
+        const head = `<div class="ce-mhead">${d.type !== 'offer' ? lk(key) : ''}${fv(`drc.${side}.${i}.t`, 'YYYY-MM-DD HH:mm', '150px', false, ro)}${tools('drc.' + side, i, n, ro)}</div>`;
+        const body = d.type === 'offer' ? `<div class="row" style="gap:6px"><span class="soft small">${esc(t('ceOffer'))}</span>${fs(`drc.${side}.${i}.solution`, solOpts)}${fv(`drc.${side}.${i}.amount`, '', '110px', true)}</div>`
+          : d.by === 'shopee' ? `<div class="shopee"><b>${esc(t('shopeeBy'))}</b>${fz(`drc.${side}.${i}.text`, '', 3, ro)}</div>` : fz(`drc.${side}.${i}.text`, '', 2, ro);
+        return `<div class="item ${ro ? 'locked' : ''}">${head}${body}${roNote(ro)}</div>`;
+      }).join('') || `<div class="soft small">${t('none')}</div>`) + `<button type="button" class="ce-ins" data-act="add" data-arr="drc.${side}">${esc(t('ceInsDrc'))}</button>`;
+    };
+    const reasonList = () => { const rl = (rules.reasons || []).map((x) => x.en); return (rl.includes(q.request.reason) ? [] : [[q.request.reason || '', (q.request.reason || '—') + ' ⚠']]).concat(rl.map((r) => [r, reasonLabel(r)])); };
+    const mediaHtml = () => {
+      const list = q.request.media || [];
+      return `<h4>${esc(t('reqMedia', { n: list.length }))}</h4><div class="phs">${list.map((x, i) => { const ro = isL('request.media.' + i);
+        return `<div class="${ro ? 'locked' : ''}"><div class="row" style="gap:4px">${lk('request.media.' + i)}${tools('request.media', i, list.length, ro)}</div><div class="ph"><span class="ph-k">${x.kind === 'video' ? '🎬' : '📷'} ${esc(t(x.kind === 'video' ? 'phVideo' : 'phPhoto'))}</span>${fz(`request.media.${i}.desc`, t('phDescPh'), 2, ro)}</div>${roNote(ro)}</div>`; }).join('')}</div>
+        <div class="row" style="gap:6px;margin-top:4px"><button type="button" class="ce-ins" data-act="addmedia" data-kind="image">${esc(t('ceAddPhoto'))}</button><button type="button" class="ce-ins" data-act="addmedia" data-kind="video">${esc(t('ceAddVideo'))}</button></div>`;
+    };
+    const qPartHtml = () => {
+      let h = '';
+      if (q.type === 'A' || q.type === 'B') h += `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${(q.options || []).map((o, i) => `<div class="row ce-opt"><input type="radio" name="ce_ans" data-ans="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b>${fz(`options.${i}.text`, t('ceOptPh'))}${(q.options || []).length > 2 ? tools('options', i, q.options.length, false) : ''}</div>`).join('')}
+        ${(q.options || []).length < 8 ? `<button type="button" class="ce-ins" data-act="add" data-arr="options">${esc(t('ceAddOpt'))}</button>` : ''}`;
+      if (q.type === 'G') h += `<div class="small muted" style="margin-top:10px">${esc(t('ceGrpNote'))}</div>`;
+      if (opts.point) h += `<h4>${esc(t('point'))}</h4>${fz('point', '', 2)}`;
+      if (q.type === 'B' || q.type === 'C') h += `<h4>${esc(t('modelAnswer'))}</h4>${fz('modelAnswer', '', 3)}<h4>${esc(t('rubric'))}</h4>${fz('rubric', '', 3)}`;
+      return h + `<h4>${esc(t('explanation'))}</h4>${fz('explanation', '', 4)}`;
+    };
+    function html() {
+      const r = q.request, a = allowed();
+      const left = `<div class="cutoff">⏱ ${esc(t('qeCutoff'))} ${fv('cutoff', 'YYYY-MM-DD HH:mm', '160px')}</div>
+        <div class="prompt">${fz('prompt', '', 2)}</div>
+        <div class="parties row" style="gap:6px;flex-wrap:wrap">${esc(t('buyer'))} ${fv('buyer.username', t('ceUserPh'), '140px')}${fv('buyer.id', t('ceIdPh'), '120px', true)} · ${esc(t('seller'))} ${fv('seller.username', t('ceUserPh'), '140px')}${fv('seller.id', t('ceIdPh'), '120px', true)}</div>
+        <h4>${esc(t('orderItems'))}</h4>${itemsHtml('order.items', 'ceAddItem')}
+        <h4>${lk('payment')}${esc(t('payment'))}</h4><div class="box ce-kv ${isL('payment') ? 'locked' : ''}"><span>${esc(t('method'))}</span>${fz('payment.method', '', 0, isL('payment'))}<span>${esc(t('status'))}</span>${fz('payment.status', '', 0, isL('payment'))}</div>${roNote(isL('payment'))}
+        <h4>${esc(t('logistics'))} · ${lk('logistics.carrier')}<span style="display:inline-block;width:180px;vertical-align:middle">${fz('logistics.carrier', '', 0, isL('logistics.carrier'))}</span></h4>
+        <div class="box">${q.logistics.events.map((e, i) => { const ro = isL('logistics.events.' + i); return `<div class="row ce-ev ${ro ? 'locked' : ''}">${lk('logistics.events.' + i)}${fv(`logistics.events.${i}.t`, 'YYYY-MM-DD HH:mm', '150px', false, ro)}<span style="flex:1">${fz(`logistics.events.${i}.status`, '', 0, ro)}</span>${tools('logistics.events', i, q.logistics.events.length, ro)}</div>`; }).join('')}
+          <button type="button" class="ce-ins" data-act="add" data-arr="logistics.events">${esc(t('ceAddEv'))}</button></div>
+        <h4>${esc(t('chat'))}</h4><div class="chat">${chatHtml()}</div>
+        <h4>${esc(t('drc'))}</h4><div class="drc"><div class="box"><b class="small">${esc(t('drcBuyer'))}</b>${drcHtml('buyer')}</div><div class="box"><b class="small">${esc(t('drcSeller'))}</b>${drcHtml('seller')}</div></div>`;
+      const right = `<h4>${esc(t('request'))}</h4>
+        <div class="box ce-kv"><span>${esc(t('solution'))}</span>${fs('request.solution', solOpts.map(([v, l]) => [v, a.includes(v) ? l : l + ' ✕']))}
+          <span>${esc(t('amount'))}</span><span><b id="ce_amt">$${esc(fmtAmt(r.amount))}</b> <span class="small soft">（${esc(t('ceAmtAuto'))}）</span></span>
+          <span>${esc(t('deduction'))}</span>${fv('request.deduction', '0', '120px', true)}
+          <span>${esc(t('reason'))}</span>${fs('request.reason', reasonList())}
+          <span>${lk('request.remark')}${esc(t('remark'))}</span><span>${fz('request.remark', '', 2, isL('request.remark'))}${roNote(isL('request.remark'))}</span></div>
+        ${mediaHtml()}
+        <h4>${esc(t('reqItems'))}</h4>${itemsHtml('request.items', 'ceAddReqItem')}
+        ${qPartHtml()}`;
+      return `<div class="ce-bar">✎ ${esc(t('ceBar'))}${opts.locks ? ' ' + esc(t('ceBarLock')) : ''}</div><div id="ce_err" class="banner err" hidden></div>
+        <div class="card detail ce"><div class="qbody"><div>${left}</div><div>${right}</div></div></div>`;
+    }
+    const render = () => { host.innerHTML = html(); };
+    render();
+    host.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el.dataset.z) {
+        const p = el.dataset.z, cur = getP(q, p), v = Object.assign({ zh: '', en: '' }, cur && typeof cur === 'object' ? cur : {}, { zh: el.value });
+        if (!el.value.trim()) v.en = '';
+        setP(q, p, v); touch(); return;
+      }
+      const p = el.dataset.p; if (!p || el.tagName === 'SELECT') return;
+      setP(q, p, el.dataset.num ? (el.value === '' ? '' : Number(el.value)) : el.value); touch();
+      if (/^request\.(items|deduction)/.test(p)) { recalc(); const a = $('#ce_amt', host); if (a) a.textContent = '$' + fmtAmt(q.request.amount); }
+    });
+    host.addEventListener('change', (e) => {
+      const el = e.target;
+      if (el.dataset.ans) { q.answer = el.dataset.ans; touch(); return; }
+      if (el.dataset.type) {   // 訊息類型：保留時間、說話者、鎖定
+        const cur = getP(q, el.dataset.type), v = el.value, base = { t: cur.t, from: cur.from };
+        if (cur.lock) base.lock = true;
+        if (v === 'text') Object.assign(base, { type: 'text', text: { zh: '', en: '' } });
+        else if (v === 'image' || v === 'video') Object.assign(base, { type: 'media', kind: v, desc: (cur.type === 'media' && cur.desc) || { zh: '', en: '' } });
+        else if (v === 'ok' || v === 'thanks') Object.assign(base, { type: 'sticker', sticker: v });
+        else return;
+        setP(q, el.dataset.type, base); touch(); render(); return;
+      }
+      const p = el.dataset.p; if (!p) return;
+      if (el.tagName === 'SELECT') { setP(q, p, el.value); touch(); }
+      if (p === 'request.reason') fitSolution();
+      if (/^request\.|^drc\./.test(p)) { recalc(); render(); }
+    });
+    host.addEventListener('click', (e) => {
+      const lb = e.target.closest('[data-lock]');
+      if (lb && opts.locks) { const k = lb.dataset.lock; DB().locks.set(q, k, !DB().locks.isLocked(q, k)); touch(); render(); return; }
+      const b = e.target.closest('[data-act]'); if (!b) return;
+      const act = b.dataset.act;
+      if (act === 'addmedia') { q.request.media = (q.request.media || []).concat([{ kind: b.dataset.kind, desc: { zh: '', en: '' } }]); touch(); render(); return; }
+      const arrP = b.dataset.arr, arr = getP(q, arrP) || [], i = +b.dataset.i;
+      if (act === 'del') arr.splice(i, 1);
+      else if (act === 'up') [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+      else if (act === 'down') [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+      else if (act === 'ins' && arrP === 'chat') {
+        const prev = arr[i - 1], next = arr[i];
+        arr.splice(i, 0, { t: (prev && prev.t) || (next && next.t) || '', from: prev && prev.from === 'buyer' ? 'seller' : 'buyer', type: 'text', text: { zh: '', en: '' } });
+      } else if (act === 'add') {
+        const last = arr.at(-1);
+        if (/items$/.test(arrP)) arr.push(arrP.startsWith('request') && q.order.items[0] ? clone(Object.assign({}, q.order.items[0], { qty: 1, lock: undefined })) : { name: { zh: '', en: '' }, variation: { zh: '', en: '' }, qty: 1, price: 0 });
+        else if (arrP.startsWith('drc')) arr.push({ t: (last && last.t) || '', type: 'text', text: { zh: '', en: '' } });
+        else if (arrP === 'logistics.events') arr.push({ t: (last && last.t) || '', status: { zh: '', en: '' } });
+        else if (arrP === 'options') arr.push({ id: '', text: { zh: '', en: '' } });
+      }
+      setP(q, arrP, arr);
+      if (arrP === 'options') { const old = (q.options || []).findIndex((o) => o.id === q.answer); q.options.forEach((o, k) => { o.id = String.fromCharCode(97 + k); }); q.answer = old >= 0 && old < q.options.length ? q.options[old].id : ''; }
+      arr.forEach((x) => { if (x && x.lock === undefined) delete x.lock; });
+      recalc(); touch(); render();
+    });
+    return {
+      get() {
         const out = clone(q);
-        (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim() && !String(it.variation.en || '').trim()) delete it.variation; });
+        (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim()) delete it.variation; });
         if (!String(out.cutoff || '').trim()) delete out.cutoff; else out.cutoff = String(out.cutoff).trim();
-        let chk = DB() && DB().check ? DB().check(out, rules, { allowEmptyEn: true }) : { errors: [] };   // 英文可留白，存檔後標成待翻譯
-        if (allowKeyTodo && DB().splitKeyTodo) chk = DB().splitKeyTodo(chk.errors);   // 範例頁：正解／判斷重點可以之後再填
-        if (chk.errors.length) { const er = $('#qe_err', el); er.innerHTML = `<b>${esc(t('qeErrors'))}</b><br>${chk.errors.slice(0, 8).map(esc).join('<br>')}`; er.hidden = false; return; }
-        close(out);
-      };
-    } });
+        if (out.request.media && !out.request.media.length) delete out.request.media;
+        let errs = DB() && DB().check ? DB().check(out, rules, { allowEmptyEn: true }).errors : [];
+        if (opts.keyTodo && DB().splitKeyTodo) errs = DB().splitKeyTodo(errs).errors;
+        $$('.ce-bad', host).forEach((x) => x.classList.remove('ce-bad'));
+        const box = $('#ce_err', host);
+        if (errs.length) {
+          errs.forEach((er) => {   // 錯誤標在欄位旁：chat[3].text.zh empty → chat.3.text
+            const p = er.split(' ')[0].replace(/\[(\d+)\]/g, '.$1').replace(/\.(zh|en)$/, '');
+            $$('[data-z],[data-p]', host).forEach((f) => { const fp = f.dataset.z || f.dataset.p; if (fp === p || fp.startsWith(p + '.') || p.startsWith(fp + '.')) f.classList.add('ce-bad'); });
+          });
+          box.innerHTML = `<b>${esc(t('ceErrs'))}</b><br>${errs.slice(0, 8).map(esc).join('<br>')}`; box.hidden = false; box.scrollIntoView({ block: 'center' });
+          return { errors: errs };
+        }
+        box.hidden = true;
+        return { question: out };
+      },
+    };
+  }
+  const fmtAmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : String(n ?? ''));
+  /** System Info：買家 DRC 第一筆（照 DMS，欄位名稱一律英文；Remark 依介面語言） */
+  function sysInfoHtml(r, d) {
+    r = r || {}; d = d || {};
+    return `<b>Request Return/Refund</b><br>Solution: ${esc(d.solution || r.solution || '')}<br>Refund Amount: $${esc(fmtAmt(d.amount ?? r.amount))}<br>Return Reason: ${esc(r.reason || '')}${L(r.remark) ? `<br>Remark: ${esc(L(r.remark))}` : ''}`;
   }
 
   // ───────── 處理狀態：英文待翻譯、AI 檢查、判斷標準缺口（草稿題目與範例共用） ─────────
   Object.assign(I18N.zh, {
     wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RR AI Quiz Assistant；完成後這裡會自動更新。',
     wkEnQ: '英文待翻譯 {n} 題', wkRvQ: '待 AI 檢查 {n} 題', wkEnF: '英文待翻譯 {n} 個欄位', wkRv1: '待 AI 檢查', wkGap1: '待分析判斷標準',
-    enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。範例請按右上角「送翻譯」由排程翻譯（也可以傳「處理」指令）；也可以直接自己改英文，改過就不會再自動翻譯。',
+    enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。請按「送翻譯」由排程翻譯（草稿也可以在 SeaTalk 傳「處理」指令）。',
     enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查（前後矛盾＋盲答）', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
     rvAsk: '要求 AI 檢查', rvAsked: '已排入 AI 檢查，請傳「{cmd}」', rvWanted: '已排入 AI 檢查',
     lv_must: '必改', lv_suggest: '建議', lv_note: '提醒', blindOk: '盲答與正解一致', blindDiff: '盲答與正解不同', blindPicked: 'AI 沒看答案時選了 {a}：', blindHint: '請確認正解，或題目內容是否足以支持正解。', mkEn: '譯', mkRv: 'AI',
@@ -657,7 +774,7 @@
   Object.assign(I18N.en, {
     wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RR AI Quiz Assistant on SeaTalk; this page updates automatically when done.',
     wkEnQ: 'English pending: {n} question(s)', wkRvQ: 'AI check pending: {n} question(s)', wkEnF: '{n} English field(s) pending', wkRv1: 'AI check pending', wkGap1: 'Criteria analysis pending',
-    enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. For samples, press Translate (top right) to let the scheduler translate them (or send the Process command), or edit the English yourself — fields you edit are not translated again.',
+    enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. Press Translate to let the scheduler translate them (for drafts you can also send the Process command in SeaTalk).',
     enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check (consistency + blind answer)', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
     rvAsk: 'Request AI check', rvAsked: 'AI check requested. Send "{cmd}"', rvWanted: 'AI check requested',
     lv_must: 'Must fix', lv_suggest: 'Suggestion', lv_note: 'Note', blindOk: 'Blind answer matches the key', blindDiff: 'Blind answer differs from the key', blindPicked: 'Without seeing the key, the AI chose {a}: ', blindHint: 'Check the key, or whether the case supports it.', mkEn: 'EN', mkRv: 'AI',
@@ -732,7 +849,7 @@
     let { draft, questions } = data;
     const params = new URLSearchParams((location.hash.split('?')[1]) || '');
     let idx = Math.max(0, questions.findIndex((q) => q.id === params.get('q')));
-    let work = null, dirty = false, saving = false;
+    let work = null, dirty = false, saving = false, editing = false, ed = null;
     const cmd = '生成考題 ' + draft.draftId;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
 
@@ -767,16 +884,23 @@
           <span class="ans">${esc(q.type === 'G' ? grpSummary(q) : opt ? L(opt.text) : L(q.point))}</span>${metaOf(q).enPending.length ? `<span class="chip warn mk" title="${esc(t('enPendingTitle'))}">${esc(t('mkEn'))}</span>` : ''}${(() => { const m = metaOf(q), r = m.review; if (!r || r.rev !== m.rev) return ''; const ok = r.verdict === 'ok' && !(m.blind && m.blind.rev === m.rev && m.blind.match === false); return `<span class="chip ${ok ? 'ok' : 'warn'} mk" title="${esc(t('rvTitle'))}">${esc(t('mkRv'))}${ok ? '✓' : '!'}</span>`; })()}${q.bankedAs ? `<span class="chip ok" style="padding:0 6px" title="${esc(t('bankedAs', { id: q.bankedAs }))}">${esc(q.bankedAs)}</span>` : ''}${ruleErrs(q).length ? `<span class="wmark" style="color:var(--err)" title="${esc(t('ruleErrTitle'))}">⛔</span>` : q.warnings && q.warnings.length ? '<span class="wmark" title="warnings">⚠</span>' : ''}</div>`;
       }).join('');
     }
-    function biField(key, label, short) {
-      const v = work[key] || {};
-      return `<h4>${esc(label)}</h4><div class="bi">
-        <div><div class="lab">中文</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="zh">${esc(v.zh || '')}</textarea></div>
-        <div><div class="lab">English</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="en">${esc(v.en || '')}</textarea></div></div>`;
+    /** 判斷重點、參考答案、評分標準、解析：唯讀顯示，按「編輯題目」修改（V2.3：只改中文） */
+    function biField(key, label) {
+      const v = L(work[key]);
+      return `<h4>${esc(label)}</h4><div class="box" style="white-space:pre-wrap">${v ? esc(v) : '<span class="soft">—</span>'}</div>`;
     }
     function detailHtml() {
       if (!questions.length) return `<div class="card empty-state">${draft.status === 'generating' ? '<span class="spin"></span> ' : ''}${esc(t('generated', { a: draft.imported, b: draft.target }))}</div>`;
       const q = work, src = questions[idx];
-      const { left, req } = caseHtml(q);
+      if (editing) return `<div class="card detail"><div class="dhead"><span class="id">${esc(src.id)}</span><span class="chip">Type ${esc(q.type)}</span><span class="spacer"></span>
+          <button class="btn sm" id="ceCancel">${esc(t('cancel'))}</button><button class="btn sm brand" id="ceSave">${esc(t('save'))}</button></div></div><div id="ce_host"></div>
+          <div id="saveErr" class="banner err" hidden></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="ceCancel2">${esc(t('cancel'))}</button><button class="btn brand" id="ceSave2">${esc(t('save'))}</button></div>`;
+      const m0 = metaOf(src), trw = !!m0.translateWanted;
+      const qv = (() => {   // V2.3：標出來自範例鎖定區域的內容
+        if (!(m0.seedLocks || []).length || !DB().locks) return q;
+        const x = clone(q); m0.seedLocks.forEach((k) => DB().locks.set(x, k, true)); return x;
+      })();
+      const { left, req } = caseHtml(qv, (m0.seedLocks || []).length ? 'show' : undefined);
       const editable = draft.status !== 'generating' && draft.status !== 'deleted' && !src.bankedAs;
       const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}" ${editable ? '' : 'disabled'}>
           <b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
@@ -785,13 +909,17 @@
           ${(q.tags || []).map((x) => `<span class="chip">${esc(x)}</span>`).join('')}
           ${src.criteriaVersion ? `<span class="chip">${esc(t('criteria'))} ${esc(src.criteriaVersion)}</span>` : ''}
           ${src.reviewed ? `<span class="chip ok">✓ ${esc(t('reviewedTag'))}</span>` : `<span class="chip warn">${esc(t('notReviewed'))}</span>`}
+          ${m0.seedId ? `<span class="chip">${esc(t('spFrom'))} ${me.role === 'tw' ? `<a href="#/library/${esc(m0.seedId)}">${esc(m0.seedId)}</a>` : esc(m0.seedId)}</span>` : ''}
           <span class="spacer"></span>
           <button class="btn sm" id="prev" ${idx === 0 ? 'disabled' : ''}>${esc(t('prev'))}</button>
           <button class="btn sm" id="next" ${idx === questions.length - 1 ? 'disabled' : ''}>${esc(t('next'))}</button></div>
         ${src.bankedAs ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('bankedNote', { id: src.bankedAs }))} <a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a></div>` : ''}
         ${(() => { const er = ruleErrs(q); return er.length ? `<div class="banner err" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('ruleErrTitle'))}</b>${esc(t('ruleErrHint'))}<br>${er.slice(0, 6).map(esc).join('<br>')}</div>` : ''; })()}
         ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
-        ${enPendingHtml(metaOf(src))}
+        ${(m0.seedLocks || []).length ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('spLockedNote'))}</div>` : ''}
+        ${trw ? `<div class="banner info row" style="border-radius:0;border-width:0 0 1px"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
+        ${m0.translateNote && !trw ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px">${esc(m0.translateNote)}</div>` : ''}
+        ${trw ? '' : enPendingHtml(metaOf(src))}
         ${(() => { const h = reviewHtml(metaOf(src), editable, src); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
         ${(() => {   // 判斷標準缺口：講師改了出題正解，或盲答不同但維持正解
           const m = metaOf(src), g = m.criteriaGap, pend = DB().gap.draftBasis(src, m, src.reviewed);
@@ -811,9 +939,9 @@
         <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
         <div class="dfoot">
           ${me.can.draftQ ? `<button class="btn sm danger" id="del" ${editable ? '' : 'disabled'}>${esc(t('del'))}</button>` : ''}
-          <button class="btn sm primary" id="qedit" ${editable ? '' : 'disabled'}>✎ ${esc(t('qeOpen'))}</button>
-          <button class="btn sm ghost" id="json" ${editable ? '' : 'disabled'}>${esc(t('qeJsonAdv'))}</button>
+          <button class="btn sm primary" id="qedit" ${editable && !trw ? '' : 'disabled'}>✎ ${esc(t('ceEdit'))}</button>
           <span class="spacer"></span><span class="small soft" id="dirtyMark"></span>
+          ${m0.enPending.length && !trw && editable ? `<button class="btn sm" id="trSend" title="${esc(t('trHint2'))}">${esc(t('trSend', { n: m0.enPending.length }))}</button>` : ''}
           <button class="btn" id="save" ${editable && dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
           ${src.reviewed && !dirty
             ? `<button class="btn" id="unrev" ${editable ? '' : 'disabled'}>${esc(t('unmarkReviewed'))}</button>`
@@ -827,7 +955,7 @@
     function setDirty(v) { dirty = v; const s = $('#save'); if (s) s.disabled = !v || saving; const m = $('#dirtyMark'); if (m) m.textContent = v ? '●' : ''; }
     function select(i) {
       if (i === idx) return;
-      const go = () => { idx = i; work = clone(questions[idx]); dirty = false; history.replaceState(null, '', '#/draft/' + draft.draftId + '?q=' + questions[idx].id); draw(); window.scrollTo({ top: 0 }); };
+      const go = () => { idx = i; work = clone(questions[idx]); dirty = false; editing = false; history.replaceState(null, '', '#/draft/' + draft.draftId + '?q=' + questions[idx].id); draw(); window.scrollTo({ top: 0 }); };
       if (dirty) confirmBox(t('unsaved'), t('discard'), t('keep'), true).then((ok) => ok && go()); else go();
     }
     async function save(reviewed) {
@@ -879,6 +1007,20 @@
         el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(+el.dataset.i); } });
       });
       if (!questions.length) return;
+      if (editing) {   // 原地編輯（V2.3）
+        const tp = topicsCache, src = questions[idx];
+        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
+        ed = caseEditor($('#ce_host'), raw, { rules: (tp && tp.dms) || dmsNow(), point: true, onDirty: () => setDirty(true) });
+        const cancel = () => { editing = false; work = clone(questions[idx]); dirty = false; draw(); };
+        const doSave = async () => {
+          const r = ed.get(); if (r.errors) return;
+          work = Object.assign(r.question, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs, _m: src._m });
+          dirty = true; editing = false; await save(src.reviewed);
+          if (dirty) editing = true;   // 存檔失敗：留在編輯畫面
+        };
+        $('#ceCancel').onclick = cancel; $('#ceCancel2').onclick = cancel; $('#ceSave').onclick = doSave; $('#ceSave2').onclick = doSave;
+        return;
+      }
       $('#prev').onclick = () => select(idx - 1);
       $('#next').onclick = () => select(idx + 1);
       bindGroupKey($('#detail'), work, () => { draw(); setDirty(true); });
@@ -898,26 +1040,19 @@
       const rv = $('#rev'); if (rv) rv.onclick = () => save(true);
       const un = $('#unrev'); if (un) un.onclick = () => save(false);
       $('#qedit').onclick = async () => {
-        const tp = await getTopics().catch(() => null);
-        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
-        const out = await questionEditor(raw, { rules: tp && tp.dms, title: questions[idx].id, group: topicGroup(tp, draft.topicId) });
-        if (out) { const src = questions[idx]; work = Object.assign(out, { id: src.id, reviewed: src.reviewed, criteriaVersion: src.criteriaVersion, warnings: src.warnings, bankedAs: src.bankedAs, _m: src._m }); draw(); setDirty(true); toast(t('qeApplied')); }
+        if (dirty) { await save(questions[idx].reviewed); if (dirty) return; }
+        await getTopics().catch(() => null);
+        editing = true; draw();
       };
-      $('#json').onclick = async () => {
-        const raw = clone(work); ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'].forEach((k) => delete raw[k]);
-        await modal(`<h2>${esc(t('editJson'))} · ${esc(questions[idx].id)}</h2>
-          <textarea class="json" spellcheck="false">${esc(JSON.stringify(raw, null, 2))}</textarea>
-          <div id="jerr" class="banner err" hidden></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
-        { wide: true, onMount: (el, close) => {
-          $('#japply', el).onclick = () => {
-            try {
-              const v = JSON.parse($('textarea', el).value);
-              work = Object.assign(v, { id: questions[idx].id, reviewed: questions[idx].reviewed, criteriaVersion: questions[idx].criteriaVersion, warnings: questions[idx].warnings, _m: questions[idx]._m });
-              dirty = true; close('ok'); draw(); setDirty(true);
-            } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; }
-          };
-        } });
+      const ts = $('#trSend'); if (ts) ts.onclick = async () => {
+        if (dirty) { await save(questions[idx].reviewed); if (dirty) return; }
+        ts.disabled = true;
+        try { await api('t_requestTranslate', { kind: 'draft', draftId: draft.draftId, qid: questions[idx].id }); questions[idx]._m = Object.assign({}, metaOf(questions[idx]), { translateWanted: true }); work = clone(questions[idx]); toast(t('trSent'), 4500); draw(); }
+        catch (e) { toast(e.message, 5000); ts.disabled = false; }
+      };
+      const tc = $('#trCancel'); if (tc) tc.onclick = async () => {
+        try { await api('t_cancelTranslate', { kind: 'draft', draftId: draft.draftId, qid: questions[idx].id }); questions[idx]._m = Object.assign({}, metaOf(questions[idx]), { translateWanted: false }); work = clone(questions[idx]); draw(); }
+        catch (e) { toast(e.message, 4000); }
       };
       if ($('#del')) $('#del').onclick = async () => {
         const id = questions[idx].id;
@@ -1761,7 +1896,7 @@
         list.map((x) => `<tr class="click ${x.status === 'retired' ? 'dim' : ''}" data-q="${esc(x.qid)}">${canDel ? `<td data-nc><input type="checkbox" data-sel="${esc(x.qid)}" ${sel.has(x.qid) ? 'checked' : ''}></td>` : ''}<td><b>${esc(x.qid)}</b>${x.status === 'retired' ? ` <span class="chip">${esc(t('retired'))}</span>` : ''}</td><td><span class="chip">${esc(x.type)}</span></td>
           <td class="small">${x.answer ? esc(L(x.answer)) : '<span class="soft">—</span>'}</td><td>${esc(L(x.point))}</td>
           <td class="hide-sm small soft">${x.tags.map((g) => esc(tagName(g))).join('、')}</td>
-          <td class="small">${esc(x.criteriaVersion)}${x.outdated ? ` <span class="chip warn">${esc(t('outdated'))}</span>` : ''}</td>
+          <td class="small">${esc(x.criteriaVersion)}${x.outdated ? ` <span class="chip warn">${esc(t('outdated'))}</span>` : ''}${x.enPending || x.translateWanted ? ` <span class="chip warn" title="${esc(t('bankEnBlock'))}">${esc(t('mkEn'))}</span>` : ''}</td>
           <td class="small">${esc(t('usedN', { n: x.used }))}</td><td>${rateChip(x.avgRate)}</td><td class="hide-sm small soft">${esc(x.sourceQid || '')}</td></tr>`).join('')}</tbody></table>`;
       $$('[data-q]', $('#bl')).forEach((r) => r.addEventListener('click', (e) => { if (e.target.closest('[data-nc]')) return; location.hash = '#/bank/' + r.dataset.q; }));
       $$('[data-sel]', $('#bl')).forEach((c) => c.addEventListener('change', () => { if (c.checked) sel.add(c.dataset.sel); else sel.delete(c.dataset.sel); delBtn(); }));
@@ -1786,15 +1921,29 @@
     const main = shell('bank', `<div class="empty-state"><span class="spin"></span></div>`);
     let d;
     try { d = await api('t_bankGet', { qid }); } catch (e) { showError(e); return; }
-    let work = clone(d.question), dirty = false;
+    let work = clone(d.question), dirty = false, editing = false, ed = null;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
-    function bi(key, label, short) {
-      const v = work[key] || {};
-      return `<h4>${esc(label)}</h4><div class="bi"><div><div class="lab">中文</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="zh">${esc(v.zh || '')}</textarea></div>
-        <div><div class="lab">English</div><textarea class="${short ? 'short' : ''}" data-f="${key}" data-l="en">${esc(v.en || '')}</textarea></div></div>`;
+    /** 判斷重點、參考答案、評分標準、解析：唯讀顯示，按「編輯題目」修改（V2.3：只改中文，英文送翻譯） */
+    function bi(key, label) {
+      const v = L(work[key]);
+      return `<h4>${esc(label)}</h4><div class="box" style="white-space:pre-wrap">${v ? esc(v) : '<span class="soft">—</span>'}</div>`;
+    }
+    async function saveQ(q) {
+      try { d = await api('t_bankUpdate', { qid: d.info.qid, question: q }); work = clone(d.question); dirty = false; toast(t('saved')); return true; }
+      catch (e) { const er = $('#saveErr'); if (er) { er.textContent = e.message; er.hidden = false; } toast(e.message, 6000); return false; }
     }
     function draw() {
-      const i = d.info, q = work, { left, req } = caseHtml(q);
+      if (editing) {
+        main.innerHTML = `<div class="row"><span class="soft">← ${esc(t('bank'))}</span><h1>${esc(d.info.qid)}</h1><span class="chip">Type ${esc(d.info.type)}</span><span class="spacer"></span>
+          <button class="btn" id="ceCancel">${esc(t('cancel'))}</button><button class="btn brand" id="ceSave">${esc(t('save'))}</button></div>
+          ${d.info.used ? `<div class="banner info">${esc(t('bankEditUsed'))}</div>` : ''}<div id="ce_host"></div><div id="saveErr" class="banner err" hidden></div>`;
+        const raw = clone(work); delete raw.id;
+        ed = caseEditor($('#ce_host'), raw, { rules: dmsNow(), point: true, onDirty: () => { dirty = true; } });
+        $('#ceCancel').onclick = () => { editing = false; dirty = false; work = clone(d.question); draw(); };
+        $('#ceSave').onclick = async () => { const r = ed.get(); if (r.errors) return; if (await saveQ(r.question)) { editing = false; draw(); window.scrollTo({ top: 0 }); } };
+        return;
+      }
+      const i = d.info, q = work, { left, req } = caseHtml(q), tr = d.tr || { enPending: [] }, trw = !!tr.translateWanted;
       const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
       main.innerHTML = `<div class="row"><a href="#/bank">← ${esc(t('bank'))}</a><h1>${esc(i.qid)}</h1><span class="chip">Type ${esc(i.type)}</span>
           ${i.status === 'retired' ? `<span class="chip">${esc(t('retired'))}</span>` : `<span class="chip ok">${esc(t('active'))}</span>`}<span class="chip">${esc(t('version', { n: i.version }))} · ${esc(i.criteriaVersion)}</span>
@@ -1802,14 +1951,17 @@
         <div class="small muted">${esc(t('bankStats', { u: i.used, n: i.answered, r: rateTxt(i.avgRate), s: i.seenTotal }))}${i.sourceQid ? ` · ${esc(t('colSource'))} <a href="#/draft/${esc(i.sourceDraft)}?q=${esc(i.sourceQid)}">${esc(i.sourceQid)}</a>` : ''}
           ${d.sessions.length ? ` · ${esc(t('usedIn'))}：${d.sessions.map((s) => `<a href="#/results/${esc(s.sessionId)}">${esc(s.sessionId)}</a>`).join('、')}` : ''}</div>
         ${i.outdated ? `<div class="banner warn">${esc(t('outdatedNote', { v: (d.currentVersion || '') }))}</div>` : ''}
+        ${trw ? `<div class="banner info row"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
+        ${tr.translateNote && !trw ? `<div class="banner warn">${esc(tr.translateNote)}</div>` : ''}
+        ${tr.enPending.length && !trw ? `<div class="banner warn row"><span>${esc(t('bankEnPending', { n: tr.enPending.length }))}</span><span class="spacer"></span><button class="btn sm primary" id="trSend">${esc(t('trSend', { n: tr.enPending.length }))}</button></div>` : ''}
         <div class="card detail">
           <div class="qbody"><div>${left}</div><div>${req}
             ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
             ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key')}` : ''}
-            ${bi('point', t('point'), true)}${q.type === 'B' || q.type === 'C' ? bi('modelAnswer', t('modelAnswer')) + bi('rubric', t('rubric')) : ''}${bi('explanation', t('explanation'))}
+            ${bi('point', t('point'))}${q.type === 'B' || q.type === 'C' ? bi('modelAnswer', t('modelAnswer')) + bi('rubric', t('rubric')) : ''}${bi('explanation', t('explanation'))}
           </div></div>
           <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
-          <div class="dfoot"><button class="btn sm" id="json">${esc(t('editJson'))}</button><span class="spacer"></span><span class="small soft" id="dm">${dirty ? '●' : ''}</span>
+          <div class="dfoot"><button class="btn sm primary" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button><span class="spacer"></span><span class="small soft" id="dm">${dirty ? '●' : ''}</span>
             <button class="btn primary" id="save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button></div></div>`;
       bind();
     }
@@ -1818,10 +1970,15 @@
       $$('[data-ans]').forEach((b) => b.addEventListener('click', () => { work.answer = b.dataset.ans; dirty = true; draw(); }));
       bindGroupKey(main, work, () => { dirty = true; draw(); });
       $$('textarea[data-f]').forEach((ta) => ta.addEventListener('input', () => { work[ta.dataset.f] = Object.assign({}, work[ta.dataset.f], { [ta.dataset.l]: ta.value }); setDirty(); }));
-      $('#save').onclick = async () => {
-        $('#save').disabled = true; $('#saveErr').hidden = true;
-        try { d = await api('t_bankUpdate', { qid: d.info.qid, question: work }); work = clone(d.question); dirty = false; toast(t('saved')); draw(); }
-        catch (e) { $('#saveErr').textContent = e.message; $('#saveErr').hidden = false; $('#save').disabled = false; }
+      $('#save').onclick = async () => { $('#save').disabled = true; $('#saveErr').hidden = true; if (await saveQ(work)) draw(); else $('#save').disabled = false; };
+      $('#qedit').onclick = async () => { if (dirty && !(await saveQ(work))) return; editing = true; draw(); };
+      const ts = $('#trSend'); if (ts) ts.onclick = async () => {
+        ts.disabled = true;
+        try { await api('t_requestTranslate', { kind: 'bank', qid: d.info.qid }); d = await api('t_bankGet', { qid: d.info.qid }); toast(t('trSent'), 4500); draw(); }
+        catch (e) { toast(e.message, 5000); ts.disabled = false; }
+      };
+      const tc = $('#trCancel'); if (tc) tc.onclick = async () => {
+        try { await api('t_cancelTranslate', { kind: 'bank', qid: d.info.qid }); d = await api('t_bankGet', { qid: d.info.qid }); draw(); } catch (e) { toast(e.message, 4000); }
       };
       const b1 = $('#bdel1'); if (b1) b1.onclick = async () => {
         if (!(await confirmBox(t('bankDelConfirm', { ids: d.info.qid, used: d.info.used ? t('bankDelUsed', { n: 1 }) : '' }), t('bankDel'), t('cancel'), true))) return;
@@ -1830,12 +1987,6 @@
       $('#st').onclick = async () => {
         const to = d.info.status === 'retired' ? 'active' : 'retired';
         try { await api('t_bankSetStatus', { qid: d.info.qid, status: to }); d.info.status = to; toast(to === 'retired' ? t('retiredDone') : t('activatedDone')); draw(); } catch (e) { toast(e.message, 4000); }
-      };
-      $('#json').onclick = () => {
-        const raw = clone(work); delete raw.id;
-        modal(`<h2>${esc(t('editJson'))} · ${esc(d.info.qid)}</h2><textarea class="json" spellcheck="false">${esc(JSON.stringify(raw, null, 2))}</textarea><div id="jerr" class="banner err" hidden></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
-        { wide: true, onMount: (el, close) => { $('#japply', el).onclick = () => { try { work = JSON.parse($('textarea', el).value); dirty = true; close('ok'); draw(); } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; } }; } });
       };
     }
     draw();
@@ -1973,11 +2124,16 @@
     tagsNeeded: '請至少選一個標籤', reviewOnlyTw: '範例庫僅開放 TW 講師',
     noteTitle: '情境備註（為什麼導入這個範例）', optional: '（選填）', enPendingN: '{n} 個欄位',
     lkTitle: '鎖定區域', lkCount: '已鎖定 {n} 處', lkOn: '已鎖定：AI 出變化題時不能改（點一下解鎖）', lkOff: '點一下鎖定：AI 出變化題時不能改',
-    lkHint: '在下方案件內容點 🔓 鎖定判斷依據（聊聊、DRC、物流、商品、付款、申退備註都可以鎖）。鎖定的內容 AI 只能原文保留；要修改請先解鎖、改完再鎖定。',
-    lkWaitHint: '英文翻譯中，翻譯完成後才能修改。', lkReqFixed: '申請的方案、金額、原因、折抵與 DRC 提案固定不變，不用鎖',
+    lkHint: '在下方案件內容點 🔓 鎖定判斷依據（聊聊、DRC、物流、商品、付款、申退備註、照片都可以鎖）。AI 出變化題時，鎖定的內容只會換句話說，意思和數字不變；要改內容請先解鎖、改完再鎖定。',
+    copySample: '複製範例', copyHint: '複製成新的待審範例，自己改出變化版（例如有協議／沒協議）', copyConfirm: '複製 {id} 成新的待審範例？鎖定區域會一起複製。', copyDone: '已複製為 {id}',
+    lkWaitHint: '英文翻譯中，翻譯完成後才能修改。', lkReqFixed: '申請的方案、金額、原因、折抵與 DRC 提案，AI 出題時一律不會改，不用鎖；講師可以在「編輯題目」直接修改',
     qeLockedNote: '有 {n} 處已鎖定，鎖定的欄位不能修改。要修改請先關閉編輯器、在範例頁點 🔒 解鎖，改完再鎖定。',
     trSend: '送翻譯（{n} 欄）', trHint: '確認正解、判斷重點與內容後再送翻譯；排程下次執行時翻好英文（聊聊、DRC、申退備註用 DMS 翻譯）',
-    trSent: '已送翻譯，排程下次執行時會翻好英文並通知', trWaiting: '已送翻譯，等待排程翻譯英文；翻譯完成前不能修改內容。', trCancel: '取消送翻譯',
+    bankEnPending: '有 {n} 個欄位的英文待翻譯：翻譯完成前，這題不能放進新的試卷（已發佈的試卷不受影響）。', bankEnBlock: '英文待翻譯，翻好前不能放進新試卷', bankEditUsed: '這題已用在已發佈的試卷；修改只影響之後的新試卷，已發佈的不會變。',
+    spPick: '選範例', spHint: '勾選要出變化題的範例並填題數（預設 5 題）。只能選已核准、標好鎖定區域的範例；每批只看一個範例出題。',
+    spBanked: '題庫已有', spCount: '題數', spNoLock: '還沒標鎖定區域，請先到範例頁鎖定判斷依據', spNoLockShort: '未鎖定', spNone: '這個主題還沒有已核准的範例', spSum: '{s} 個範例，共 {n} 題',
+    spFrom: '來自範例', spLockedNote: '🔒 底色標示的是來自範例鎖定區域的內容（意思應與範例相同），請特別留意。',
+    trHint2: '排程下次執行時翻好英文（聊聊、DRC、申退備註用 DMS 翻譯，其他用 LLM）', trSent: '已送翻譯，排程下次執行時會翻好英文並通知', trWaiting: '已送翻譯，等待排程翻譯英文；翻譯完成前不能修改內容。', trCancel: '取消送翻譯',
   });
   Object.assign(I18N.en, {
     library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
@@ -2001,11 +2157,16 @@
     tagsNeeded: 'Pick at least one tag', reviewOnlyTw: 'Only TW trainers can use the sample library',
     noteTitle: 'Scenario note (why this sample was imported)', optional: '(optional)', enPendingN: '{n} field(s)',
     lkTitle: 'Locked areas', lkCount: '{n} locked', lkOn: 'Locked: the AI cannot change this when writing variations (click to unlock)', lkOff: 'Click to lock: the AI cannot change this when writing variations',
-    lkHint: 'Click 🔓 in the case below to lock the evidence for the judgement (chat, DRC, logistics, items, payment, remark). The AI must keep locked content as is; to edit it, unlock, edit, then lock again.',
-    lkWaitHint: 'English is being translated; editing is available after translation.', lkReqFixed: 'The request solution, amount, reason, deduction and DRC offers never change; no need to lock them',
+    lkHint: 'Click 🔓 in the case below to lock the evidence for the judgement (chat, DRC, logistics, items, payment, remark, photos). When generating variants the AI may only reword locked content, keeping its meaning and numbers; to edit it, unlock, edit, then lock again.',
+    copySample: 'Copy sample', copyHint: 'Copy into a new pending sample and edit it into a variant', copyConfirm: 'Copy {id} into a new pending sample? Locks are copied too.', copyDone: 'Copied as {id}',
+    lkWaitHint: 'English is being translated; editing is available after translation.', lkReqFixed: 'The AI never changes the request solution, amount, reason, deduction or DRC offers, so no need to lock them; trainers can edit them in “Edit question”',
     qeLockedNote: '{n} area(s) are locked and cannot be edited. To edit, close the editor, click 🔒 on the sample page to unlock, edit, then lock again.',
     trSend: 'Translate ({n} fields)', trHint: 'Check the answer, key point and content first; the scheduler translates the English on its next run (chat, DRC and remark via DMS translation)',
-    trSent: 'Sent for translation. The scheduler will translate on its next run and notify the group.', trWaiting: 'Waiting for the scheduler to translate the English; content cannot be edited until then.', trCancel: 'Cancel translation',
+    bankEnPending: '{n} field(s) need English translation; this question cannot be added to new quizzes until translated (published quizzes are not affected).', bankEnBlock: 'English pending; cannot be added to new quizzes', bankEditUsed: 'This question is used in published quizzes; edits only affect new quizzes.',
+    spPick: 'Samples', spHint: 'Tick the samples to vary and enter how many questions each (default 5). Only approved samples with locked areas can be used; each batch uses one sample.',
+    spBanked: 'In bank', spCount: 'Count', spNoLock: 'No locked areas yet; lock the evidence on the sample page first', spNoLockShort: 'not locked', spNone: 'No approved samples for this topic yet', spSum: '{s} sample(s), {n} question(s)',
+    spFrom: 'From sample', spLockedNote: '🔒 Highlighted parts come from the sample’s locked areas (meaning should match the sample); check them carefully.',
+    trHint2: 'The scheduler translates on its next run (chat, DRC and remark via DMS, the rest via LLM)', trSent: 'Sent for translation. The scheduler will translate on its next run and notify the group.', trWaiting: 'Waiting for the scheduler to translate the English; content cannot be edited until then.', trCancel: 'Cancel translation',
   });
   const reqChip = (s) => `<span class="chip ${s === 'done' ? 'ok' : s === 'failed' ? 'warn' : s === 'processing' || s === 'queued' ? 'info' : ''}">${esc(t('r_' + s))}</span>`;
   const smChip = (s) => `<span class="chip ${s === 'active' ? 'ok' : s === 'pending' ? 'info' : 'warn'}">${esc(t('sm_' + s))}</span>`;
@@ -2109,7 +2270,7 @@
         $('#ll').innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colSampleId'))}</th><th>${esc(t('colPoint'))}</th><th>${esc(t('colAnswer2'))}</th><th>${esc(t('colTags'))}</th>${tab === 'pending' ? `<th>${esc(t('yourExpect'))}</th>` : ''}<th>${esc(t('colStatus2'))}</th><th class="hide-sm">${esc(t('colBy'))}</th></tr></thead><tbody>${
           list.map((s) => {
             const diff = tab === 'pending' && s.wantedTags && s.wantedTags.length && !s.wantedTags.every((x) => s.tags.includes(x));
-            return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}${s.importNotes ? ` <span class="chip warn" title="${esc(t('impNotesTitle'))}">⚠ ${s.importNotes}</span>` : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
+            return `<tr class="click" data-s="${esc(s.sampleId)}"><td><b>${esc(s.sampleId)}</b>${s.source === 'seed' ? ' <span class="chip">seed</span>' : ''}${s.fromSample ? ` <span class="chip" title="${esc(t('copySample'))}">⧉ ${esc(s.fromSample)}</span>` : ''}${s.importNotes ? ` <span class="chip warn" title="${esc(t('impNotesTitle'))}">⚠ ${s.importNotes}</span>` : ''}</td><td>${esc(s.pointZh)}</td><td class="small">${esc(s.answer)}</td>
               <td class="small">${s.tags.map((x) => `<span class="chip" style="margin:1px">${esc(tagName(x))}</span>`).join('')}</td>
               ${tab === 'pending' ? `<td class="small">${(s.wantedTags || []).map((x) => esc(tagName(x))).join('、')}${diff ? ' <span class="chip warn">≠</span>' : ''}</td>` : ''}
               <td>${smChip(s.status)}</td><td class="hide-sm small muted">${esc(s.requestedBy || s.approvedBy || '')}</td></tr>`;
@@ -2204,19 +2365,32 @@
     const main = shell('library', `<div class="empty-state"><span class="spin"></span></div>`);
     let meta, s;
     try { [meta, { sample: s }] = await Promise.all([getLibMeta(), api('tw_getSample', { sampleId: id })]); } catch (e) { showError(e); return; }
-    let work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false;
+    let work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false, editing = false, ed = null;
     leaveGuard = () => !dirty || window.confirm(t('unsaved'));
     const tagName = (x) => L((meta.tags.concat(meta.inactiveTags || []).find((y) => y.tagId === x) || {}).name) || x;
     /** 判斷重點與正解只存在題目內：表單直接改 work.question */
     const qPointZh = () => String((work.question.point && work.question.point.zh) || '');
     const qOptions = () => (work.question.options || []);
     function draw() {
+      if (editing) {   // 原地編輯（V2.3）：只留標題列與編輯器
+        main.innerHTML = `<div class="row"><span class="soft">← ${esc(t('library'))}</span><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}<span class="spacer"></span>
+          <button class="btn" id="ceCancel">${esc(t('cancel'))}</button><button class="btn brand" id="ceSave">${esc(t('save'))}</button></div><div id="ce_host"></div>`;
+        ed = caseEditor($('#ce_host'), work.question, { rules: meta.dms, locks: true, keyTodo: true, onDirty: () => { dirty = true; } });
+        $('#ceCancel').onclick = () => { editing = false; dirty = false; work.question = clone(s.question); draw(); window.scrollTo({ top: 0 }); };
+        $('#ceSave').onclick = async () => {
+          const r = ed.get(); if (r.errors) return;
+          work.question = r.question; qDirty = true; dirty = true; editing = false;
+          if (!(await save())) { editing = true; return; }
+          window.scrollTo({ top: 0 });
+        };
+        return;
+      }
       const sg = s.suggest, q = work.question, trw = !!s.translateWanted, { left, req } = caseHtml(q, trw ? 'show' : 'edit'), grp = topicGroup(meta, s.topicId);
       const nLock = DB().locks ? DB().locks.count(q) : 0, nEn = metaOf(s).enPending.length;
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
-          <span class="spacer"></span><button class="btn sm ghost" id="json" ${trw ? 'disabled' : ''}>${esc(t('qeJsonAdv'))}</button>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('qeOpen'))}</button>
+          <span class="spacer"></span>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="copyS" title="${esc(t('copyHint'))}">⧉ ${esc(t('copySample'))}</button><button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button>
           ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
           <button class="btn" id="save" ${dirty && !trw ? '' : 'disabled'}>${esc(t('save'))}</button>
@@ -2293,6 +2467,13 @@
         qDirty = true; dirty = true; draw(); toast(t('grpToG'), 5000);
       };
       const eh = $('#e_hint'); if (eh) eh.oninput = (e) => { work.changeHint = e.target.value; mark(); };
+      $$('[data-desc]', main).forEach((el) => el.addEventListener('input', () => {   // 照片／影片／貼圖描述（只改中文，英文送翻譯）
+        const ps = el.dataset.desc.split('.'), k = ps.pop(), host = ps.reduce((a, x) => (a == null ? a : a[/^\d+$/.test(x) ? +x : x]), work.question);
+        if (!host) return;
+        host[k] = Object.assign({ zh: '', en: '' }, host[k], { zh: el.value });
+        if (!el.value.trim()) host[k].en = '';
+        qDirty = true; mark();
+      }));
       $$('[data-lock]', main).forEach((b) => b.addEventListener('click', () => {
         const k = b.dataset.lock; DB().locks.set(work.question, k, !DB().locks.isLocked(work.question, k)); qDirty = true; dirty = true; draw();
       }));
@@ -2312,9 +2493,15 @@
         qDirty = true; dirty = true; draw();
       };
       $('#save').onclick = () => save();
-      $('#qedit').onclick = async () => {
-        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId, group: topicGroup(meta, s.topicId), allowKeyTodo: true });
-        if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
+      $('#qedit').onclick = async () => {   // 原地編輯；其他欄位有未儲存的修改時先存
+        if (dirty && !(await save())) return;
+        editing = true; draw();
+      };
+      $('#copyS').onclick = async () => {
+        if (dirty && !(await save())) return;
+        if (!(await confirmBox(t('copyConfirm', { id: s.sampleId }), t('copySample'), t('cancel')))) return;
+        try { const r = await api('tw_copySample', { sampleId: s.sampleId }); libMeta = null; toast(t('copyDone', { id: r.sampleId }), 4000); location.hash = '#/library/' + r.sampleId; }
+        catch (e) { toast(e.message, 5000); }
       };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {
         if (dirty && !(await save())) return;
@@ -2333,9 +2520,6 @@
           <input type="text" id="rj_r" placeholder="${esc(t('rejectReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
           <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rj_go">${esc(s.status === 'active' ? t('deactivate') : t('reject'))}</button></div>`,
         { onMount: (el, close) => { $('#rj_go', el).onclick = async () => { try { await api('tw_rejectSample', { sampleId: s.sampleId, reason: $('#rj_r', el).value }); close('ok'); dirty = false; toast(s.status === 'active' ? t('deactivated') : t('rejected')); viewSample(s.sampleId); } catch (e) { toast(e.message, 4000); } }; } });
-      $('#json').onclick = () => modal(`<h2>${esc(t('editJson'))} · ${esc(s.sampleId)}</h2><textarea class="json" spellcheck="false">${esc(JSON.stringify(work.question, null, 2))}</textarea><div id="jerr" class="banner err" hidden></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn primary" id="japply">${esc(t('apply'))}</button></div>`,
-        { wide: true, onMount: (el, close) => { $('#japply', el).onclick = () => { try { work.question = JSON.parse($('textarea', el).value); qDirty = true; dirty = true; close('ok'); draw(); } catch (e) { const j = $('#jerr', el); j.textContent = t('jsonBad') + e.message; j.hidden = false; } }; } });
     }
     /** 刪除範例；可勾選用新的判斷時點重新申請同一個 Return ID */
     function deleteSampleDialog() {
@@ -2375,14 +2559,14 @@
       } });
     }
     async function save() {
-      $('#e_err').hidden = true;
+      const ee = $('#e_err'); if (ee) ee.hidden = true;
       try {
         const payload = { sampleId: s.sampleId, tags: work.tags, changeHint: work.changeHint };
         if (qDirty) payload.question = work.question;
         const r = await api('tw_updateSample', payload);
         s = r.sample; work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
         toast(t('saved')); draw(); return true;
-      } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; toast(e.message, 6000); return false; }
+      } catch (e) { const er = $('#e_err'); if (er) { er.textContent = e.message; er.hidden = false; } toast(e.message, 6000); return false; }
     }
     draw();
     if (liveOff) { liveOff(); liveOff = null; }

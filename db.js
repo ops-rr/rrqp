@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-12a';
+const VERSION = 'V2-2026-11-12d';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -234,7 +234,7 @@ async function sampleFull(id) {
   const x = await S.get('samples/' + id) || fail('找不到範例 / Sample not found: ' + id);
   const req = x.requestId ? await S.get('sampleRequests/' + x.requestId).catch(() => null) : null;
   return Object.assign({ sampleId: id, tags: [], changeHint: '', reviewNote: '', suggest: null, criteriaGap: null }, x, { _m: metaOut(x) }, {
-    wantedTags: (req && req.wantedTags) || [], requestedBy: (req && req.requestedBy) || '', note: (req && req.note) || '',
+    wantedTags: (req && req.wantedTags) || [], requestedBy: (req && req.requestedBy) || x.createdBy || '', note: (req && req.note) || x.note || '',
     returnId: (req && req.returnId) || '', cutoffAt: (req && req.cutoffAt) || null, noCutoff: !!(req && req.noCutoff) });
 }
 /** 範例與範例索引在同一批寫入 */
@@ -305,6 +305,10 @@ function splitKeyTodo(errors) {
   return { errors: (errors || []).filter((e) => !KEY_TODO_RE.test(e)), todo };
 }
 
+/** 貼圖：只存貼圖包代碼，網址由網站組出來（公開 CDN，不帶簽章）；與 rrqp_samples.py STICKER_*_RE 相同 */
+const isSticker = (m) => !!m && /^[A-Za-z0-9_-]{1,60}$/.test(String(m.pack || '')) && /^[A-Za-z0-9_-]{1,20}$/.test(String(m.sid || '')) && ['png', 'gif', 'webp'].includes(m.fmt || 'png');
+const stickerUrl = (m) => (isSticker(m) ? `https://deo.shopeemobile.com/shopee/shopee-sticker-live-tw/packs/${m.pack}/${m.sid}@1x.${m.fmt || 'png'}` : '');
+
 function checkQuestion(q, reasons, opt = {}) {
   const errs = [], warn = [];
   const need = (c, m) => { if (!c) errs.push(m); };
@@ -315,6 +319,8 @@ function checkQuestion(q, reasons, opt = {}) {
     if (!String(v.en || '').trim()) errs.push(p + '.en empty');
     if (/[㐀-鿿]/.test(String(v.en || ''))) warn.push(p + '.en contains Chinese');
   };
+  // 照片／影片／貼圖描述：可留白（畫面顯示「尚未描述」）；有中文才檢查英文（與 rrqp_samples.py opt_desc 相同）
+  const optDesc = (v, p) => { if (v === undefined || v === null) return; if (typeof v !== 'object') { errs.push(p + ' must be {zh, en}'); return; } if (String(v.zh || '').trim()) bi(v, p); };
   if (!q || typeof q !== 'object') return { errors: ['not an object'], warnings: [] };
   need(['A', 'B', 'C', 'G'].includes(q.type), 'type must be A / B / C / G');
   bi(q.prompt, 'prompt');
@@ -325,21 +331,28 @@ function checkQuestion(q, reasons, opt = {}) {
     if (!m) { errs.push(p + ' missing'); return; }
     need(m.t, p + '.t missing'); need(m.from === 'buyer' || m.from === 'seller', p + '.from must be buyer / seller');
     if (m.type === 'text') bi(m.text, p + '.text');
-    else if (m.type === 'sticker') need(m.sticker === 'ok' || m.sticker === 'thanks', p + '.sticker must be ok / thanks');
-    else if (m.type === 'media') { need(m.kind === 'image' || m.kind === 'video', p + '.kind must be image / video'); if (!m.src) bi(m.desc, p + '.desc'); }
-    else errs.push(p + '.type must be text / sticker / media');
+    else if (m.type === 'sticker') {
+      if (m.pack !== undefined) need(isSticker(m), p + '.sticker pack / sid / fmt invalid');
+      else need(m.sticker === 'ok' || m.sticker === 'thanks', p + '.sticker must be ok / thanks (or pack + sid)');
+      optDesc(m.desc, p + '.desc');
+    }
+    else if (m.type === 'media') { need(m.kind === 'image' || m.kind === 'video', p + '.kind must be image / video'); optDesc(m.desc, p + '.desc'); }
+    else if (m.type === 'card') need(m.kind === 'card' || m.kind === 'other', p + '.kind must be card / other');
+    else errs.push(p + '.type must be text / sticker / media / card');
   });
   const drc = q.drc || {};
   need(Array.isArray(drc.buyer) && Array.isArray(drc.seller), 'drc.buyer / drc.seller must be arrays');
   ['buyer', 'seller'].forEach((side) => (drc[side] || []).forEach((d, j) => {
     const p = 'drc.' + side + '[' + j + ']';
     if (d && d.type === 'offer') need(d.solution && typeof d.amount === 'number', p + ' offer needs solution + numeric amount');
-    else if (d && d.type === 'text') bi(d.text, p + '.text');
+    else if (d && d.type === 'text') { bi(d.text, p + '.text'); need(d.by === undefined || d.by === 'shopee', p + '.by must be shopee when set'); }
     else errs.push(p + '.type must be offer / text');
   }));
   const r = q.request || {};
   need(r.solution === 'Refund Only' || r.solution === 'Return and Refund', 'request.solution must be Refund Only / Return and Refund');
   need(typeof r.amount === 'number', 'request.amount must be a number');
+  need(r.media === undefined || Array.isArray(r.media), 'request.media must be an array');
+  (Array.isArray(r.media) ? r.media : []).forEach((x, j) => { need(x && (x.kind === 'image' || x.kind === 'video'), 'request.media[' + j + '].kind must be image / video'); if (x) optDesc(x.desc, 'request.media[' + j + '].desc'); });
   const key = (it) => String((it && it.name && it.name.zh) || '') + '|' + String((it && it.variation && it.variation.zh) || '');
   const oi = q.order && q.order.items, ri = r.items;
   need(Array.isArray(oi) && oi.length, 'order.items must be a non-empty array');
@@ -447,7 +460,7 @@ function enPendingAfter(oldQ, newQ, prev) {
 }
 const sameQ = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 /** 題目以外的處理狀態（英文待翻譯、修訂號、AI 審查）放在 _m，存檔時移除 */
-const metaOut = (x) => ({ enPending: x.enPending || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null,
+const metaOut = (x) => ({ enPending: x.enPending || [], translateWanted: !!x.translateWanted, translateNote: x.translateNote || '', seedId: x.seedId || '', seedLocks: x.seedLocks || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null,
   criteriaGap: x.criteriaGap || null, gapState: x.gapState || '', aiKey: x.aiKey === undefined ? null : x.aiKey });
 /** 正解的字串形式（與 rrqp2_tool.py key_str 相同）：A / B = 選項 id；G = s1=a,s2=na,… */
 const keyStr = (q) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + ((q.subAnswers || {})[x.id] || '')).join(',') : String((q && q.answer) || ''));
@@ -463,7 +476,7 @@ function lockUnits(q) {
   if (x.logistics && typeof x.logistics === 'object') { out.push({ key: 'logistics.carrier', obj: x.logistics, flag: 'carrierLock' }); arr(x.logistics.events, 'logistics.events'); }
   arr(x.chat, 'chat');
   ['buyer', 'seller'].forEach((sd) => ((x.drc || {})[sd] || []).forEach((d, i) => { if (d && typeof d === 'object' && d.type !== 'offer') out.push({ key: 'drc.' + sd + '.' + i, obj: d, flag: 'lock' }); }));
-  if (x.request && typeof x.request === 'object') { out.push({ key: 'request.remark', obj: x.request, flag: 'remarkLock' }); arr(x.request.items, 'request.items'); }
+  if (x.request && typeof x.request === 'object') { out.push({ key: 'request.remark', obj: x.request, flag: 'remarkLock' }); arr(x.request.items, 'request.items'); arr(x.request.media, 'request.media'); }
   return out;
 }
 const lockOf = (q, key) => lockUnits(q).find((u) => u.key === key);
@@ -494,14 +507,25 @@ function judgementOf(q) {
 }
 
 // ───────── 草稿與題庫的共用處理 ─────────
-const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags: d.tags || [], target: d.target || 0, mix: d.mix || {}, imported: d.imported || 0,
+/** 送翻譯的目標文件（草稿題目或題庫題目）與待辦編號 */
+function translateTarget(b) {
+  const qid = String(b.qid || '').trim();
+  if (b.kind === 'bank') { const id = qid.toUpperCase(); if (!/^[A-Z0-9_-]{1,40}$/.test(id)) fail('題目編號不正確 / Bad id'); return { path: 'bank/' + id, key: 'bank_' + id, label: id }; }
+  if (b.kind === 'draft') {
+    const d = String(b.draftId || '').trim();
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(d) || !/^[A-Za-z0-9_-]{1,60}$/.test(qid)) fail('題目編號不正確 / Bad id');
+    return { path: 'drafts/' + d + '/questions/' + qid, key: 'draft_' + d + '_' + qid, label: qid };
+  }
+  return fail('kind must be bank / draft');
+}
+const draftOut = (d) => ({ draftId: d.id, name: d.name, topicId: d.topicId, tags: d.tags || [], seeds: d.seeds || [], target: d.target || 0, mix: d.mix || {}, imported: d.imported || 0,
   reviewed: d.reviewed || 0, status: d.status, createdBy: d.createdBy || '', updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : null, version: d.updatedAt || 0 });
 const questionOut = (q) => Object.assign({}, q.question || {}, { id: q.id, reviewed: !!q.reviewed, criteriaVersion: q.criteriaVersion || '', warnings: q.warnings || [], _m: metaOut(q) });
 const bankIndexRow = (x) => {
   const j = x.question || {};
   return { topicId: x.topicId, type: x.type, tags: x.tags || [], pointZh: x.pointZh || '', point: j.point || null, prompt: j.prompt || null, answer: answerTextOf(j),
-    criteriaVersion: x.criteriaVersion || '', status: x.status, version: x.version || 1, sourceDraft: x.sourceDraft || '', sourceQid: x.sourceQid || '', updatedAt: x.updatedAt || null,
-    used: x.used || 0, rateSum: x.rateSum || 0, rateN: x.rateN || 0 };
+    criteriaVersion: x.criteriaVersion || '', status: x.status, version: x.version || 1, sourceDraft: x.sourceDraft || '', sourceQid: x.sourceQid || '', seedId: x.seedId || '', updatedAt: x.updatedAt || null,
+    used: x.used || 0, rateSum: x.rateSum || 0, rateN: x.rateN || 0, enPending: (x.enPending || []).length, translateWanted: !!x.translateWanted };
 };
 /** 草稿題目 → 題庫編號（從題庫索引查，不用讀整個題庫） */
 async function bankedBySource() {
@@ -580,6 +604,7 @@ const ACTIONS = {
     const mx = b.mix || {};
     let mix;
     if (normGroup(tp && tp.group)) mix = { G: target };               // 題組主題：一律出 G 題
+    else if (Array.isArray(b.seeds) && b.seeds.length) mix = {};       // 選範例出題：題型跟著範例（下面計算）
     else {
       if (Number(mx.G)) fail('這個主題沒有題組範本，不能出 G 題 / This topic has no question group');
       mix = { A: Number(mx.A) || 0, B: Number(mx.B) || 0, C: Number(mx.C) || 0 };
@@ -590,9 +615,29 @@ const ACTIONS = {
     const known = new Set((await S.list('tags')).filter((t) => t.topicId === topicId).map((t) => t.id));
     const unknown = tags.filter((t) => !known.has(t));
     if (unknown.length) fail('未知的標籤 / Unknown tags: ' + unknown.join(', '));
+    // V2.3 選範例出題：每個範例出幾題；範例要已核准、同主題、標好鎖定區域
+    let seeds = null;
+    if (Array.isArray(b.seeds) && b.seeds.length) {
+      if (m.role !== 'tw') fail('只有 TW 講師可以選範例出題 / TW teachers only');
+      seeds = b.seeds.map((x) => ({ sampleId: String(x.sampleId || ''), count: Number(x.count) }));
+      if (new Set(seeds.map((x) => x.sampleId)).size !== seeds.length) fail('範例重複 / Duplicate sample');
+      const docs = await Promise.all(seeds.map((x) => S.get('samples/' + x.sampleId)));
+      mix = { A: 0, B: 0, C: 0, G: 0 };
+      seeds.forEach((x, i) => {
+        const sd = docs[i];
+        if (!(x.count >= 1 && x.count <= 20)) fail(x.sampleId + '：每個範例 1–20 題 / 1–20 per sample');
+        if (!sd) fail('找不到範例 / Sample not found: ' + x.sampleId);
+        if (sd.status !== 'active') fail(x.sampleId + ' 尚未核准 / not approved');
+        if (sd.topicId !== topicId) fail(x.sampleId + ' 不是這個主題的範例 / different topic');
+        if (!lockCount(sd.question)) fail(x.sampleId + ' 還沒標鎖定區域，請先到範例頁鎖定判斷依據 / no locked areas');
+        const ty = (sd.question || {}).type || 'B'; mix[ty] = (mix[ty] || 0) + x.count;
+      });
+      Object.keys(mix).forEach((k) => { if (!mix[k]) delete mix[k]; });
+      if (seeds.reduce((a, x) => a + x.count, 0) !== target) fail('各範例題數加總需等於題數 / Counts must add up to target');
+    }
     const n = await S.nextIds('D', 1);
     const draftId = 'D' + String(n).padStart(3, '0'), t = now();
-    await S.set('drafts/' + draftId, { name, topicId, tags, target, mix, imported: 0, reviewed: 0, status: 'generating', createdBy: m.email, createdAt: t, updatedAt: t });
+    await S.set('drafts/' + draftId, { name, topicId, tags: seeds ? [] : tags, ...(seeds ? { seeds } : {}), target, mix, imported: 0, reviewed: 0, status: 'generating', createdBy: m.email, createdAt: t, updatedAt: t });
     return { draftId, command: '生成考題 ' + draftId };
   },
 
@@ -624,6 +669,7 @@ const ACTIONS = {
     if (d.status === 'generating') fail('草稿生成中，請等生成完成再修改 / Draft is still generating');
     const path = 'drafts/' + b.draftId + '/questions/' + b.qid;
     const row = await S.get(path) || fail('找不到題目 / Question not found: ' + b.qid);
+    if (row.translateWanted) fail('英文翻譯中，翻譯完成（或取消送翻譯）後才能修改 / Waiting for translation');
     const q = Object.assign({}, b.question || {}); STRIP.forEach((k) => delete q[k]);
     const dms = await loadDms();
     normalizeReason(q, dms);
@@ -710,14 +756,14 @@ const ACTIONS = {
     if (!rows.length) fail('沒有可入庫的題目（需已校對且尚未入庫） / Nothing to add');
     const dms = await loadDms();
     const enQ = rows.filter((q) => (q.enPending || []).length);
-    if (enQ.length) fail('以下題目還有英文待翻譯，請先在 SeaTalk 傳「處理 ' + b.draftId + '」/ English pending: ' + enQ.map((q) => q.id).join(', '));
+    if (enQ.length) fail('以下題目還有英文待翻譯，請先按「送翻譯」（或在 SeaTalk 傳「處理 ' + b.draftId + '」）/ English pending: ' + enQ.map((q) => q.id).join(', '));
     const badQ = rows.filter((q) => checkQuestion(normalizeReason(JSON.parse(JSON.stringify(q.question || {})), dms), dms).errors.length);
     if (badQ.length) fail('以下題目不符合目前的規則，請先修正 / Fix first: ' + badQ.map((q) => q.id).join(', '));
     const first = await S.nextIds('Q', rows.length), t = now(), ops = [], idx = {};
     const out = rows.map((q, i) => {
       const qid = 'Q' + String(first + i).padStart(4, '0'), j = q.question || {};
       const doc = { topicId: d.topicId, type: q.type, tags: j.tags || [], answer: j.answer || '', pointZh: (j.point && j.point.zh) || '', criteriaVersion: q.criteriaVersion || '',
-        status: 'active', sourceDraft: b.draftId, sourceQid: q.id, addedBy: m.email, addedAt: t, updatedAt: t, version: 1, question: j };
+        status: 'active', sourceDraft: b.draftId, sourceQid: q.id, seedId: q.seedId || '', addedBy: m.email, addedAt: t, updatedAt: t, version: 1, question: j };
       ops.push({ op: 'set', path: 'bank/' + qid, data: doc });
       idx[qid] = bankIndexRow(doc);
       return { qid, sourceQid: q.id };
@@ -798,6 +844,17 @@ const ACTIONS = {
   },
 
   /** 範例列表只讀「範例索引」一份文件 */
+  /** 建草稿時可選的範例（V2.3）：已核准、該主題；附鎖定數、題庫中已有幾題來自它 */
+  tw_seedOptions: async (b) => {
+    await needTW();
+    const [si, bi] = await Promise.all([S.get('meta/sampleIndex'), S.get('meta/bankIndex')]);
+    const used = {};
+    Object.values((bi && bi.items) || {}).forEach((r) => { if (r.seedId && r.status === 'active') used[r.seedId] = (used[r.seedId] || 0) + 1; });
+    const items = (si && si.items) || {};
+    return { samples: Object.keys(items).sort().filter((id) => items[id].status === 'active' && (!b.topicId || items[id].topicId === b.topicId))
+      .map((id) => ({ sampleId: id, pointZh: items[id].pointZh || '', answer: items[id].answer || '', locks: items[id].locks || 0, fromSample: items[id].fromSample || '', banked: used[id] || 0 })) };
+  },
+
   tw_listSamples: async () => {
     await needTW();
     const idx = (await S.get('meta/sampleIndex')) || {};
@@ -854,6 +911,22 @@ const ACTIONS = {
     if ((cur.enPending || []).length) fail('還有 ' + cur.enPending.length + ' 個英文欄位待翻譯，請先在 SeaTalk 傳「處理 ' + b.sampleId + '」/ English pending');
     await saveSample(b.sampleId, cur, { status: 'active', approvedBy: m.email, updatedAt: now(), reviewNote: String(b.note || '').slice(0, 500) });
     return { sampleId: b.sampleId, status: 'active' };
+  },
+
+  /**
+   * 複製範例（V2.3 步驟 B）：講師複製一個範例，自己改出變化版（例如有協議／沒協議），再鎖定。
+   * 新範例待審、帶鎖定標記、情境備註寫「複製自 Sxxx」；英文待翻譯欄位沿用（改過的欄位存檔時會再列入）。
+   */
+  tw_copySample: async (b) => {
+    const m = await needTW();
+    const cur = await sampleFull(b.sampleId);
+    const sid = 'S' + String(await S.nextIds('S', 1)).padStart(3, '0'), t = now();
+    const doc = { topicId: cur.topicId, tags: (cur.tags || []).slice(), pointZh: cur.pointZh || '', answer: cur.answer || '', changeHint: '',
+      status: 'pending', source: 'copy', fromSample: b.sampleId, approvedBy: '', question: JSON.parse(JSON.stringify(cur.question || {})),
+      requestId: '', reviewNote: '', note: ('複製自 ' + b.sampleId + (cur.note ? '\n' + cur.note : '')).slice(0, 1000),
+      createdAt: t, updatedAt: t, createdBy: m.email, enPending: (cur.enPending || []).slice(), importNotes: [], suggest: null, translateWanted: false };
+    await S.batch([{ op: 'set', path: 'samples/' + sid, data: doc }, { op: 'set', path: 'meta/sampleIndex', merge: true, data: { items: { [sid]: indexRow(doc, null) } } }]);
+    return { sampleId: sid };
   },
 
   /** 送翻譯：講師確認內容（正解、判斷重點）後，由排程翻譯待翻譯的英文欄位（聊聊／DRC／備註用 DMS 翻譯，其他用 LLM） */
@@ -1302,7 +1375,7 @@ const M4 = {
     const [r, tv, sidx, rows] = await Promise.all([S.get('bank/' + qid), topicVersions(), S.get('meta/sessionIndex'), bankRows()]);
     if (!r) fail('找不到題庫題目 / Bank question not found: ' + qid);
     const items = (sidx && sidx.items) || {};
-    return { question: Object.assign({}, r.question, { id: qid }), info: bankOut(qid, Object.assign({}, rows[qid] || {}, bankIndexRow(Object.assign({}, rows[qid] || {}, r))), tv, null), currentVersion: tv[r.topicId] || '',
+    return { question: Object.assign({}, r.question, { id: qid }), tr: { enPending: r.enPending || [], translateWanted: !!r.translateWanted, translateNote: r.translateNote || '' }, info: bankOut(qid, Object.assign({}, rows[qid] || {}, bankIndexRow(Object.assign({}, rows[qid] || {}, r))), tv, null), currentVersion: tv[r.topicId] || '',
       sessions: Object.keys(items).filter((k) => (items[k].qids || []).includes(qid)).map((k) => ({ sessionId: k, title: items[k].title, startAt: items[k].startAt })) };
   },
 
@@ -1311,18 +1384,49 @@ const M4 = {
     const m = await needTeacher();
     const qid = String(b.qid || '').toUpperCase();
     const r = await S.get('bank/' + qid) || fail('找不到題庫題目 / Bank question not found: ' + qid);
+    if (r.translateWanted) fail('英文翻譯中，翻譯完成（或取消送翻譯）後才能修改 / Waiting for translation');
     const q = Object.assign({}, b.question || {}); STRIP.forEach((k) => delete q[k]);
     const dms = await loadDms();
     normalizeReason(q, dms);
-    const chk = checkQuestion(q, dms);
+    const chk = checkQuestion(q, dms, { allowEmptyEn: true });   // V2.3：只改中文，英文列入待翻譯（翻好前不能放進新試卷）
     if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
     if (q.type !== r.type) fail('不能變更題型 / Question type cannot be changed');
     const topic = (await S.get('topics/' + r.topicId)) || {};
     const next = Object.assign({}, r, { question: q, answer: q.answer || '', pointZh: (q.point && q.point.zh) || '', tags: q.tags || r.tags || [],
+      enPending: sameQ(r.question, q) ? (r.enPending || []) : enPendingAfter(r.question, q, r.enPending), translateNote: '',
       criteriaVersion: topic.criteriaVersion || r.criteriaVersion, updatedAt: now(), updatedBy: m.email, version: (r.version || 1) + 1 });
     const row = bankIndexRow(next); ['used', 'rateSum', 'rateN'].forEach((k) => delete row[k]);   // 使用統計保留索引上的數字
     await S.batch([{ op: 'set', path: 'bank/' + qid, data: next }, { op: 'set', path: 'meta/bankIndex', merge: true, data: { items: { [qid]: row } } }]);
     return M4.t_bankGet({ qid });
+  },
+
+  /**
+   * 送翻譯（V2.3）：草稿題目與題庫題目改了中文後，英文交給排程翻譯（聊聊／DRC／備註用 DMS 翻譯，其他用 LLM）。
+   * 目標文件標 translateWanted，並在 translateQueue 放一筆待辦（排程只讀得到待辦與標記中的文件）。
+   * b = { kind: 'bank', qid } 或 { kind: 'draft', draftId, qid }
+   */
+  t_requestTranslate: async (b) => {
+    const m = await needTeacher();
+    const { path, key, label } = translateTarget(b);
+    const cur = await S.get(path) || fail('找不到題目 / Question not found: ' + label);
+    if (!(cur.enPending || []).length) fail('沒有待翻譯的欄位 / Nothing to translate');
+    if (b.kind === 'draft') { const d = await S.get('drafts/' + b.draftId); if (!d || d.status === 'generating') fail('草稿生成中 / Draft is still generating'); }
+    const t = now(), ops = [
+      { op: 'update', path, data: { translateWanted: true, translateAskedAt: t, translateAskedBy: m.email, translateNote: '' } },
+      { op: 'set', path: 'translateQueue/' + key, data: { state: 'wanted', kind: b.kind, path, label, at: t, by: m.email } },
+    ];
+    if (b.kind === 'bank') ops.push({ op: 'update', path: 'meta/bankIndex', data: { ['items.' + label + '.translateWanted']: true } });
+    await S.batch(ops);
+    return { translateWanted: true };
+  },
+  t_cancelTranslate: async (b) => {
+    await needTeacher();
+    const { path, key, label } = translateTarget(b);
+    if (!(await S.get(path))) fail('找不到題目 / Question not found: ' + label);
+    const ops = [{ op: 'update', path, data: { translateWanted: false } }, { op: 'del', path: 'translateQueue/' + key }];
+    if (b.kind === 'bank') ops.push({ op: 'update', path: 'meta/bankIndex', data: { ['items.' + label + '.translateWanted']: false } });
+    await S.batch(ops);
+    return { translateWanted: false };
   },
 
   t_bankSetStatus: async (b) => {
@@ -1342,7 +1446,7 @@ const M4 = {
     const seen = await seenMap(emails);
     const tags = (b.tags || []).map(String), exclude = (b.exclude || []).map(String), avoid = b.avoidSeen !== false;
     const mix = { A: Number((b.mix || {}).A) || 0, B: Number((b.mix || {}).B) || 0, C: Number((b.mix || {}).C) || 0, G: Number((b.mix || {}).G) || 0 };
-    const all = Object.keys(items).filter((q) => { const r = items[q]; return r.status === 'active' && (!b.topicId || r.topicId === b.topicId) && !exclude.includes(q) && (b.includeOutdated || tv[r.topicId] === r.criteriaVersion); });
+    const all = Object.keys(items).filter((q) => { const r = items[q]; return r.status === 'active' && !r.enPending && !r.translateWanted && (!b.topicId || r.topicId === b.topicId) && !exclude.includes(q) && (b.includeOutdated || tv[r.topicId] === r.criteriaVersion); });
     const seenAny = (q) => emails.some((e) => seen[e].has(q));
     const picked = [], shortage = {}, available = {};
     ['A', 'B', 'C', 'G'].forEach((k) => {
@@ -1350,8 +1454,14 @@ const M4 = {
       const pool = all.filter((q) => items[q].type === k), fresh = pool.filter((q) => !seenAny(q));
       available[k] = { total: pool.length, fresh: fresh.length };
       const ranked = shuffle(avoid ? fresh : pool).map((q) => ({ q, m: (items[q].tags || []).filter((x) => tags.includes(x)).length, u: items[q].used || 0 })).sort((x, y) => (y.m - x.m) || (x.u - y.u));
-      ranked.slice(0, mix[k]).forEach((x) => picked.push(x.q));
-      if (ranked.length < mix[k]) shortage[k] = mix[k] - ranked.length;
+      let got = 0;
+      for (const x of ranked) {   // 同一份試卷不出同一個範例的兩題變化題（V2.3）
+        if (got >= mix[k]) break;
+        const sd = items[x.q].seedId;
+        if (sd && picked.some((p) => items[p].seedId === sd)) continue;
+        picked.push(x.q); got++;
+      }
+      if (got < mix[k]) shortage[k] = mix[k] - got;
     });
     return { picked: picked.map((q) => bankOut(q, items[q], tv, seen)), shortage, available };
   },
@@ -1372,7 +1482,9 @@ const M4 = {
     const maxQ = Number((settings.maxQuestions || {}).value) || 20;
     if (ids.length > maxQ) fail('每份試卷最多 ' + maxQ + ' 題 / At most ' + maxQ + ' questions per quiz');
     const rows = await Promise.all(ids.map((id) => S.get('bank/' + id)));
-    rows.forEach((r, i) => { if (!r) fail('找不到題庫題目 / Not in bank: ' + ids[i]); if (r.status !== 'active') fail(ids[i] + ' 已停用 / is retired'); });
+    rows.forEach((r, i) => { if (!r) fail('找不到題庫題目 / Not in bank: ' + ids[i]); if (r.status !== 'active') fail(ids[i] + ' 已停用 / is retired');
+      if ((r.enPending || []).length || r.translateWanted) fail(ids[i] + ' 英文待翻譯，翻譯完成前不能放進試卷 / English translation pending'); });
+    { const seen = {}; rows.forEach((r, i) => { if (!r.seedId) return; if (seen[r.seedId]) fail(seen[r.seedId] + ' 和 ' + ids[i] + ' 來自同一個範例 ' + r.seedId + '，同一份試卷只能放一題 / Same source sample'); seen[r.seedId] = ids[i]; }); }
     const key = rows.map((r, i) => Object.assign({}, r.question, { qid: ids[i], seq: i + 1, points: pointsOf(r.type, ids.length), criteriaVersion: r.criteriaVersion }));
     const total = key.reduce((t, j) => t + (j.points.choice || 0) + (j.points.text || 0), 0);   // 尾差由最後一題吸收，總分固定 100
     const last = key[key.length - 1].points, k = last.text !== undefined ? 'text' : 'choice';
@@ -2025,6 +2137,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
+    stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
     locks: { units: lockUnits, isLocked, set: setLock, count: lockCount, strip: stripLocks },   // 鎖定區域（V2.3）
     group: { normalize: normGroup, score: groupScore, answerText: answerTextOf },   // 題組（G 題）
