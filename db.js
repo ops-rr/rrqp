@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-13a';
+const VERSION = 'V2-2026-11-13b';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1250,7 +1250,7 @@ const ACTIONS = {
   // 保留：主題、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單
   ad_resetData: async (b) => {
     const m = await needAdmin();
-    const [drafts, bank, sessions, results, samples, reqs, seen] = await Promise.all(['drafts', 'bank', 'sessions', 'results', 'samples', 'sampleRequests', 'seen'].map((c) => S.list(c)));
+    const [drafts, bank, sessions, results, samples, reqs, seen, trq] = await Promise.all(['drafts', 'bank', 'sessions', 'results', 'samples', 'sampleRequests', 'seen', 'translateQueue'].map((c) => S.list(c).catch(() => [])));
     const counts = { drafts: drafts.length, bank: bank.length, sessions: sessions.length, results: results.length, samples: samples.length, requests: reqs.length };
     if (b.dryRun) return { counts };
     if (b.confirm !== 'RESET') fail('請輸入 RESET 確認 / Type RESET to confirm');
@@ -1271,6 +1271,7 @@ const ACTIONS = {
     samples.forEach((x) => ops.push({ op: 'del', path: 'samples/' + x.id }));
     reqs.forEach((x) => ops.push({ op: 'del', path: 'sampleRequests/' + x.id }));
     seen.forEach((x) => ops.push({ op: 'del', path: 'seen/' + x.id }));
+    trq.forEach((x) => ops.push({ op: 'del', path: 'translateQueue/' + x.id }));   // V2.3 送翻譯待辦
     const t = now();
     ops.push({ op: 'set', path: 'meta/bankIndex', data: { items: {}, resetAt: t } }, { op: 'set', path: 'meta/sessionIndex', data: { items: {}, resetAt: t } },
       { op: 'set', path: 'meta/sampleIndex', data: { items: {}, resetAt: t } }, { op: 'set', path: 'meta/counters', data: { resetAt: t, resetBy: m.email } },
