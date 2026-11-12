@@ -177,9 +177,17 @@
         <li><b>系統自動處理：</b>單價與所有金額同比例換算（折抵改成 $30／45／60／90／100 中最接近的），所有日期一起往前或往後挪 7–45 天；正解沿用範例。</li>
       </ul>
     </li>
-    <li>逐題校對：來自範例鎖定區域的內容會用 🔒 底色標出，請特別確認意思沒有改變。題目上方會顯示「來自範例 Sxxx」。</li>
-    <li>需要修改時按 <span class="btnlike">✎ 編輯題目</span> 原地修改（和範例頁相同）；改了中文後按 <span class="btnlike">送翻譯</span>。</li>
-    <li>按 <span class="btnlike">確認並標記已校對</span>；全部完成後按 <span class="btnlike">加入題庫</span>。英文待翻譯或格式錯誤的題目不能入庫。</li>
+    <li>校對：每一題上方有 4 步審核進度（按鈕都在每一步的右上角）：
+      <ul>
+        <li><b>檢查內容：</b>來自範例鎖定區域的內容會用 🔒 底色標出，請確認意思沒有改變；格式錯誤也列在這裡。</li>
+        <li><b>正解：</b>顯示目前的正解（沿用範例 Sxxx）。內容不再支持正解時，修改內容或刪除這題。</li>
+        <li><b>英文翻譯：</b>改了中文後按 <span class="btnlike">送翻譯</span>。</li>
+        <li><b>確認校對：</b>按 <span class="btnlike">✓ 確認</span>，自動跳到下一題沒校對的。</li>
+      </ul>
+    </li>
+    <li>需要修改時按 <span class="btnlike">✎ 編輯題目</span> 原地修改（和範例頁相同）。「儲存」有修改時才會亮起；換題或離開時不會跳提醒，未儲存的修改直接放棄。刪除這題在 <span class="btnlike">⋯</span> 裡。</li>
+    <li><b>批次處理（頁面上方）：</b><span class="btnlike">全部送翻譯</span> 一次送出所有英文待翻譯的題目；<span class="btnlike">✓ 全部確認</span> 把可以確認的題目一次標記為已校對（略過格式錯誤、正解未設定、英文待翻譯的題目）。建議先抽看幾題再全部確認。</li>
+    <li>全部完成後按 <span class="btnlike">加入題庫</span>。英文待翻譯或格式錯誤的題目不能入庫。</li>
     <li>題目都入庫後，管理員可以 <span class="btnlike">刪除草稿</span>，題庫與已發佈的測驗不受影響。校對時刪除單一題目（含「刪除並補題」）所有講師都可以。</li>
   </ol>
   <div class="tip">內容改寫後已經不支持原本的正解時，直接修改這題內容或刪除這題即可；正解本身不會被 AI 改動。</div>
@@ -381,9 +389,17 @@
         <li><b>Done by the system:</b> unit prices and all amounts are rescaled by one ratio (deduction becomes the nearest of $30 / 45 / 60 / 90 / 100), all dates are shifted together by 7–45 days, and the answer is copied from the sample.</li>
       </ul>
     </li>
-    <li>Review each question: content from the sample's locked areas is highlighted with 🔒 — check that its meaning has not changed. The question shows “From sample Sxxx”.</li>
-    <li>To change something, press <span class="btnlike">✎ Edit question</span> (same as on the sample page); after editing Chinese, press <span class="btnlike">Translate</span>.</li>
-    <li>Press <span class="btnlike">Confirm &amp; mark reviewed</span>, then <span class="btnlike">Add to bank</span>. Questions with English pending or format errors cannot be added.</li>
+    <li>Review: each question has 4 review steps at the top (each step's button is at its top right):
+      <ul>
+        <li><b>Check content:</b> content from the sample's locked areas is highlighted with 🔒 — check its meaning has not changed; format errors are listed here too.</li>
+        <li><b>Answer:</b> shows the current answer (copied from sample Sxxx). If the content no longer supports it, edit the content or delete the question.</li>
+        <li><b>English:</b> after editing Chinese, press <span class="btnlike">Translate</span>.</li>
+        <li><b>Confirm:</b> press <span class="btnlike">✓ Confirm</span>; it moves to the next unreviewed question.</li>
+      </ul>
+    </li>
+    <li>To change something, press <span class="btnlike">✎ Edit question</span> (same as on the sample page). Save lights up only when something changed; switching questions or leaving does not ask, and unsaved changes are discarded. Delete question is under <span class="btnlike">⋯</span>.</li>
+    <li><b>Batch actions (top of the page):</b> <span class="btnlike">Translate all</span> sends every question with English pending; <span class="btnlike">✓ Confirm all</span> marks every question that can be confirmed as reviewed (skipping format errors, missing answers and English pending). Spot-check a few first.</li>
+    <li>When done, press <span class="btnlike">Add to bank</span>. Questions with English pending or format errors cannot be added.</li>
     <li>Once everything is in the bank, an admin can <span class="btnlike">Delete draft</span>; the bank and published quizzes are not affected. Any trainer can delete a single question while reviewing (including delete and regenerate).</li>
   </ol>
   <div class="tip">If a rewrite no longer supports the answer, edit the content or delete the question; the AI never changes the answer itself.</div>

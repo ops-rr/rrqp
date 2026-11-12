@@ -37,7 +37,7 @@
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
       noChat: '（買賣雙方沒有聊聊）', editJson: '編輯 JSON', apply: '套用', jsonBad: 'JSON 格式錯誤：', del: '刪除', delRefill: '刪除並請 Agent 補一題', delOnly: '刪除，題數減 1',
       delConfirm: '確定刪除 {id}？', delRefillDone: '已刪除。請到 SeaTalk 再傳一次「{cmd}」補題。', delDone: '已刪除',
-      unsaved: '這題有未儲存的修改，要放棄嗎？', more: '更多', stKey: '正解與判斷重點', stKeyOk: '已填好', stKeyHow: '在下方題組點選正解、在範例資訊填判斷重點', stLock: '鎖定判斷依據', stLockNone: '尚未鎖定', stLockHow: '在下方案件內容點 🔓', stCheck: '審核前確認', stCheckNone: '沒有需要確認的事項', stTr: '英文翻譯', stTrN: '{n} 個欄位待翻譯', stTrOk: '英文已完成', stTrWait: '翻譯中，排程下次執行時完成', stTrAfter: '先完成第 1 步', stTrWhich: '哪些欄位', trSendShort: '送翻譯', stAppr: '核准', stApproved: '已核准', stApprReady: '可以核准', stApprNoLock: '可以核准；但沒有鎖定的範例不能拿來出題', stApprSave: '先儲存修改', stApprWait: '完成第 1、3、4 步後才能核准', unsavedDropped: '剛才未儲存的修改已放棄', saveHintOn: '有未儲存的修改', saveHintOff: '沒有需要儲存的修改', discard: '放棄修改', keep: '繼續編輯',
+      unsaved: '這題有未儲存的修改，要放棄嗎？', trAll: '全部送翻譯（{n}）', trAllDone: '已送翻譯 {n} 題，排程下次執行時翻好', revAll: '全部確認（{n}）', revAllHint: '把可以確認的題目一次標記為已校對（略過格式錯誤、正解未設定、英文待翻譯的題目）', revAllConfirm: '將 {n} 題標記為已校對？{s} 題因格式錯誤、正解未設定或英文待翻譯而略過。建議先抽看幾題。', revAllDone: '已確認 {n} 題', dStCheck: '檢查內容', dStLocks: '有 {n} 處來自範例鎖定區域（底色標示），請確認意思沒變', dStRead: '讀一遍案件，確認內容合理', dStKey: '正解', dStNoKey: '正解未設定', dStKeySeed: '沿用範例 {id}', dStKeyAi: 'AI 判斷（請確認）', dStRev: '確認校對', dStConfirm: '確認', dStFixFirst: '先修正格式錯誤或設定正解', dStEnLater: '英文翻好後才能加入題庫', dStNext: '確認後自動跳到下一題', more: '更多', stKey: '正解與判斷重點', stKeyOk: '已填好', stKeyHow: '在下方題組點選正解、在範例資訊填判斷重點', stLock: '鎖定判斷依據', stLockNone: '尚未鎖定', stLockHow: '在下方案件內容點 🔓', stCheck: '審核前確認', stCheckNone: '沒有需要確認的事項', stTr: '英文翻譯', stTrN: '{n} 個欄位待翻譯', stTrOk: '英文已完成', stTrWait: '翻譯中，排程下次執行時完成', stTrAfter: '先完成第 1 步', stTrWhich: '哪些欄位', trSendShort: '送翻譯', stAppr: '核准', stApproved: '已核准', stApprReady: '可以核准', stApprNoLock: '可以核准；但沒有鎖定的範例不能拿來出題', stApprSave: '先儲存修改', stApprWait: '完成第 1、3、4 步後才能核准', unsavedDropped: '剛才未儲存的修改已放棄', saveHintOn: '有未儲存的修改', saveHintOff: '沒有需要儲存的修改', discard: '放棄修改', keep: '繼續編輯',
       answerHint: '點選項可改正解', correct: '正解', setAnswer: '設為正解',
       prompt: '題目', buyer: '買家', seller: '賣家', chat: '聊聊', drc: 'DRC', drcBuyer: '買家 → 蝦皮', drcSeller: '賣家 → 蝦皮',
       request: '退貨退款申請', deduction: '折抵（折價券 / 蝦幣）', solution: '方案', amount: '金額', reason: '原因', remark: '備註', reqItems: '申退商品', orderItems: '訂單商品',
@@ -63,7 +63,7 @@
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
       noChat: '(No chat between buyer and seller)', editJson: 'Edit JSON', apply: 'Apply', jsonBad: 'Invalid JSON: ', del: 'Delete', delRefill: 'Delete and let the agent add one', delOnly: 'Delete, reduce count by 1',
       delConfirm: 'Delete {id}?', delRefillDone: 'Deleted. Send "{cmd}" in SeaTalk again to add a replacement.', delDone: 'Deleted',
-      unsaved: 'This question has unsaved changes. Discard them?', more: 'More', stKey: 'Answer & key point', stKeyOk: 'Done', stKeyHow: 'Pick the answers in the question set below and fill in the key point', stLock: 'Lock the evidence', stLockNone: 'Nothing locked yet', stLockHow: 'Click 🔓 in the case below', stCheck: 'Check before approving', stCheckNone: 'Nothing to check', stTr: 'English', stTrN: '{n} field(s) to translate', stTrOk: 'English done', stTrWait: 'Translating on the next scheduler run', stTrAfter: 'Finish step 1 first', stTrWhich: 'Which fields', trSendShort: 'Translate', stAppr: 'Approve', stApproved: 'Approved', stApprReady: 'Ready to approve', stApprNoLock: 'Ready; but samples without locks cannot be used to generate questions', stApprSave: 'Save your changes first', stApprWait: 'Finish steps 1, 3 and 4 first', unsavedDropped: 'Your unsaved changes were discarded', saveHintOn: 'You have unsaved changes', saveHintOff: 'Nothing to save', discard: 'Discard', keep: 'Keep editing',
+      unsaved: 'This question has unsaved changes. Discard them?', trAll: 'Translate all ({n})', trAllDone: '{n} question(s) sent for translation', revAll: 'Confirm all ({n})', revAllHint: 'Mark every question that can be confirmed as reviewed (skips format errors, missing answers and English pending)', revAllConfirm: 'Mark {n} question(s) as reviewed? {s} skipped because of format errors, missing answers or English pending. Spot-check a few first.', revAllDone: '{n} question(s) confirmed', dStCheck: 'Check content', dStLocks: '{n} part(s) come from the sample’s locked areas (highlighted); check their meaning', dStRead: 'Read the case and check it makes sense', dStKey: 'Answer', dStNoKey: 'No answer set', dStKeySeed: 'Copied from sample {id}', dStKeyAi: 'Judged by AI (please check)', dStRev: 'Confirm', dStConfirm: 'Confirm', dStFixFirst: 'Fix format errors or set the answer first', dStEnLater: 'Can be added to the bank once English is done', dStNext: 'Moves to the next question after confirming', more: 'More', stKey: 'Answer & key point', stKeyOk: 'Done', stKeyHow: 'Pick the answers in the question set below and fill in the key point', stLock: 'Lock the evidence', stLockNone: 'Nothing locked yet', stLockHow: 'Click 🔓 in the case below', stCheck: 'Check before approving', stCheckNone: 'Nothing to check', stTr: 'English', stTrN: '{n} field(s) to translate', stTrOk: 'English done', stTrWait: 'Translating on the next scheduler run', stTrAfter: 'Finish step 1 first', stTrWhich: 'Which fields', trSendShort: 'Translate', stAppr: 'Approve', stApproved: 'Approved', stApprReady: 'Ready to approve', stApprNoLock: 'Ready; but samples without locks cannot be used to generate questions', stApprSave: 'Save your changes first', stApprWait: 'Finish steps 1, 3 and 4 first', unsavedDropped: 'Your unsaved changes were discarded', saveHintOn: 'You have unsaved changes', saveHintOff: 'Nothing to save', discard: 'Discard', keep: 'Keep editing',
       answerHint: 'Click an option to change the answer', correct: 'Answer', setAnswer: 'Set as answer',
       prompt: 'Question', buyer: 'Buyer', seller: 'Seller', chat: 'Chat', drc: 'DRC', drcBuyer: 'Buyer → Shopee', drcSeller: 'Seller → Shopee',
       request: 'Return / refund request', deduction: 'Deduction (voucher / coins)', solution: 'Solution', amount: 'Amount', reason: 'Reason', remark: 'Remark', reqItems: 'Requested items', orderItems: 'Order items',
@@ -852,27 +852,31 @@
     let idx = Math.max(0, questions.findIndex((q) => q.id === params.get('q')));
     let work = null, dirty = false, saving = false, editing = false, ed = null;
     const cmd = '生成考題 ' + draft.draftId;
-    leaveGuard = () => !dirty || window.confirm(t('unsaved'));
+    leaveGuard = () => { if (isDirty()) toast(t('unsavedDropped'), 4000); return true; };   // 不跳提醒
 
+    /** 有沒有真的改過（和目前存檔的題目比；改了又改回去不算） */
+    const STRIPK = ['id', 'reviewed', 'criteriaVersion', 'warnings', 'bankedAs', '_m'];
+    const canonQ = (q) => { const x = clone(q || {}); STRIPK.forEach((k) => delete x[k]); return JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((o, y) => { o[y] = v[y]; return o; }, {}) : v)); };
+    const isDirty = () => editing || !!(work && questions[idx] && canonQ(work) !== canonQ(questions[idx]));
+    const live = () => questions.filter((q) => !q.bankedAs);
+    const trAllList = () => live().filter((q) => metaOf(q).enPending.length && !metaOf(q).translateWanted);
+    const revAllList = () => live().filter((q) => !q.reviewed && !ruleErrs(q).length && !metaOf(q).enPending.length && !metaOf(q).translateWanted);
     function header() {
       const all = questions.length, rev = questions.filter((q) => q.reviewed).length;
-      const toBank = questions.filter((q) => q.reviewed && !q.bankedAs).length;
+      const toBank = questions.filter((q) => q.reviewed && !q.bankedAs).length, busy = draft.status === 'generating' || draft.status === 'deleted';
+      const nTr = trAllList().length, nRev = revAllList().length, notRev = live().filter((q) => !q.reviewed).length;
       return `<div class="row"><a href="#/drafts">${esc(t('back'))}</a>
         <h1>${esc(draft.draftId)} ${esc(draft.name)}</h1>${statusChip(draft.status)}
         <span class="chip">${esc(t('reviewedN', { a: rev, b: all }))}</span>
         <span class="spacer"></span>
         <button class="btn" id="reload">${esc(t('refresh'))}</button>
-        ${draft.status !== 'deleted' && me.can.draft ? `<button class="btn danger" id="delDraft">${esc(t('delDraft'))}</button>` : ''}
+        ${!busy && draft.status !== 'banked' ? `<button class="btn" id="trAll" ${nTr ? '' : 'disabled'} title="${esc(t('trHint2'))}">${esc(t('trAll', { n: nTr }))}</button>
+        <button class="btn" id="revAll" ${nRev ? '' : 'disabled'} title="${esc(t('revAllHint'))}">✓ ${esc(t('revAll', { n: nRev }))}</button>
+        <button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: notRev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
         ${draft.status === 'banked' ? `<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/bank">${esc(t('goBank'))} →</a>` : ''}
-        ${draft.status !== 'generating' && draft.status !== 'banked' ? `<button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: all - rev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
+        ${draft.status !== 'deleted' && me.can.draft ? `<details class="mmenu"><summary class="btn" title="${esc(t('more'))}">⋯</summary><div class="mmenu-pop"><button class="btn ghost danger" id="delDraft">${esc(t('delDraft'))}</button></div></details>` : ''}
       </div>
       ${draft.status === 'deleted' ? `<div class="banner warn">${esc(t('deletedNote'))}</div>` : ''}
-      ${(() => {
-        if (draft.status === 'generating' || draft.status === 'deleted') return '';
-        const live = questions.filter((q) => !q.bankedAs), a = live.filter((q) => metaOf(q).enPending.length).length, b = live.filter((q) => needsReview(metaOf(q))).length;
-        const c = live.filter((q) => DB().gap.draftBasis(q, metaOf(q), q.reviewed)).length;
-        return a || b || c ? cmdBox('處理 ' + draft.draftId, [a && t('wkEnQ', { n: a }), b && t('wkRvQ', { n: b }), c && t('wkGapQ', { n: c })].filter(Boolean).join(' · ')) : '';
-      })()}
       ${draft.status === 'generating' ? `<div class="banner info row"><span>${esc(t('genBanner', { a: draft.imported, b: draft.target }))}</span>
         <span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(cmd)}</code><button class="btn sm" id="cpy2">${esc(t('copy'))}</button></span><span class="small">${esc(t('genAuto'))}</span></div>` : ''}`;
     }
@@ -896,68 +900,70 @@
       if (editing) return `<div class="card detail"><div class="dhead"><span class="id">${esc(src.id)}</span><span class="chip">Type ${esc(q.type)}</span><span class="spacer"></span>
           <button class="btn sm" id="ceCancel">${esc(t('cancel'))}</button><button class="btn sm brand" id="ceSave">${esc(t('save'))}</button></div></div><div id="ce_host"></div>
           <div id="saveErr" class="banner err" hidden></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="ceCancel2">${esc(t('cancel'))}</button><button class="btn brand" id="ceSave2">${esc(t('save'))}</button></div>`;
-      const m0 = metaOf(src), trw = !!m0.translateWanted;
-      const qv = (() => {   // V2.3：標出來自範例鎖定區域的內容
+      const m0 = metaOf(src), trw = !!m0.translateWanted, nEn = m0.enPending.length;
+      const qv = (() => {   // 標出來自範例鎖定區域的內容
         if (!(m0.seedLocks || []).length || !DB().locks) return q;
         const x = clone(q); m0.seedLocks.forEach((k) => DB().locks.set(x, k, true)); return x;
       })();
       const { left, req } = caseHtml(qv, (m0.seedLocks || []).length ? 'show' : undefined);
       const editable = draft.status !== 'generating' && draft.status !== 'deleted' && !src.bankedAs;
-      const opts = (q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}" ${editable ? '' : 'disabled'}>
-          <b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('');
+      const errs = ruleErrs(q), warns = src.warnings || [];
+      const keyTxt = q.type === 'G' ? grpSummary(q) : (() => { const o = (q.options || []).find((x) => x.id === q.answer); return o ? o.id + '. ' + L(o.text) : ''; })();
+      const noKey = q.type === 'G' ? (q.group || []).some((x) => !(q.subAnswers || {})[x.id]) : q.type !== 'C' && !q.answer;
+      const step = (n, state, title, body, act) => `<div class="st ${state}"><div class="n"><i>${state === 'done' ? '✓' : n}</i><span>${esc(title)}</span>${act ? `<span class="act">${act}</span>` : ''}</div><div class="d">${body}</div></div>`;
+      const s1 = [(m0.seedLocks || []).length ? `🔒 ${esc(t('dStLocks', { n: m0.seedLocks.length }))}` : esc(t('dStRead')),
+        errs.length ? `<b>${esc(t('ruleErrTitle'))}</b><br>${errs.slice(0, 5).map(esc).join('<br>')}` : '',
+        warns.length ? warns.slice(0, 4).map((w) => '・' + esc(w)).join('<br>') : ''].filter(Boolean).join('<br>');
+      const s2 = noKey ? `<b>${esc(t('dStNoKey'))}</b><br>${esc(t('grpKeyHint'))}` : `${esc(keyTxt)}<br><span class="soft">${esc(m0.seedId ? t('dStKeySeed', { id: m0.seedId }) : t('dStKeyAi'))}</span>`;
+      const a3 = trw ? `<button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button>` : nEn && editable ? `<button class="btn sm primary" id="trSend" title="${esc(t('trHint2'))}">${esc(t('trSendShort'))}</button>` : '';
+      const s3 = trw ? `<b>⏳ ${esc(t('stTrWait'))}</b>`
+        : nEn ? `<b>${esc(t('stTrN', { n: nEn }))}</b>${m0.translateNote ? `<br><span style="color:var(--err)">${esc(m0.translateNote)}</span>` : ''}
+          <details class="soft"><summary style="cursor:pointer">${esc(t('stTrWhich'))}</summary>${m0.enPending.map((p) => esc(pathLabel(p))).join('、')}</details>`
+        : esc(t('stTrOk'));
+      const s4 = src.bankedAs ? `${esc(t('bankedNote', { id: src.bankedAs }))}<br><a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a>`
+        : src.reviewed ? `✓ ${esc(t('reviewedTag'))}`
+        : `<span class="soft">${esc(t(errs.length || noKey ? 'dStFixFirst' : nEn || trw ? 'dStEnLater' : 'dStNext'))}</span>`;
+      const a4 = src.bankedAs ? '' : src.reviewed ? `<button class="btn sm" id="unrev" ${editable ? '' : 'disabled'}>${esc(t('unmarkReviewed'))}</button>`
+        : `<button class="btn sm ok" id="rev" ${editable && !errs.length && !noKey ? '' : 'disabled'}>✓ ${esc(t('dStConfirm'))}</button>`;
+      const g = m0.criteriaGap;
       return `<div class="card detail">
         <div class="dhead"><span class="id">${esc(src.id)}</span><span class="chip">Type ${esc(q.type)}</span>
-          ${(q.tags || []).map((x) => `<span class="chip">${esc(x)}</span>`).join('')}
-          ${src.criteriaVersion ? `<span class="chip">${esc(t('criteria'))} ${esc(src.criteriaVersion)}</span>` : ''}
-          ${src.reviewed ? `<span class="chip ok">✓ ${esc(t('reviewedTag'))}</span>` : `<span class="chip warn">${esc(t('notReviewed'))}</span>`}
           ${m0.seedId ? `<span class="chip">${esc(t('spFrom'))} ${me.role === 'tw' ? `<a href="#/library/${esc(m0.seedId)}">${esc(m0.seedId)}</a>` : esc(m0.seedId)}</span>` : ''}
+          ${src.criteriaVersion ? `<span class="chip">${esc(t('criteria'))} ${esc(src.criteriaVersion)}</span>` : ''}
           <span class="spacer"></span>
           <button class="btn sm" id="prev" ${idx === 0 ? 'disabled' : ''}>${esc(t('prev'))}</button>
-          <button class="btn sm" id="next" ${idx === questions.length - 1 ? 'disabled' : ''}>${esc(t('next'))}</button></div>
-        ${src.bankedAs ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('bankedNote', { id: src.bankedAs }))} <a href="#/bank/${esc(src.bankedAs)}">${esc(t('goBank'))} →</a></div>` : ''}
-        ${(() => { const er = ruleErrs(q); return er.length ? `<div class="banner err" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('ruleErrTitle'))}</b>${esc(t('ruleErrHint'))}<br>${er.slice(0, 6).map(esc).join('<br>')}</div>` : ''; })()}
-        ${src.warnings && src.warnings.length ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px"><b>${esc(t('warnings'))}</b><br>${src.warnings.map(esc).join('<br>')}</div>` : ''}
-        ${(m0.seedLocks || []).length ? `<div class="banner info" style="border-radius:0;border-width:0 0 1px">${esc(t('spLockedNote'))}</div>` : ''}
-        ${trw ? `<div class="banner info row" style="border-radius:0;border-width:0 0 1px"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
-        ${m0.translateNote && !trw ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px">${esc(m0.translateNote)}</div>` : ''}
-        ${trw ? '' : enPendingHtml(metaOf(src))}
-
-        ${(() => {   // 判斷標準缺口：講師改了出題正解，或盲答不同但維持正解
-          const m = metaOf(src), g = m.criteriaGap, pend = DB().gap.draftBasis(src, m, src.reviewed);
-          if (pend) return `<div class="banner info" style="border-radius:0;border-width:0 0 1px">💡 ${esc(t('dGapPending'))}</div>`;
-          if (!g) return '';
-          return `<div style="padding:10px 16px;border-bottom:1px solid var(--line)"><div class="gapcard card pad"><div class="row"><b>💡 ${esc(t(g.kind === 'ai_misread' ? 'gk_ai_misread' : 'dGapTitle'))}</b><span class="chip">${esc(t('gk_' + g.kind))}</span>${g.why ? `<span class="chip">${esc(t('gw_' + g.why))}</span>` : ''}
-            ${g.kind !== 'ai_misread' ? (m.gapState ? `<span class="chip ${m.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + m.gapState))}</span>` : `<span class="spacer"></span><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(draft.topicId)}&gap=${esc(src.id)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
-            <div class="small" style="margin-top:6px">${esc(g.situation)}</div>${g.suggestion ? `<pre class="gapsug">${esc(g.suggestion)}</pre>` : ''}${g.sameAs ? `<div class="small soft">${esc(t('gapAlso'))}${esc(g.sameAs)}</div>` : ''}</div></div>`;
-        })()}
-        <div class="qbody"><div>${left}</div><div>${req}
-          ${opts ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${opts}` : ''}
-          ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key', {}, !editable)}` : ''}
-          ${biField('point', t('point'), true)}
-          ${q.type === 'B' || q.type === 'C' ? biField('modelAnswer', t('modelAnswer')) + biField('rubric', t('rubric')) : ''}
-          ${biField('explanation', t('explanation'))}
+          <button class="btn sm" id="next" ${idx === questions.length - 1 ? 'disabled' : ''}>${esc(t('next'))}</button>
+          ${me.can.draftQ && editable ? `<details class="mmenu"><summary class="btn sm" title="${esc(t('more'))}">⋯</summary><div class="mmenu-pop"><button class="btn ghost danger" id="del">${esc(t('del'))}</button></div></details>` : ''}
+          <button class="btn sm" id="qedit" ${editable && !trw ? '' : 'disabled'}>✎ ${esc(t('ceEdit'))}</button>
+          <button class="btn sm ${dirty ? 'brand' : ''}" id="save" ${editable && dirty ? '' : 'disabled'} title="${esc(t(dirty ? 'saveHintOn' : 'saveHintOff'))}">${esc(t('save'))}</button></div>
+        <div style="padding:12px 16px;border-bottom:1px solid var(--line)"><div class="steps steps4">
+          ${step(1, errs.length ? 'todo' : warns.length ? 'warn' : '', t('dStCheck'), s1)}
+          ${step(2, noKey ? 'todo' : 'done', t('dStKey'), s2)}
+          ${step(3, !nEn && !trw ? 'done' : 'todo', t('stTr'), s3, a3)}
+          ${step(4, src.reviewed || src.bankedAs ? 'done' : '', t('dStRev'), s4, a4)}
         </div></div>
         <div id="saveErr" class="banner err" style="border-radius:0" hidden></div>
-        <div class="dfoot">
-          ${me.can.draftQ ? `<button class="btn sm danger" id="del" ${editable ? '' : 'disabled'}>${esc(t('del'))}</button>` : ''}
-          <button class="btn sm primary" id="qedit" ${editable && !trw ? '' : 'disabled'}>✎ ${esc(t('ceEdit'))}</button>
-          <span class="spacer"></span><span class="small soft" id="dirtyMark"></span>
-          ${m0.enPending.length && !trw && editable ? `<button class="btn sm" id="trSend" title="${esc(t('trHint2'))}">${esc(t('trSend', { n: m0.enPending.length }))}</button>` : ''}
-          <button class="btn" id="save" ${editable && dirty ? '' : 'disabled'}>${esc(t('save'))}</button>
-          ${src.reviewed && !dirty
-            ? `<button class="btn" id="unrev" ${editable ? '' : 'disabled'}>${esc(t('unmarkReviewed'))}</button>`
-            : `<button class="btn ok" id="rev" ${editable ? '' : 'disabled'}>✓ ${esc(t('markReviewed'))}</button>`}
-        </div></div>`;
+        ${g ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)"><div class="gapcard card pad"><div class="row"><b>💡 ${esc(t(g.kind === 'ai_misread' ? 'gk_ai_misread' : 'dGapTitle'))}</b><span class="chip">${esc(t('gk_' + g.kind))}</span></div>
+          <div class="small" style="margin-top:6px">${esc(g.situation)}</div>${g.suggestion ? `<pre class="gapsug">${esc(g.suggestion)}</pre>` : ''}</div></div>` : ''}
+        <div class="qbody"><div>${left}</div><div>${req}
+          ${(q.options || []).length ? `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${(q.options || []).map((o) => `<button type="button" class="opt ${o.id === q.answer ? 'correct' : ''}" data-ans="${esc(o.id)}" ${editable ? '' : 'disabled'}>
+            <b>${esc(o.id)}.</b> ${esc(L(o.text))}<span class="hint">${o.id === q.answer ? '✓ ' + esc(t('correct')) : esc(t('setAnswer'))}</span></button>`).join('')}` : ''}
+          ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key', {}, !editable)}` : ''}
+          ${biField('point', t('point'))}
+          ${q.type === 'B' || q.type === 'C' ? biField('modelAnswer', t('modelAnswer')) + biField('rubric', t('rubric')) : ''}
+          ${biField('explanation', t('explanation'))}
+        </div></div></div>`;
     }
     function draw() {
+      dirty = isDirty();
       main.innerHTML = `${header()}<div class="review"><div class="card qlist" id="qlist">${listHtml()}</div><div id="detail">${detailHtml()}</div></div>`;
       bind();
     }
-    function setDirty(v) { dirty = v; const s = $('#save'); if (s) s.disabled = !v || saving; const m = $('#dirtyMark'); if (m) m.textContent = v ? '●' : ''; }
+    function setDirty() { dirty = isDirty(); const b = $('#save'); if (b) { b.disabled = !dirty || saving; b.classList.toggle('brand', dirty); b.title = t(dirty ? 'saveHintOn' : 'saveHintOff'); } }
     function select(i) {
       if (i === idx) return;
-      const go = () => { idx = i; work = clone(questions[idx]); dirty = false; editing = false; history.replaceState(null, '', '#/draft/' + draft.draftId + '?q=' + questions[idx].id); draw(); window.scrollTo({ top: 0 }); };
-      if (dirty) confirmBox(t('unsaved'), t('discard'), t('keep'), true).then((ok) => ok && go()); else go();
+      if (isDirty()) toast(t('unsavedDropped'), 4000);   // 不跳提醒：未儲存的修改直接放棄
+      idx = i; work = clone(questions[idx]); dirty = false; editing = false; history.replaceState(null, '', '#/draft/' + draft.draftId + '?q=' + questions[idx].id); draw(); window.scrollTo({ top: 0 });
     }
     async function save(reviewed) {
       if (saving) return;
@@ -981,9 +987,28 @@
       }
     }
     function bind() {
-      $('#reload').onclick = async () => {
-        if (dirty && !(await confirmBox(t('unsaved'), t('discard'), t('keep'), true))) return;
-        dirty = false; clearInterval(pollTimer); viewDraft(draft.draftId);
+      $('#reload').onclick = () => {
+        if (isDirty()) toast(t('unsavedDropped'), 4000);
+        dirty = false; editing = false; clearInterval(pollTimer); viewDraft(draft.draftId);
+      };
+      // V2.3 批次：全部送翻譯、全部確認（略過格式錯誤、英文待翻譯、正解未設定的題目）
+      const ta = $('#trAll'); if (ta) ta.onclick = async () => {
+        if (isDirty()) toast(t('unsavedDropped'), 4000);
+        const list = trAllList(); ta.disabled = true; let n = 0;
+        for (const q of list) {
+          try { await api('t_requestTranslate', { kind: 'draft', draftId: draft.draftId, qid: q.id }); q._m = Object.assign({}, metaOf(q), { translateWanted: true }); n++; } catch (e) { toast(q.id + '：' + e.message, 5000); }
+        }
+        editing = false; work = clone(questions[idx]); toast(t('trAllDone', { n }), 5000); draw();
+      };
+      const ra2 = $('#revAll'); if (ra2) ra2.onclick = async () => {
+        const list = revAllList(), skip = live().filter((q) => !q.reviewed).length - list.length;
+        if (!(await confirmBox(t('revAllConfirm', { n: list.length, s: skip }), t('revAll', { n: list.length }), t('cancel')))) return;
+        if (isDirty()) toast(t('unsavedDropped'), 4000);
+        ra2.disabled = true; let n = 0;
+        for (const q of list) {
+          try { const r = await api('t_setReviewed', { draftId: draft.draftId, qid: q.id, reviewed: true }); q.reviewed = r.reviewed !== undefined ? r.reviewed : true; if (r.draft) draft = r.draft; n++; } catch (e) { toast(q.id + '：' + e.message, 5000); }
+        }
+        editing = false; work = clone(questions[idx]); toast(t('revAllDone', { n }), 5000); draw();
       };
       const cp = $('#cpy2'); if (cp) cp.onclick = () => copyText(cmd);
       $$('[data-copycmd]').forEach((b) => { b.onclick = () => copyText(b.dataset.copycmd); });
@@ -994,7 +1019,7 @@
       };
       const dd = $('#delDraft'); if (dd) dd.onclick = () => deleteDraft(draft.draftId, questions.filter((q) => !q.bankedAs).length, () => { dirty = false; location.hash = '#/drafts'; });
       const ba = $('#bankAdd'); if (ba) ba.onclick = async () => {
-        if (dirty && !(await confirmBox(t('unsaved'), t('discard'), t('keep'), true))) return;
+        if (isDirty()) toast(t('unsavedDropped'), 4000);
         ba.disabled = true;
         try {
           const r = await api('t_bankAdd', { draftId: draft.draftId });
@@ -2407,7 +2432,7 @@
       const nSub = todo.filter((e) => /^subAnswers\./.test(e)).length, noAns = todo.some((e) => /^answer /.test(e)), noPoint = todo.some((e) => /^point/.test(e));
       const ok1 = !todo.length, ok2 = nLock > 0, ok4 = !nEn && !trw;
       const canAppr = ok1 && ok4 && !errs.length && !dirty;
-      const step = (n, state, title, body) => `<div class="st ${state}"><div class="n"><i>${state === 'done' ? '✓' : n}</i>${esc(title)}</div><div class="d">${body}</div></div>`;
+      const step = (n, state, title, body, act) => `<div class="st ${state}"><div class="n"><i>${state === 'done' ? '✓' : n}</i><span>${esc(title)}</span>${act ? `<span class="act">${act}</span>` : ''}</div><div class="d">${body}</div></div>`;
       const s1 = ok1 ? esc(t('stKeyOk')) : `<b>${esc([nSub && t('todoSub', { n: nSub, m: (q.group || []).length }), noAns && t('todoAns'), noPoint && t('todoPoint')].filter(Boolean).join('、'))}</b><br>${esc(t('stKeyHow'))}`;
       const s2 = ok2 ? esc(t('lkCount', { n: nLock })) : `<b>${esc(t('stLockNone'))}</b><br>${esc(t('stLockHow'))}`;
       const s3 = [errs.length ? `<b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 6).map(esc).join('<br>')}` : '',
@@ -2415,12 +2440,14 @@
         warns.length ? warns.map((n) => '・' + esc(freeTxt(n))).join('<br>') : '',
         !errs.length && !masks.length && !warns.length ? esc(t('stCheckNone')) : '',
         info.length ? `<details class="soft"><summary style="cursor:pointer">${esc(t('impInfo', { n: info.length }))}</summary>${info.map((n) => '・' + esc(n.text)).join('<br>')}</details>` : ''].filter(Boolean).join('<br>');
-      const s4 = trw ? `<b>⏳ ${esc(t('stTrWait'))}</b><br><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button>`
-        : nEn ? `<b>${esc(t('stTrN', { n: nEn }))}</b>${s.translateNote ? `<br><span style="color:var(--err)">${esc(s.translateNote)}</span>` : ''}<br><button class="btn sm primary" id="trSend" ${ok1 ? '' : 'disabled'} title="${esc(t('trHint'))}">${esc(t('trSendShort'))}</button>${ok1 ? '' : ` <span class="soft">${esc(t('stTrAfter'))}</span>`}
+      const s4 = trw ? `<b>⏳ ${esc(t('stTrWait'))}</b>`
+        : nEn ? `<b>${esc(t('stTrN', { n: nEn }))}</b>${s.translateNote ? `<br><span style="color:var(--err)">${esc(s.translateNote)}</span>` : ''}${ok1 ? '' : `<br><span class="soft">${esc(t('stTrAfter'))}</span>`}
           <details class="soft"><summary style="cursor:pointer">${esc(t('stTrWhich'))}</summary>${metaOf(s).enPending.map((p) => esc(pathLabel(p))).join('、')}</details>`
         : esc(t('stTrOk'));
+      const a4 = trw ? `<button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button>` : nEn ? `<button class="btn sm primary" id="trSend" ${ok1 ? '' : 'disabled'} title="${esc(t('trHint'))}">${esc(t('trSendShort'))}</button>` : '';
       const s5 = s.status === 'active' ? `${esc(t('stApproved'))}${s.approvedBy ? `<br><span class="soft">${esc(s.approvedBy)}</span>` : ''}`
-        : `<button class="btn sm ok" id="appr" ${canAppr ? '' : 'disabled'}>${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button><br><span class="soft">${esc(t(canAppr ? (ok2 ? 'stApprReady' : 'stApprNoLock') : dirty ? 'stApprSave' : 'stApprWait'))}</span>`;
+        : `<span class="soft">${esc(t(canAppr ? (ok2 ? 'stApprReady' : 'stApprNoLock') : dirty ? 'stApprSave' : 'stApprWait'))}</span>`;
+      const a5 = s.status === 'active' ? '' : `<button class="btn sm ok" id="appr" ${canAppr ? '' : 'disabled'}>${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>`;
       main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}${s.fromSample ? `<span class="chip">⧉ ${esc(s.fromSample)}</span>` : ''}
           <span class="spacer"></span>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="copyS" title="${esc(t('copyHint'))}">⧉ ${esc(t('copySample'))}</button><button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button>
           ${me.can.sample || s.status === 'active' || pending ? `<details class="mmenu"><summary class="btn" title="${esc(t('more'))}">⋯</summary><div class="mmenu-pop">
@@ -2432,8 +2459,8 @@
           ${step(1, ok1 ? 'done' : 'todo', t('stKey'), s1)}
           ${step(2, ok2 ? 'done' : 'todo', t('stLock'), s2)}
           ${step(3, errs.length ? 'todo' : (masks.length || warns.length) ? 'warn' : 'done', t('stCheck'), s3)}
-          ${step(4, ok4 ? 'done' : 'todo', t('stTr'), s4)}
-          ${step(5, s.status === 'active' ? 'done' : '', t('stAppr'), s5)}
+          ${step(4, ok4 ? 'done' : 'todo', t('stTr'), s4, a4)}
+          ${step(5, s.status === 'active' ? 'done' : '', t('stAppr'), s5, a5)}
         </div>
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
         ${s.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t(s.criteriaGap.kind === 'ai_misread' ? 'gk_ai_misread' : 'gapTitle2'))}</b><span class="chip">${esc(t('gk_' + s.criteriaGap.kind))}</span><span class="small soft">${esc(t('gapFromTrainer'))}</span>
