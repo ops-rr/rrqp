@@ -394,3 +394,22 @@ img.stk { width: 96px; height: 96px; object-fit: contain; display: block; }
 .ce-kv > * { min-width: 0; }
 .ce select.ce-in { width: 100%; }
 .ce .ce-mhead select.ce-in, .ce .row select.ce-in { width: auto; }
+
+/* ───────── V2.3 範例頁：審核進度 ───────── */
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.steps .st { padding: 12px 14px; border-right: 1px solid var(--line); font-size: 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.steps .st:last-child { border-right: 0; }
+.steps .n { font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.steps .n i { font-style: normal; width: 22px; height: 22px; flex: none; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; background: var(--chip); }
+.steps .st.done .n i { background: #E6F4EA; color: #1E7B34; }
+.steps .st.todo .n i { background: #FFF5F2; color: #EE4D2D; border: 1px solid #EE4D2D; }
+.steps .st.warn .n i { background: #FFF7E6; color: #B45309; border: 1px solid #F59E0B; }
+.steps .d { color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.steps .st.todo .d b { color: #B4341A; }
+.steps details summary { font-size: 12px; }
+@media (max-width: 900px) { .steps { grid-template-columns: 1fr; } .steps .st { border-right: 0; border-bottom: 1px solid var(--line); } }
+.mmenu { position: relative; }
+.mmenu > summary { list-style: none; display: inline-grid; place-items: center; }
+.mmenu > summary::-webkit-details-marker { display: none; }
+.mmenu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; background: var(--card); border: 1px solid var(--line2); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 140px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+.mmenu-pop .btn { justify-content: flex-start; width: 100%; }

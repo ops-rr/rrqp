@@ -37,7 +37,7 @@
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
       noChat: '（買賣雙方沒有聊聊）', editJson: '編輯 JSON', apply: '套用', jsonBad: 'JSON 格式錯誤：', del: '刪除', delRefill: '刪除並請 Agent 補一題', delOnly: '刪除，題數減 1',
       delConfirm: '確定刪除 {id}？', delRefillDone: '已刪除。請到 SeaTalk 再傳一次「{cmd}」補題。', delDone: '已刪除',
-      unsaved: '這題有未儲存的修改，要放棄嗎？', unsavedDropped: '剛才未儲存的修改已放棄', saveHintOn: '有未儲存的修改', saveHintOff: '沒有需要儲存的修改', discard: '放棄修改', keep: '繼續編輯',
+      unsaved: '這題有未儲存的修改，要放棄嗎？', more: '更多', stKey: '正解與判斷重點', stKeyOk: '已填好', stKeyHow: '在下方題組點選正解、在範例資訊填判斷重點', stLock: '鎖定判斷依據', stLockNone: '尚未鎖定', stLockHow: '在下方案件內容點 🔓', stCheck: '審核前確認', stCheckNone: '沒有需要確認的事項', stTr: '英文翻譯', stTrN: '{n} 個欄位待翻譯', stTrOk: '英文已完成', stTrWait: '翻譯中，排程下次執行時完成', stTrAfter: '先完成第 1 步', stTrWhich: '哪些欄位', trSendShort: '送翻譯', stAppr: '核准', stApproved: '已核准', stApprReady: '可以核准', stApprNoLock: '可以核准；但沒有鎖定的範例不能拿來出題', stApprSave: '先儲存修改', stApprWait: '完成第 1、3、4 步後才能核准', unsavedDropped: '剛才未儲存的修改已放棄', saveHintOn: '有未儲存的修改', saveHintOff: '沒有需要儲存的修改', discard: '放棄修改', keep: '繼續編輯',
       answerHint: '點選項可改正解', correct: '正解', setAnswer: '設為正解',
       prompt: '題目', buyer: '買家', seller: '賣家', chat: '聊聊', drc: 'DRC', drcBuyer: '買家 → 蝦皮', drcSeller: '賣家 → 蝦皮',
       request: '退貨退款申請', deduction: '折抵（折價券 / 蝦幣）', solution: '方案', amount: '金額', reason: '原因', remark: '備註', reqItems: '申退商品', orderItems: '訂單商品',
@@ -63,7 +63,7 @@
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
       noChat: '(No chat between buyer and seller)', editJson: 'Edit JSON', apply: 'Apply', jsonBad: 'Invalid JSON: ', del: 'Delete', delRefill: 'Delete and let the agent add one', delOnly: 'Delete, reduce count by 1',
       delConfirm: 'Delete {id}?', delRefillDone: 'Deleted. Send "{cmd}" in SeaTalk again to add a replacement.', delDone: 'Deleted',
-      unsaved: 'This question has unsaved changes. Discard them?', unsavedDropped: 'Your unsaved changes were discarded', saveHintOn: 'You have unsaved changes', saveHintOff: 'Nothing to save', discard: 'Discard', keep: 'Keep editing',
+      unsaved: 'This question has unsaved changes. Discard them?', more: 'More', stKey: 'Answer & key point', stKeyOk: 'Done', stKeyHow: 'Pick the answers in the question set below and fill in the key point', stLock: 'Lock the evidence', stLockNone: 'Nothing locked yet', stLockHow: 'Click 🔓 in the case below', stCheck: 'Check before approving', stCheckNone: 'Nothing to check', stTr: 'English', stTrN: '{n} field(s) to translate', stTrOk: 'English done', stTrWait: 'Translating on the next scheduler run', stTrAfter: 'Finish step 1 first', stTrWhich: 'Which fields', trSendShort: 'Translate', stAppr: 'Approve', stApproved: 'Approved', stApprReady: 'Ready to approve', stApprNoLock: 'Ready; but samples without locks cannot be used to generate questions', stApprSave: 'Save your changes first', stApprWait: 'Finish steps 1, 3 and 4 first', unsavedDropped: 'Your unsaved changes were discarded', saveHintOn: 'You have unsaved changes', saveHintOff: 'Nothing to save', discard: 'Discard', keep: 'Keep editing',
       answerHint: 'Click an option to change the answer', correct: 'Answer', setAnswer: 'Set as answer',
       prompt: 'Question', buyer: 'Buyer', seller: 'Seller', chat: 'Chat', drc: 'DRC', drcBuyer: 'Buyer → Shopee', drcSeller: 'Seller → Shopee',
       request: 'Return / refund request', deduction: 'Deduction (voucher / coins)', solution: 'Solution', amount: 'Amount', reason: 'Reason', remark: 'Remark', reqItems: 'Requested items', orderItems: 'Order items',
@@ -2395,49 +2395,47 @@
       const nLock = DB().locks ? DB().locks.count(q) : 0, nEn = metaOf(s).enPending.length;
       const diff = s.wantedTags && s.wantedTags.length && sg && !s.wantedTags.every((x) => (sg.tags || []).includes(x));
       const opts = (q.options || []).map((o) => `<div class="opt ${o.id === q.answer ? 'correct' : ''}"><b>${esc(o.id)}.</b> ${esc(L(o.text))}${o.id === q.answer ? `<span class="hint">✓ ${esc(t('correct'))}</span>` : ''}</div>`).join('');
-      main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}
+      // ── 審核進度（V2.3）：把要處理的事照順序排成 5 步 ──
+      const all = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
+      const { errors: errs, todo } = DB() && DB().splitKeyTodo ? DB().splitKeyTodo(all) : { errors: all, todo: [] };
+      const pending = s.status === 'pending';
+      const masks = pending ? (s.importNotes || []).filter((n) => n.level === 'mask') : [];
+      const warnAll = pending ? (s.importNotes || []).filter((n) => n.level === 'warn') : [];
+      const INFO_RE = /^(（核對用）|申請金額 .*與申退品項小計|買家在申請中附了照片|買家申請附了 .*已留下區塊|聊聊有 \d+ 則照片|已略過 \d+ 則|判斷時點 [\d\- :]+：(已移除|之後沒有))/;
+      const warns = warnAll.filter((n) => !INFO_RE.test(n.text)), info = warnAll.filter((n) => INFO_RE.test(n.text));
+      const freeTxt = (n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text; };
+      const nSub = todo.filter((e) => /^subAnswers\./.test(e)).length, noAns = todo.some((e) => /^answer /.test(e)), noPoint = todo.some((e) => /^point/.test(e));
+      const ok1 = !todo.length, ok2 = nLock > 0, ok4 = !nEn && !trw;
+      const canAppr = ok1 && ok4 && !errs.length && !dirty;
+      const step = (n, state, title, body) => `<div class="st ${state}"><div class="n"><i>${state === 'done' ? '✓' : n}</i>${esc(title)}</div><div class="d">${body}</div></div>`;
+      const s1 = ok1 ? esc(t('stKeyOk')) : `<b>${esc([nSub && t('todoSub', { n: nSub, m: (q.group || []).length }), noAns && t('todoAns'), noPoint && t('todoPoint')].filter(Boolean).join('、'))}</b><br>${esc(t('stKeyHow'))}`;
+      const s2 = ok2 ? esc(t('lkCount', { n: nLock })) : `<b>${esc(t('stLockNone'))}</b><br>${esc(t('stLockHow'))}`;
+      const s3 = [errs.length ? `<b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 6).map(esc).join('<br>')}` : '',
+        masks.length ? `<b>${esc(t('impMasked'))}</b><br>${masks.map((n) => '・' + esc(pathLabel(n.path)) + '：' + esc(n.text)).join('<br>')}` : '',
+        warns.length ? warns.map((n) => '・' + esc(freeTxt(n))).join('<br>') : '',
+        !errs.length && !masks.length && !warns.length ? esc(t('stCheckNone')) : '',
+        info.length ? `<details class="soft"><summary style="cursor:pointer">${esc(t('impInfo', { n: info.length }))}</summary>${info.map((n) => '・' + esc(n.text)).join('<br>')}</details>` : ''].filter(Boolean).join('<br>');
+      const s4 = trw ? `<b>⏳ ${esc(t('stTrWait'))}</b><br><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button>`
+        : nEn ? `<b>${esc(t('stTrN', { n: nEn }))}</b>${s.translateNote ? `<br><span style="color:var(--err)">${esc(s.translateNote)}</span>` : ''}<br><button class="btn sm primary" id="trSend" ${ok1 ? '' : 'disabled'} title="${esc(t('trHint'))}">${esc(t('trSendShort'))}</button>${ok1 ? '' : ` <span class="soft">${esc(t('stTrAfter'))}</span>`}
+          <details class="soft"><summary style="cursor:pointer">${esc(t('stTrWhich'))}</summary>${metaOf(s).enPending.map((p) => esc(pathLabel(p))).join('、')}</details>`
+        : esc(t('stTrOk'));
+      const s5 = s.status === 'active' ? `${esc(t('stApproved'))}${s.approvedBy ? `<br><span class="soft">${esc(s.approvedBy)}</span>` : ''}`
+        : `<button class="btn sm ok" id="appr" ${canAppr ? '' : 'disabled'}>${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button><br><span class="soft">${esc(t(canAppr ? (ok2 ? 'stApprReady' : 'stApprNoLock') : dirty ? 'stApprSave' : 'stApprWait'))}</span>`;
+      main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}${s.fromSample ? `<span class="chip">⧉ ${esc(s.fromSample)}</span>` : ''}
           <span class="spacer"></span>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="copyS" title="${esc(t('copyHint'))}">⧉ ${esc(t('copySample'))}</button><button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button>
-          ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}
-          ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
-          <button class="btn ${dirty && !trw ? 'brand' : ''}" id="save" ${dirty && !trw ? '' : 'disabled'} title="${esc(t(dirty ? 'saveHintOn' : 'saveHintOff'))}">${esc(t('save'))}</button>
-          ${nEn && !trw ? `<button class="btn primary" id="trSend" title="${esc(t('trHint'))}">${esc(t('trSend', { n: nEn }))}</button>` : ''}
-          ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
+          ${me.can.sample || s.status === 'active' || pending ? `<details class="mmenu"><summary class="btn" title="${esc(t('more'))}">⋯</summary><div class="mmenu-pop">
+            ${pending ? `<button class="btn ghost danger" id="rej">${esc(t('reject'))}</button>` : s.status === 'active' ? `<button class="btn ghost danger" id="rej">${esc(t('deactivate'))}</button>` : ''}
+            ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}</div></details>` : ''}
+          <button class="btn ${dirty && !trw ? 'brand' : ''}" id="save" ${dirty && !trw ? '' : 'disabled'} title="${esc(t(dirty ? 'saveHintOn' : 'saveHintOff'))}">${esc(t('save'))}</button></div>
         ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
-        ${trw ? `<div class="banner info row"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
-        ${s.translateNote && !trw ? `<div class="banner warn">${esc(s.translateNote)}</div>` : ''}
-        ${(() => {   // 審核前請確認：只列講師要處理的事（遮蔽、格式錯誤、贈品、未知訊息…）；純資訊收合成「匯入細節」；核准後只留格式錯誤
-          const all = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
-          const { errors: errs } = DB() && DB().splitKeyTodo ? DB().splitKeyTodo(all) : { errors: all };   // 正解／判斷重點未填改標在下方欄位旁
-          const pending = s.status === 'pending';
-          const masks = pending ? (s.importNotes || []).filter((n) => n.level === 'mask') : [];
-          const warnAll = pending ? (s.importNotes || []).filter((n) => n.level === 'warn') : [];
-          const INFO_RE = /^(（核對用）|申請金額 .*與申退品項小計|買家在申請中附了照片|買家申請附了 .*已留下區塊|聊聊有 \d+ 則照片|已略過 \d+ 則|判斷時點 [\d\- :]+：(已移除|之後沒有))/;
-          const warns = warnAll.filter((n) => !INFO_RE.test(n.text)), info = warnAll.filter((n) => INFO_RE.test(n.text));
-          if (!errs.length && !masks.length && !warns.length && !info.length) return '';
-          const freeTxt = (n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text; };
-          const infoHtml = info.length ? `<details class="small soft" style="margin-top:4px"><summary style="cursor:pointer">${esc(t('impInfo', { n: info.length }))}</summary>${info.map((n) => '・' + esc(n.text)).join('<br>')}</details>` : '';
-          if (!errs.length && !masks.length && !warns.length) return `<div style="margin:-4px 0 4px">${infoHtml}</div>`;
-          return `<div class="banner ${errs.length ? 'err' : 'warn'}"><b>${esc(t('impNotesTitle'))}</b>
-            ${errs.length ? `<div style="margin-top:4px"><b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 10).map(esc).join('<br>')}</div>` : ''}
-            ${masks.length ? `<div style="margin-top:4px"><b>${esc(t('impMasked'))}</b><br>${masks.map((n) => '・' + esc(pathLabel(n.path)) + '：' + esc(n.text)).join('<br>')}</div>` : ''}
-            ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => '・' + esc(freeTxt(n))).join('<br>')}</div>` : ''}${infoHtml}</div>`;
-        })()}
-        ${(s.enSource || []).length ? `<div class="small muted">${esc(t('enFromDms', { n: s.enSource.length }))}</div>` : ''}
-        <div class="${sg ? 'libgrid' : ''}">
-          <div class="card pad"><h4>${esc(t('noteTitle'))}</h4>${s.note ? `<div style="white-space:pre-wrap">${esc(s.note)}</div>` : '<span class="soft">—</span>'}
-            ${(s.wantedTags || []).length ? `<div style="margin-top:6px">${s.wantedTags.map((x) => `<span class="chip" style="margin:2px">${esc(tagName(x))}</span>`).join('')}</div>` : ''}
-            <div class="small soft" style="margin-top:6px">${esc(s.requestedBy || '')}</div></div>
-          ${sg ? `<div class="card pad"><h4>${esc(t('aiSuggest'))}</h4>${(sg.tags || []).map((x) => `<span class="chip info" style="margin:2px">${esc(tagName(x))}</span>`).join('')}
-            <div style="margin-top:6px"><b>${esc(sg.answer || '')}</b> · ${esc(sg.pointZh || '')}</div><div class="small muted">${esc(sg.reason || '')}</div>
-            <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button></div>` : ''}
+        <div class="steps">
+          ${step(1, ok1 ? 'done' : 'todo', t('stKey'), s1)}
+          ${step(2, ok2 ? 'done' : 'todo', t('stLock'), s2)}
+          ${step(3, errs.length ? 'todo' : (masks.length || warns.length) ? 'warn' : 'done', t('stCheck'), s3)}
+          ${step(4, ok4 ? 'done' : 'todo', t('stTr'), s4)}
+          ${step(5, s.status === 'active' ? 'done' : '', t('stAppr'), s5)}
         </div>
         ${diff ? `<div class="banner warn">${esc(t('diffWarn'))}</div>` : ''}
-        ${(() => {   // 處理指令：英文待翻譯、待 AI 檢查、待分析判斷標準
-          const m = metaOf(s), a = trw ? 0 : m.enPending.length, rv = needsReview(m), gp = sampleNeedsGap(s);   // 英文：主要用「送翻譯」，指令是備用
-          return a || rv || gp ? cmdBox('處理 ' + s.sampleId, [a && t('wkEnF', { n: a }), rv && t('wkRv1'), gp && t('wkGap1')].filter(Boolean).join(' · ')) : '';
-        })()}
-        ${(() => { const m = metaOf(s); return m.enPending.length ? `<div class="card" style="overflow:hidden">${enPendingHtml(m)}</div>` : ''; })()}
-
         ${s.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t(s.criteriaGap.kind === 'ai_misread' ? 'gk_ai_misread' : 'gapTitle2'))}</b><span class="chip">${esc(t('gk_' + s.criteriaGap.kind))}</span><span class="small soft">${esc(t('gapFromTrainer'))}</span>
             ${s.criteriaGap.kind !== 'ai_misread' ? (s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span><span class="spacer"></span><button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<span class="spacer"></span><button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
           <div class="small" style="margin-top:6px">${esc(s.criteriaGap.situation)}</div>${s.criteriaGap.suggestion ? `<pre class="gapsug">${esc(s.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
@@ -2446,12 +2444,16 @@
           <div class="small" style="margin-top:6px">${esc(sg.criteriaGap.situation)}</div>${sg.criteriaGap.suggestion ? `<pre class="gapsug">${esc(sg.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
         <div class="card pad libedit">
           <div class="form">
+            <span class="k">${esc(t('noteTitle'))}</span><div>${s.note ? `<div style="white-space:pre-wrap">${esc(s.note)}</div>` : '<span class="soft">—</span>'}${s.requestedBy ? `<div class="small soft">${esc(s.requestedBy)}</div>` : ''}</div>
             <span class="k">${esc(t('colTags'))} <span class="soft">${esc(t('optional'))}</span></span><div class="tags" id="e_tags">${meta.tags.filter((x) => x.topicId === s.topicId).concat((meta.inactiveTags || []).filter((x) => work.tags.includes(x.tagId)).map((x) => Object.assign({}, x, { name: { zh: x.name.zh + '（' + t('tagInactive') + '）', en: x.name.en + ' (' + t('tagInactive') + ')' } }))).map((x) => `<label class="tag-opt ${work.tags.includes(x.tagId) ? 'on' : ''}"><input type="checkbox" value="${esc(x.tagId)}" ${work.tags.includes(x.tagId) ? 'checked' : ''}> ${esc(L(x.name))}</label>`).join('')}</div>
             <label class="k" for="e_point">${esc(t('point'))}${qPointZh().trim() ? '' : `<span class="tag-noans">${esc(t('todoFill'))}</span>`}</label><input type="text" id="e_point" value="${esc(qPointZh())}" maxlength="100">
             ${qOptions().length ? `<label class="k" for="e_ans">${esc(t('answer'))}${work.question.answer ? '' : `<span class="tag-noans">${esc(t('todoFill'))}</span>`}</label><select id="e_ans"><option value=""></option>${qOptions().map((o) => `<option value="${esc(o.id)}" ${work.question.answer === o.id ? 'selected' : ''}>${esc(o.id + '. ' + L(o.text))}</option>`).join('')}</select>` : ''}
             ${work.changeHint ? `<label class="k" for="e_hint">${esc(t('changeHint'))}</label><textarea id="e_hint" rows="2" style="width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="${esc(t('changeHintPh'))}">${esc(work.changeHint)}</textarea>` : ''}
-            <span class="k">${esc(t('lkTitle'))}</span><div><span class="chip ${nLock ? 'ok' : 'warn'}">🔒 ${esc(t('lkCount', { n: nLock }))}</span> <span class="small muted">${esc(t(trw ? 'lkWaitHint' : 'lkHint'))}</span></div>
           </div><div id="e_err" class="banner err" hidden></div></div>
+        ${sg ? `<div class="card pad"><h4>${esc(t('aiSuggest'))}</h4>${(sg.tags || []).map((x) => `<span class="chip info" style="margin:2px">${esc(tagName(x))}</span>`).join('')}
+            <div style="margin-top:6px"><b>${esc(sg.answer || '')}</b> · ${esc(sg.pointZh || '')}</div><div class="small muted">${esc(sg.reason || '')}</div>
+            <button class="btn sm" id="applyAi" style="margin-top:8px">${esc(t('applyAi'))}</button></div>` : ''}
+        <div class="small soft" style="margin:-2px 2px 0">🔒 ${esc(t(trw ? 'lkWaitHint' : 'lkHint'))}</div>
         <div class="card detail"><div class="qbody"><div>${left}</div><div>${req}${opts ? `<h4>${esc(t('options'))}</h4>${opts}` : ''}
           ${q.type === 'G' ? `<h4>${esc(t('grpTitle', { n: (q.group || []).length }))} <span class="soft">· ${esc(t('grpKeyHint'))}</span></h4>${groupHtml(q, 'key')}` : ''}
           ${[['point', 'qPointIn'], ['modelAnswer', 'modelAnswer'], ['rubric', 'rubric'], ['explanation', 'explanation']].map(([k, lab]) => (q[k] && L(q[k]) ? `<h4>${esc(t(lab))}</h4><div class="box" style="white-space:pre-wrap">${esc(L(q[k]))}</div>` : '')).join('')}</div></div></div>`;
