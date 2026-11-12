@@ -397,7 +397,7 @@
 
   // ───────── 題組（G 題）：一題多個小題，全對得滿分，否則每對一小題得 滿分 ÷（2 × 小題數） ─────────
   Object.assign(I18N.zh, {
-    impNotesTitle: '匯入提醒（審核時請確認）', impErrs: '不符合格式規則，修正後才能核准：', impMasked: '已自動遮蔽疑似真實資料：', impFreeO: '訂單商品第 {n} 項單價是 0，是否為贈品？', impFreeR: '申退商品第 {n} 項單價是 0，是否為贈品？',
+    impNotesTitle: '匯入提醒（審核時請確認）', impErrs: '不符合格式規則，修正後才能核准：', todoTitle: '待講師填寫（填好才能送翻譯與核准）：', todoSub: '正解（{m} 小題中還差 {n} 題）', todoAns: '正解', todoPoint: '判斷重點', impMasked: '已自動遮蔽疑似真實資料：', impFreeO: '訂單商品第 {n} 項單價是 0，是否為贈品？', impFreeR: '申退商品第 {n} 項單價是 0，是否為贈品？',
     enFromDms: '聊聊／DRC／備註的英文有 {n} 欄來自 DMS 翻譯（和專員在 DMS 英文介面看到的相同）',
     grpConvert: '轉成題組', grpTitle: '題組（{n} 小題）', grpKeyHint: '點選每個小題的正解', grpNoAns: '未設定正解', grpScoring: '計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × {n}）',
     grpMine: '你的答案', grpKey: '正解', grpOkN: '答對 {a} / {b} 小題', grpTopicOnly: '這個主題使用題組：全部出 G 題（{n} 小題）', qeTypeG: 'G：題組',
@@ -406,7 +406,7 @@
     blindSubs: 'AI 沒看答案時，以下小題和正解不同：', tImportUpdate: '已經有主題「{n}」。要用檔案內容更新它嗎？判斷標準有改時版本號會 +1 並保留舊版；已有的標籤不會被修改。', tUpdated: '已更新主題 {n}',
   });
   Object.assign(I18N.en, {
-    impNotesTitle: 'Import notes (check when reviewing)', impErrs: 'Does not meet the format rules; fix before approving:', impMasked: 'Possible real data was masked automatically:', impFreeO: 'Order item {n} has a unit price of 0 — a free gift?', impFreeR: 'Requested item {n} has a unit price of 0 — a free gift?',
+    impNotesTitle: 'Import notes (check when reviewing)', impErrs: 'Does not meet the format rules; fix before approving:', todoTitle: 'To fill in by the trainer (needed before translation and approval): ', todoSub: 'answers ({n} of {m} sub-questions missing)', todoAns: 'answer', todoPoint: 'key point', impMasked: 'Possible real data was masked automatically:', impFreeO: 'Order item {n} has a unit price of 0 — a free gift?', impFreeR: 'Requested item {n} has a unit price of 0 — a free gift?',
     enFromDms: '{n} chat / DRC / remark field(s) use the DMS translation (same as agents see in DMS)',
     grpConvert: 'Convert to question set', grpTitle: 'Question set ({n} parts)', grpKeyHint: 'Pick the correct answer for each part', grpNoAns: 'No answer set', grpScoring: 'Scoring: all correct = full points; otherwise each correct part earns full ÷ (2 × {n})',
     grpMine: 'Your answer', grpKey: 'Correct', grpOkN: '{a} / {b} parts correct', grpTopicOnly: 'This topic uses question sets: all questions are type G ({n} parts)', qeTypeG: 'G: Question set',
@@ -489,7 +489,7 @@
   };
 
   /** 開啟題目內容編輯器；回傳修改後的題目，取消時回傳 null */
-  async function questionEditor(question, { rules = null, title = '', group = null } = {}) {
+  async function questionEditor(question, { rules = null, title = '', group = null, allowKeyTodo = false } = {}) {
     rules = rules || dmsNow();
     const q = clone(question);
     if (DB() && DB().dms) DB().dms.normalize(q, rules);     // 舊名稱換成規則表的正式名稱
@@ -633,7 +633,8 @@
         const out = clone(q);
         (out.order.items || []).concat(out.request.items || []).forEach((it) => { if (it.variation && !String(it.variation.zh || '').trim() && !String(it.variation.en || '').trim()) delete it.variation; });
         if (!String(out.cutoff || '').trim()) delete out.cutoff; else out.cutoff = String(out.cutoff).trim();
-        const chk = DB() && DB().check ? DB().check(out, rules, { allowEmptyEn: true }) : { errors: [] };   // 英文可留白，存檔後標成待翻譯
+        let chk = DB() && DB().check ? DB().check(out, rules, { allowEmptyEn: true }) : { errors: [] };   // 英文可留白，存檔後標成待翻譯
+        if (allowKeyTodo && DB().splitKeyTodo) chk = DB().splitKeyTodo(chk.errors);   // 範例頁：正解／判斷重點可以之後再填
         if (chk.errors.length) { const er = $('#qe_err', el); er.innerHTML = `<b>${esc(t('qeErrors'))}</b><br>${chk.errors.slice(0, 8).map(esc).join('<br>')}`; er.hidden = false; return; }
         close(out);
       };
@@ -2225,10 +2226,20 @@
         ${trw ? `<div class="banner info row"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
         ${s.translateNote && !trw ? `<div class="banner warn">${esc(s.translateNote)}</div>` : ''}
         ${(() => {   // 匯入時的提醒（遮蔽、格式問題）＋依目前規則重新檢查的結果；格式錯誤修好才能核准
-          const errs = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
+          const all = DB() && DB().check ? DB().check(q, meta.dms || dmsNow(), { allowEmptyEn: true }).errors : [];
+          const { errors: errs, todo } = DB() && DB().splitKeyTodo ? DB().splitKeyTodo(all) : { errors: all, todo: [] };   // 正解／判斷重點未填＝講師待填，不算格式錯誤
           const masks = (s.importNotes || []).filter((n) => n.level === 'mask'), warns = (s.importNotes || []).filter((n) => n.level === 'warn');
-          if (!errs.length && !masks.length && !warns.length) return '';
+          const todoTxt = (() => {
+            if (!todo.length) return '';
+            const parts = [], nSub = todo.filter((e) => /^subAnswers\./.test(e)).length;
+            if (nSub) parts.push(t('todoSub', { n: nSub, m: (q.group || []).length }));
+            if (todo.some((e) => /^answer /.test(e))) parts.push(t('todoAns'));
+            if (todo.some((e) => /^point/.test(e))) parts.push(t('todoPoint'));
+            return parts.join('、');
+          })();
+          if (!errs.length && !masks.length && !warns.length && !todoTxt) return '';
           return `<div class="banner ${errs.length ? 'err' : 'warn'}"><b>${esc(t('impNotesTitle'))}</b>
+            ${todoTxt ? `<div style="margin-top:4px">📝 ${esc(t('todoTitle'))}${esc(todoTxt)}</div>` : ''}
             ${errs.length ? `<div style="margin-top:4px"><b>${esc(t('impErrs'))}</b><br>${errs.slice(0, 10).map(esc).join('<br>')}</div>` : ''}
             ${masks.length ? `<div style="margin-top:4px"><b>${esc(t('impMasked'))}</b><br>${masks.map((n) => '・' + esc(pathLabel(n.path)) + '：' + esc(n.text)).join('<br>')}</div>` : ''}
             ${warns.length ? `<div style="margin-top:4px">${warns.map((n) => { const m = /^(order|request)\.items\[(\d+)\]\.price is 0/.exec(n.text); return '・' + esc(m ? t(m[1] === 'order' ? 'impFreeO' : 'impFreeR', { n: Number(m[2]) + 1 }) : n.text); }).join('<br>')}</div>` : ''}</div>`;
@@ -2302,7 +2313,7 @@
       };
       $('#save').onclick = () => save();
       $('#qedit').onclick = async () => {
-        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId, group: topicGroup(meta, s.topicId) });
+        const out = await questionEditor(work.question, { rules: meta.dms, title: s.sampleId, group: topicGroup(meta, s.topicId), allowKeyTodo: true });
         if (out) { work.question = out; qDirty = true; dirty = true; draw(); toast(t('qeApplied')); }
       };
       const appr = $('#appr'); if (appr) appr.onclick = async () => {
@@ -2371,7 +2382,7 @@
         const r = await api('tw_updateSample', payload);
         s = r.sample; work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
         toast(t('saved')); draw(); return true;
-      } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; return false; }
+      } catch (e) { $('#e_err').textContent = e.message; $('#e_err').hidden = false; toast(e.message, 6000); return false; }
     }
     draw();
     if (liveOff) { liveOff(); liveOff = null; }

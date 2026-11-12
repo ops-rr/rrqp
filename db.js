@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-06a';
+const VERSION = 'V2-2026-11-12a';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -296,6 +296,13 @@ function answerTextOf(q) {
   }
   const o = (q.options || []).find((x) => x && x.id === q.answer);
   return o ? o.text : null;
+}
+
+/** 講師待填的項目（正解、判斷重點）：範例匯入後還沒填是正常的，儲存時允許，核准時才要求（V2.3） */
+const KEY_TODO_RE = /^(subAnswers\.\S+ must be one of|answer must be one of|point(\.zh|\.en)? (empty|must be))/;
+function splitKeyTodo(errors) {
+  const todo = (errors || []).filter((e) => KEY_TODO_RE.test(e));
+  return { errors: (errors || []).filter((e) => !KEY_TODO_RE.test(e)), todo };
 }
 
 function checkQuestion(q, reasons, opt = {}) {
@@ -813,7 +820,7 @@ const ACTIONS = {
       const q = Object.assign({}, b.question); STRIP.forEach((k) => delete q[k]);
       const dms = await loadDms();
       normalizeReason(q, dms);
-      const chk = checkQuestion(q, dms, { allowEmptyEn: true });
+      const chk = splitKeyTodo(checkQuestion(q, dms, { allowEmptyEn: true }).errors);   // 正解／判斷重點未填可以先存，核准時再檢查
       if (chk.errors.length) fail('格式錯誤，未儲存 / Not saved: ' + chk.errors.slice(0, 6).join('; '));
       const leak = leakScan(q, '');
       if (leak.length) fail('內容疑似含有真實資料，未儲存 / Possible real data: ' + leak.join('、'));
@@ -2017,6 +2024,7 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
     locks: { units: lockUnits, isLocked, set: setLock, count: lockCount, strip: stripLocks },   // 鎖定區域（V2.3）
     group: { normalize: normGroup, score: groupScore, answerText: answerTextOf },   // 題組（G 題）
