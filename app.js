@@ -37,7 +37,7 @@
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
       noChat: '（買賣雙方沒有聊聊）', editJson: '編輯 JSON', apply: '套用', jsonBad: 'JSON 格式錯誤：', del: '刪除', delRefill: '刪除並請 Agent 補一題', delOnly: '刪除，題數減 1',
       delConfirm: '確定刪除 {id}？', delRefillDone: '已刪除。請到 SeaTalk 再傳一次「{cmd}」補題。', delDone: '已刪除',
-      unsaved: '這題有未儲存的修改，要放棄嗎？', discard: '放棄修改', keep: '繼續編輯',
+      unsaved: '這題有未儲存的修改，要放棄嗎？', unsavedDropped: '剛才未儲存的修改已放棄', saveHintOn: '有未儲存的修改', saveHintOff: '沒有需要儲存的修改', discard: '放棄修改', keep: '繼續編輯',
       answerHint: '點選項可改正解', correct: '正解', setAnswer: '設為正解',
       prompt: '題目', buyer: '買家', seller: '賣家', chat: '聊聊', drc: 'DRC', drcBuyer: '買家 → 蝦皮', drcSeller: '賣家 → 蝦皮',
       request: '退貨退款申請', deduction: '折抵（折價券 / 蝦幣）', solution: '方案', amount: '金額', reason: '原因', remark: '備註', reqItems: '申退商品', orderItems: '訂單商品',
@@ -63,7 +63,7 @@
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
       noChat: '(No chat between buyer and seller)', editJson: 'Edit JSON', apply: 'Apply', jsonBad: 'Invalid JSON: ', del: 'Delete', delRefill: 'Delete and let the agent add one', delOnly: 'Delete, reduce count by 1',
       delConfirm: 'Delete {id}?', delRefillDone: 'Deleted. Send "{cmd}" in SeaTalk again to add a replacement.', delDone: 'Deleted',
-      unsaved: 'This question has unsaved changes. Discard them?', discard: 'Discard', keep: 'Keep editing',
+      unsaved: 'This question has unsaved changes. Discard them?', unsavedDropped: 'Your unsaved changes were discarded', saveHintOn: 'You have unsaved changes', saveHintOff: 'Nothing to save', discard: 'Discard', keep: 'Keep editing',
       answerHint: 'Click an option to change the answer', correct: 'Answer', setAnswer: 'Set as answer',
       prompt: 'Question', buyer: 'Buyer', seller: 'Seller', chat: 'Chat', drc: 'DRC', drcBuyer: 'Buyer → Shopee', drcSeller: 'Seller → Shopee',
       request: 'Return / refund request', deduction: 'Deduction (voucher / coins)', solution: 'Solution', amount: 'Amount', reason: 'Reason', remark: 'Remark', reqItems: 'Requested items', orderItems: 'Order items',
@@ -222,9 +222,10 @@
     if (me.isTeacher && (page === 'drafts' || page === '')) return viewDrafts();
     return viewMyQuizzes();
   }
+  let lastHash = location.hash;
   window.addEventListener('hashchange', () => {
-    if (leaveGuard && !leaveGuard()) return;
-    leaveGuard = null; route();
+    if (leaveGuard && !leaveGuard()) { history.replaceState(null, '', lastHash || '#/'); return; }   // 留在原頁：網址改回來，否則下次點同一個連結不會觸發
+    lastHash = location.hash; leaveGuard = null; route();
   });
 
   // ───────── 草稿列表 ─────────
@@ -920,7 +921,7 @@
         ${trw ? `<div class="banner info row" style="border-radius:0;border-width:0 0 1px"><span>⏳ ${esc(t('trWaiting'))}</span><span class="spacer"></span><button class="btn sm" id="trCancel">${esc(t('trCancel'))}</button></div>` : ''}
         ${m0.translateNote && !trw ? `<div class="banner warn" style="border-radius:0;border-width:0 0 1px">${esc(m0.translateNote)}</div>` : ''}
         ${trw ? '' : enPendingHtml(metaOf(src))}
-        ${(() => { const h = reviewHtml(metaOf(src), editable, src); return h ? `<div style="padding:10px 16px;border-bottom:1px solid var(--line)">${h}</div>` : ''; })()}
+
         ${(() => {   // 判斷標準缺口：講師改了出題正解，或盲答不同但維持正解
           const m = metaOf(src), g = m.criteriaGap, pend = DB().gap.draftBasis(src, m, src.reviewed);
           if (pend) return `<div class="banner info" style="border-radius:0;border-width:0 0 1px">💡 ${esc(t('dGapPending'))}</div>`;
@@ -2366,12 +2367,17 @@
     let meta, s;
     try { [meta, { sample: s }] = await Promise.all([getLibMeta(), api('tw_getSample', { sampleId: id })]); } catch (e) { showError(e); return; }
     let work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }, dirty = false, qDirty = false, editing = false, ed = null;
-    leaveGuard = () => !dirty || window.confirm(t('unsaved'));
+    /** 有沒有真的改過：和目前存檔的內容比（改了又改回去就不算）；不跳提醒，「儲存」按鈕亮起表示有未儲存的修改 */
+    const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v));
+    const snapOf = (x) => canon({ tags: (x.tags || []).slice().sort(), hint: x.changeHint || '', q: x.question });
+    const isDirty = () => editing || snapOf(work) !== snapOf(s);
+    leaveGuard = () => { if (isDirty()) toast(t('unsavedDropped'), 4000); return true; };
     const tagName = (x) => L((meta.tags.concat(meta.inactiveTags || []).find((y) => y.tagId === x) || {}).name) || x;
     /** 判斷重點與正解只存在題目內：表單直接改 work.question */
     const qPointZh = () => String((work.question.point && work.question.point.zh) || '');
     const qOptions = () => (work.question.options || []);
     function draw() {
+      dirty = isDirty();
       if (editing) {   // 原地編輯（V2.3）：只留標題列與編輯器
         main.innerHTML = `<div class="row"><span class="soft">← ${esc(t('library'))}</span><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}<span class="spacer"></span>
           <button class="btn" id="ceCancel">${esc(t('cancel'))}</button><button class="btn brand" id="ceSave">${esc(t('save'))}</button></div><div id="ce_host"></div>`;
@@ -2393,7 +2399,7 @@
           <span class="spacer"></span>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="copyS" title="${esc(t('copyHint'))}">⧉ ${esc(t('copySample'))}</button><button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button>
           ${me.can.sample ? `<button class="btn ghost danger" id="delS">${esc(t('delSample'))}</button>` : ''}
           ${s.status === 'active' ? `<button class="btn danger" id="rej">${esc(t('deactivate'))}</button>` : s.status === 'pending' ? `<button class="btn danger" id="rej">${esc(t('reject'))}</button>` : ''}
-          <button class="btn" id="save" ${dirty && !trw ? '' : 'disabled'}>${esc(t('save'))}</button>
+          <button class="btn ${dirty && !trw ? 'brand' : ''}" id="save" ${dirty && !trw ? '' : 'disabled'} title="${esc(t(dirty ? 'saveHintOn' : 'saveHintOff'))}">${esc(t('save'))}</button>
           ${nEn && !trw ? `<button class="btn primary" id="trSend" title="${esc(t('trHint'))}">${esc(t('trSend', { n: nEn }))}</button>` : ''}
           ${s.status !== 'active' ? `<button class="btn ok" id="appr">${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>` : ''}</div>
         ${s.reviewNote ? `<div class="banner warn">${esc(s.reviewNote)}</div>` : ''}
@@ -2431,7 +2437,7 @@
           return a || rv || gp ? cmdBox('處理 ' + s.sampleId, [a && t('wkEnF', { n: a }), rv && t('wkRv1'), gp && t('wkGap1')].filter(Boolean).join(' · ')) : '';
         })()}
         ${(() => { const m = metaOf(s); return m.enPending.length ? `<div class="card" style="overflow:hidden">${enPendingHtml(m)}</div>` : ''; })()}
-        ${reviewHtml(metaOf(s), true, s.question)}
+
         ${s.criteriaGap ? `<div class="card pad gapcard"><div class="row"><b>💡 ${esc(t(s.criteriaGap.kind === 'ai_misread' ? 'gk_ai_misread' : 'gapTitle2'))}</b><span class="chip">${esc(t('gk_' + s.criteriaGap.kind))}</span><span class="small soft">${esc(t('gapFromTrainer'))}</span>
             ${s.criteriaGap.kind !== 'ai_misread' ? (s.gapState ? `<span class="chip ${s.gapState === 'added' ? 'ok' : ''}">${esc(t('gap_' + s.gapState))}</span><span class="spacer"></span><button class="btn sm ghost" id="gapReset">${esc(t('gapReset'))}</button>` : `<span class="spacer"></span><button class="btn sm ghost" id="gapIgnore">${esc(t('gapIgnore'))}</button><a class="btn sm brand" style="display:inline-flex;align-items:center;text-decoration:none" href="#/settings?tab=topic&topic=${esc(s.topicId)}&gap=${esc(s.sampleId)}">${esc(t('gapAdd'))}</a>`) : ''}</div>
           <div class="small" style="margin-top:6px">${esc(s.criteriaGap.situation)}</div>${s.criteriaGap.suggestion ? `<pre class="gapsug">${esc(s.criteriaGap.suggestion)}</pre>` : ''}</div>` : ''}
@@ -2451,7 +2457,7 @@
           ${[['point', 'qPointIn'], ['modelAnswer', 'modelAnswer'], ['rubric', 'rubric'], ['explanation', 'explanation']].map(([k, lab]) => (q[k] && L(q[k]) ? `<h4>${esc(t(lab))}</h4><div class="box" style="white-space:pre-wrap">${esc(L(q[k]))}</div>` : '')).join('')}</div></div></div>`;
       bind();
     }
-    function mark() { dirty = true; const b = $('#save'); if (b) b.disabled = false; }
+    function mark() { dirty = isDirty(); const b = $('#save'); if (b) { b.disabled = !dirty; b.classList.toggle('brand', dirty); b.title = t(dirty ? 'saveHintOn' : 'saveHintOff'); } }
     function bind() {
       $$('#e_tags input').forEach((c) => c.addEventListener('change', () => { c.parentElement.classList.toggle('on', c.checked); work.tags = $$('#e_tags input:checked').map((x) => x.value); mark(); }));
       $('#e_point').oninput = (e) => { work.question.point = Object.assign({ en: '' }, work.question.point, { zh: e.target.value }); qDirty = true; mark(); };
@@ -2560,7 +2566,7 @@
       const ee = $('#e_err'); if (ee) ee.hidden = true;
       try {
         const payload = { sampleId: s.sampleId, tags: work.tags, changeHint: work.changeHint };
-        if (qDirty) payload.question = work.question;
+        if (qDirty || canon(work.question) !== canon(s.question)) payload.question = work.question;
         const r = await api('tw_updateSample', payload);
         s = r.sample; work = { tags: s.tags.slice(), changeHint: s.changeHint, question: clone(s.question) }; dirty = false; qDirty = false;
         toast(t('saved')); draw(); return true;
