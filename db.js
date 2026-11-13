@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-13f';
+const VERSION = 'V2-2026-11-13g';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -460,7 +460,7 @@ function enPendingAfter(oldQ, newQ, prev) {
 }
 const sameQ = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 /** 題目以外的處理狀態（英文待翻譯、修訂號、AI 審查）放在 _m，存檔時移除 */
-const metaOut = (x) => ({ enPending: x.enPending || [], translateWanted: !!x.translateWanted, translateNote: x.translateNote || '', seedId: x.seedId || '', seedLocks: x.seedLocks || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null,
+const metaOut = (x) => ({ enPending: x.enPending || [], translateWanted: !!x.translateWanted, translateNote: x.translateNote || '', seedId: x.seedId || '', seedLocks: x.seedLocks || [], seedFacts: x.seedFacts || [], seedRefs: x.seedRefs || [], rev: x.rev || 0, review: x.review || null, reviewWanted: !!x.reviewWanted, blind: x.blind || null,
   criteriaGap: x.criteriaGap || null, gapState: x.gapState || '', aiKey: x.aiKey === undefined ? null : x.aiKey });
 /** 正解的字串形式（與 rrqp2_tool.py key_str 相同）：A / B = 選項 id；G = s1=a,s2=na,… */
 const keyStr = (q) => (q && q.type === 'G' ? (q.group || []).map((x) => x.id + '=' + ((q.subAnswers || {})[x.id] || '')).join(',') : String((q && q.answer) || ''));

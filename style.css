@@ -416,3 +416,15 @@ img.stk { width: 96px; height: 96px; object-fit: contain; display: block; }
 .steps .n .act .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; }
 .steps.steps4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .steps.steps4 { grid-template-columns: 1fr; } }
+
+/* V2.5 變化設定表 */
+.sfacts{padding:10px 16px;border-bottom:1px solid var(--line)}
+.sfacts summary{cursor:pointer}
+.sf-tb{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.sf-tb th,.sf-tb td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.sf-tb thead th{background:var(--chip);font-weight:600}
+.sf-tb tbody th{white-space:nowrap;font-weight:600;width:1%}
+.sf-tb tr.chg td:last-child{background:rgba(238,77,45,.07)}
+.sf-refs{margin-top:6px}
+.sf-refs ul{margin:4px 0 0;padding-left:18px;font-size:12.5px}
+.sf-refs code{font-size:12px}
