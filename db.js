@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-13g';
+const VERSION = 'V2-2026-11-18a';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2113,6 +2113,214 @@ const M7 = {
 };
 Object.assign(ACTIONS, M7);
 
+// ═════════════════════════════════════════════════════════════
+// V3：DMS 案件題 — 案件庫（申請匯入、編輯、核准、補充資訊圖片）
+//   v3caseRequests/{CRxxxx}  講師申請（排程讀取，處理完寫入案件）
+//   v3cases/{Cxxx}           案件；body = 案件 JSON 字串（表格是二維陣列，Firestore 不能直接存）
+//   v3cases/{Cxxx}/private/raw  Return ID、前幾次申退 RID、買賣家帳號（只有 TW 講師）
+//   meta/v3CaseIndex         案件清單（items.Cxxx）
+//   v3images/{Ixxxx}＋chunks/{n}  補充資訊圖片（原檔拆段存，維持畫質）
+// ═════════════════════════════════════════════════════════════
+const IMG_CHUNK = 900000;          // 圖片每段字元數（Firestore 單一文件上限 1MB）
+const CASE_PRIVATE = ['rid', 'accounts'];
+const caseReqOut = (r) => ({ requestId: r.id, returnId: r.returnId || '', prevIds: r.prevIds || [], note: r.note || '', status: r.status || 'queued',
+  reason: r.reason || '', caseId: r.caseId || '', requestedBy: r.requestedBy || '', requestedAt: r.requestedAt || 0, updatedAt: r.updatedAt || 0 });
+
+/** 核准前檢查：errors 擋核准；warns 只提醒（洩漏結果的內容由編輯畫面另外列出） */
+function caseCheck(c, title) {
+  const errors = [], warns = [];
+  if (!String(title || '').trim()) errors.push('請填寫案件標題');
+  const mods = (c && c.modules) || [];
+  const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short');
+  if (!qs.length) errors.push('還沒有作答題（單選題或簡答題）');
+  let no = 0;
+  mods.forEach((m) => {
+    if (m.type === 'note' && !String(m.text || '').trim()) warns.push('有一個空白的情境說明');
+    if (m.type === 'image' && !(m.images || []).length) warns.push('有一個沒有圖片的補充資訊');
+    if (m.type !== 'mc' && m.type !== 'short') return;
+    const p = `第 ${++no} 題`;
+    if (!String(m.q || '').trim()) errors.push(p + '沒有題目');
+    if (!(Number(m.points) > 0)) errors.push(p + '配分要大於 0');
+    if (m.type === 'mc') {
+      const opts = m.options || [];
+      if (opts.length < 2) errors.push(p + '至少要 2 個選項');
+      if (opts.some((o) => !String(o || '').trim())) errors.push(p + '有空白選項');
+      if (!(Number.isInteger(m.answer) && m.answer >= 0 && m.answer < opts.length)) errors.push(p + '沒有設定正解');
+    }
+    if (m.type === 'short' && !String(m.standard || '').trim()) errors.push(p + '沒有標準答案（AI 預評分依據）');
+  });
+  return { errors, warns };
+}
+const caseStats = (c) => {
+  const qs = ((c && c.modules) || []).filter((m) => m.type === 'mc' || m.type === 'short');
+  return { questions: qs.length, points: qs.reduce((s, m) => s + (Number(m.points) || 0), 0) };
+};
+
+const CASES = {
+  /** 案件清單（講師）；TW 講師另外帶出 Return ID（從申請紀錄對照） */
+  c_list: async () => {
+    const m = await needTeacher();
+    const idx = await S.get('meta/v3CaseIndex');
+    const items = (idx && idx.items) || {};
+    const rid = {};
+    if (m.role === 'tw') (await S.list('v3caseRequests').catch(() => [])).forEach((r) => { if (r.caseId) rid[r.caseId] = r.returnId; });
+    const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, questions: 0, points: 0, notes: 0 },
+      items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
+    return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.sample };
+  },
+
+  /** 申請匯入：一筆 Return ID＋前幾次申退的 Return ID（選填）＋給排程的備註 */
+  c_request: async (b) => {
+    const m = await needTW();
+    const rid = String(b.returnId || '').trim();
+    if (!/^\d{6,20}$/.test(rid)) fail('Return ID 格式錯誤（只能是數字） / Invalid Return ID');
+    const prev = [...new Set(String(b.prevIds || '').split(/[\s,，、]+/).map((x) => x.trim()).filter(Boolean))].filter((x) => x !== rid);
+    const bad = prev.filter((x) => !/^\d{6,20}$/.test(x));
+    if (bad.length) fail('前幾次申退的 Return ID 格式錯誤 / Invalid previous Return ID: ' + bad.join(', '));
+    if (prev.length > 5) fail('前幾次申退最多 5 筆 / At most 5 previous Return IDs');
+    const open = (await S.list('v3caseRequests')).filter((r) => ['queued', 'processing', 'done'].includes(r.status) && String(r.returnId) === rid);
+    if (open.length) fail(`這個 Return ID 已經申請過（${open[0].id}${open[0].caseId ? ' → ' + open[0].caseId : ''}） / Already requested`);
+    const n = await S.nextIds('CR', 1), id = 'CR' + String(n).padStart(4, '0'), t = now();
+    await S.set('v3caseRequests/' + id, { requestedBy: m.email, requestedAt: t, returnId: rid, prevIds: prev, note: String(b.note || '').slice(0, 500),
+      status: 'queued', reason: '', caseId: '', updatedAt: t });
+    return { requestId: id };
+  },
+  c_listRequests: async () => {
+    await needTW();
+    return { requests: (await S.list('v3caseRequests')).map(caseReqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)) };
+  },
+  c_cancelRequest: async (b) => {
+    await needTW();
+    const r = await S.get('v3caseRequests/' + b.requestId) || fail('找不到申請 / Request not found');
+    if (!['queued', 'failed'].includes(r.status)) fail('只能取消「等待中」或「失敗」的申請 / Only queued or failed requests can be cancelled');
+    await S.update('v3caseRequests/' + b.requestId, { status: 'cancelled', updatedAt: now() });
+    return { requestId: b.requestId };
+  },
+  c_retryRequest: async (b) => {
+    await needTW();
+    const r = await S.get('v3caseRequests/' + b.requestId) || fail('找不到申請 / Request not found');
+    const stuck = r.status === 'processing' && now() - (r.updatedAt || 0) > STUCK_MIN * 60000;
+    if (!['failed', 'cancelled'].includes(r.status) && !stuck) fail('只能重試失敗、已取消，或處理中超過 ' + STUCK_MIN + ' 分鐘的申請 / Only failed, cancelled or stuck requests can be retried');
+    await S.update('v3caseRequests/' + b.requestId, { status: 'queued', reason: '', updatedAt: now() });
+    return { requestId: b.requestId };
+  },
+  c_deleteRequest: async (b) => {
+    await needDelete('request');
+    const r = await S.get('v3caseRequests/' + b.requestId) || fail('找不到申請 / Request not found');
+    if (!['queued', 'failed', 'cancelled'].includes(r.status)) fail('已完成的申請連著案件，請刪除案件 / Delete the case instead');
+    await S.del('v3caseRequests/' + b.requestId);
+    return { requestId: b.requestId };
+  },
+
+  /** 讀取案件（講師）；TW 講師另外讀原始資訊（Return ID、帳號） */
+  c_get: async (b) => {
+    const m = await needTeacher();
+    const d = await S.get('v3cases/' + b.caseId) || fail('找不到案件 / Case not found: ' + b.caseId);
+    const priv = m.role === 'tw' ? await S.get('v3cases/' + b.caseId + '/private/raw').catch(() => null) : null;
+    let body;
+    try { body = JSON.parse(d.body || '{}'); } catch (_) { fail('案件內容損壞，無法讀取 / Case data is corrupted'); }
+    return { caseId: b.caseId, status: d.status || 'pending', title: d.title || '', rev: d.rev || 0, version: body.version || '',
+      notes: d.importNotes || [], requestId: d.requestId || '', createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '',
+      approvedBy: d.approvedBy || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample };
+  },
+
+  /** 儲存（TW 講師）：rev 不同代表別人改過，不覆蓋；已核准的案件改到不合格會退回待審 */
+  c_save: async (b) => {
+    const m = await needTW();
+    const path = 'v3cases/' + b.caseId;
+    const cur = await S.get(path) || fail('找不到案件 / Case not found');
+    if ((cur.rev || 0) !== (b.rev || 0)) fail(`${cur.updatedBy || '別的講師'} 剛修改過這個案件，請重新整理後再改 / Someone else just saved this case. Reload first.`);
+    const c = JSON.parse(JSON.stringify(b.case || {}));
+    const meta = c.meta || (c.meta = {});
+    CASE_PRIVATE.forEach((k) => delete meta[k]);      // Return ID、帳號只存在 private
+    (c.prev || []).forEach((p) => delete p.rid);
+    const title = String(b.title || '').trim().slice(0, 120);
+    const chk = caseCheck(c, title);
+    const status = cur.status === 'approved' && chk.errors.length ? 'pending' : (cur.status || 'pending');
+    const t = now(), rev = (cur.rev || 0) + 1, body = JSON.stringify(c);
+    if (body.length > 950000) fail('案件內容太大，無法儲存（請刪掉部分訊息或欄位） / Case is too large');
+    const st = caseStats(c);
+    await S.batch([
+      { op: 'update', path, data: { body, title, status, rev, updatedAt: t, updatedBy: m.email } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.title']: title, ['items.' + b.caseId + '.status']: status,
+        ['items.' + b.caseId + '.usage']: meta.usage || 'practice', ['items.' + b.caseId + '.twOnly']: meta.twOnly !== false,
+        ['items.' + b.caseId + '.questions']: st.questions, ['items.' + b.caseId + '.points']: st.points,
+        ['items.' + b.caseId + '.updatedAt']: t, ['items.' + b.caseId + '.updatedBy']: m.email } },
+    ]);
+    return { rev, status, check: chk, demoted: status !== (cur.status || 'pending') };
+  },
+
+  c_approve: async (b) => {
+    const m = await needTW();
+    const path = 'v3cases/' + b.caseId;
+    const cur = await S.get(path) || fail('找不到案件 / Case not found');
+    if ((cur.rev || 0) !== (b.rev || 0)) fail('案件有更新，請重新整理後再核准 / Reload first');
+    const chk = caseCheck(JSON.parse(cur.body || '{}'), cur.title);
+    if (chk.errors.length) fail('還不能核准：' + chk.errors.join('；'));
+    const t = now();
+    await S.batch([
+      { op: 'update', path, data: { status: 'approved', approvedBy: m.email, approvedAt: t, updatedAt: t } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'approved', ['items.' + b.caseId + '.approvedBy']: m.email,
+        ['items.' + b.caseId + '.updatedAt']: t } },
+    ]);
+    return { status: 'approved' };
+  },
+  c_unapprove: async (b) => {
+    await needTW();
+    const path = 'v3cases/' + b.caseId;
+    await S.get(path) || fail('找不到案件 / Case not found');
+    const t = now();
+    await S.batch([
+      { op: 'update', path, data: { status: 'pending', approvedBy: '', updatedAt: t } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'pending', ['items.' + b.caseId + '.approvedBy']: '', ['items.' + b.caseId + '.updatedAt']: t } },
+    ]);
+    return { status: 'pending' };
+  },
+
+  /** 刪除案件：連同原始資訊、補充資訊圖片、申請紀錄 */
+  c_delete: async (b) => {
+    await needDelete('sample');
+    const id = String(b.caseId || '');
+    await S.get('v3cases/' + id) || fail('找不到案件 / Case not found');
+    const imgs = await S.query('v3images', 'caseId', '==', id).catch(() => []);
+    const ops = [];
+    for (const im of imgs) {
+      for (let i = 0; i < (im.n || 0); i++) ops.push({ op: 'del', path: `v3images/${im.id}/chunks/${i}` });
+      ops.push({ op: 'del', path: 'v3images/' + im.id });
+    }
+    (await S.query('v3caseRequests', 'caseId', '==', id).catch(() => [])).forEach((r) => ops.push({ op: 'del', path: 'v3caseRequests/' + r.id }));
+    ops.push({ op: 'del', path: 'v3cases/' + id + '/private/raw' }, { op: 'del', path: 'v3cases/' + id },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + id]: S.deleteField() } });
+    await S.batch(ops);
+    return { caseId: id };
+  },
+
+  /** 補充資訊圖片：data URL 拆段存，回傳圖片代碼（案件裡記 v3img:Ixxxx） */
+  c_imgPut: async (b) => {
+    const m = await needTW();
+    const url = String(b.dataUrl || '');
+    const mt = /^data:(image\/(png|jpeg|gif|webp));base64,/.exec(url);
+    if (!mt) fail('只能上傳 PNG、JPG、GIF、WebP 圖片 / Images only');
+    if (url.length > 12e6) fail('圖片太大（上限約 8MB） / Image too large');
+    const n = await S.nextIds('I', 1), id = 'I' + String(n).padStart(5, '0');
+    const parts = [];
+    for (let i = 0; i < url.length; i += IMG_CHUNK) parts.push(url.slice(i, i + IMG_CHUNK));
+    // 先寫拆段、最後寫圖片本體：中途失敗不會留下讀不到的圖片
+    for (let i = 0; i < parts.length; i++) await S.set(`v3images/${id}/chunks/${i}`, { d: parts[i] });
+    await S.set('v3images/' + id, { caseId: String(b.caseId || ''), mime: mt[1], n: parts.length, size: url.length, by: m.email, at: now() });
+    return { ref: 'v3img:' + id };
+  },
+  c_imgGet: async (b) => {
+    await needTeacher();
+    const id = String(b.ref || '').replace(/^v3img:/, '');
+    const im = await S.get('v3images/' + id) || fail('找不到圖片 / Image not found: ' + id);
+    const parts = await Promise.all(Array.from({ length: im.n || 0 }, (_, i) => S.get(`v3images/${id}/chunks/${i}`)));
+    if (parts.some((p) => !p)) fail('圖片資料不完整 / Image data incomplete: ' + id);
+    return { dataUrl: parts.map((p) => p.d).join('') };
+  },
+};
+Object.assign(ACTIONS, CASES);
+
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];
   if (!fn) throw new Error('V2 開發中：這個功能還沒搬到 Firebase（' + action + '）/ Not available in V2 yet');
@@ -2136,7 +2344,8 @@ async function api(action, payload = {}) {
     signOut: () => { ME = null; currentEmail = null; return S.auth.signOut(); },
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
-    check: (q, rules, opt) => checkQuestion(q, rules, opt),   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    check: (q, rules, opt) => checkQuestion(q, rules, opt),
+    caseCheck,                                                // V3 案件題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,
@@ -2151,7 +2360,9 @@ async function api(action, payload = {}) {
       draft: (id, cb) => S.watchDoc('drafts/' + id, (d) => cb(d ? draftOut(Object.assign({ id }, d)) : null)),
       sample: (id, cb) => S.watchDoc('samples/' + id, (d) => cb(d)),
       grades: (sid, cb) => S.watchColl('sessions/' + sid + '/grades', (rows) => cb(rows)),   // 多位講師同時閱卷：別人確認的分數即時出現
-      sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
+      caseRequests: (cb) => S.watchColl('v3caseRequests', (rows) => cb(rows.map(caseReqOut).sort((a, b) => b.requestId.localeCompare(a.requestId)))),
+    caseIndex: (cb) => S.watchDoc('meta/v3CaseIndex', (d) => cb((d && d.items) || {})),
+    sampleIndex: (cb) => S.watchDoc('meta/sampleIndex', (d) => { const items = (d && d.items) || {}; cb(Object.keys(items).sort().reverse().map((id) => Object.assign({ sampleId: id, tags: [], wantedTags: [] }, items[id]))); }),
     },
   };
   window.dispatchEvent(new Event('rrqp-db-ready'));
