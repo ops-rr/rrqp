@@ -1580,9 +1580,9 @@
         <div class="tabs" role="tablist">${textQs.map((q) => {
           const ans = d.answers.filter((a) => a.qid === q.qid), low = ans.filter(isLow).length;
           return `<button class="tab ${tab === q.qid ? 'on' : ''}" data-tab="${esc(q.qid)}" role="tab">Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}${(() => { const left = ans.filter((a) => a.teacherScore === null).length;      // 灰＝還沒確認、橘＝AI 低信心、綠勾＝都確認了
-            return !ans.length ? '' : !left ? ' <span class="dotok">✓</span>' : ` <span class="dot g" title="未確認 ${left}">${left}</span>` + (low ? `<span class="dot o" title="${esc(t('lowN', { n: low }))}">${low}</span>` : ''); })()}</button>`;
+            return !ans.length ? '' : !left ? ' <span class="dotok">✓</span>' : ` <span class="cnt g" title="未確認 ${left}">${left}</span>` + (low ? `<span class="cnt o" title="${esc(t('lowN', { n: low }))}">${low}</span>` : ''); })()}</button>`;
         }).join('')}<button class="tab ${tab === 'overview' ? 'on' : ''}" data-tab="overview" role="tab">${esc(t('overview'))}</button></div>
-        <div class="dotlegend"><span><span class="dot g">n</span> 未確認</span><span><span class="dot o">n</span> AI 低信心</span><span><span class="dotok">✓</span> 都確認了</span></div>`;
+        <div class="dotlegend"><span><span class="cnt g"></span> 未確認</span><span><span class="cnt o"></span> AI 低信心</span><span><span class="dotok">✓</span> 都確認了</span></div>`;
     }
     function qPanel(q) {
       const opt = (q.options || []).find((o) => o.id === q.answer), p = q.points || {};
@@ -1768,7 +1768,7 @@
       $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th><th>${esc(t('belowLine', { n: d.coachLine }))}</th><th></th></tr></thead><tbody>${
         d.sessions.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}${s.parentSession ? `<div class="small soft">${esc(t('makeupOf', { id: s.parentSession }))}</div>` : ''}<div class="small soft">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</div></td>
           <td>${sessChip(s.state)}</td><td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td><b>${s.avg === null ? t('none') : r2(s.avg)}</b></td>
-          <td>${s.coaching ? `<span class="dot o">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
+          <td>${s.coaching ? `<span class="cnt o">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
       $$('[data-open]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/results/' + r.dataset.open; }));
     } else {
       // 依專員：變化題＋DMS 考題（考試看百分比、練習看單選答對率）
@@ -2351,7 +2351,7 @@
     const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     if (tab !== 'requests') {
       const pend = d.samples.filter((s) => s.status === 'pending');
-      $('#pn').innerHTML = pend.length ? `<span class="dot g" title="待審 ${pend.length}">${pend.length}</span>` : '';
+      $('#pn').innerHTML = pend.length ? `<span class="cnt g" title="待審 ${pend.length}">${pend.length}</span>` : '';
       const all = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
       // 範例索引有變動（例如排程送來新的待審範例）就自動重新整理；正在搜尋輸入時不打斷
       const liveSamples = (cur) => {

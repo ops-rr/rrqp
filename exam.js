@@ -291,7 +291,7 @@
       ${d.sessions.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}<div class="small soft">${fmtDT(s.startAt)}</div></td>
         <td class="small">${MODE(s)}</td><td>${stChip(s.state)}</td><td class="small">${s.submitted} / ${s.assigned}</td>
         <td><b>${s.mode === 'practice' ? `單選答對 ${rateTxt(s.mcRate)}` : pctTxt(s.avg)}</b></td>
-        <td>${s.mode === 'practice' ? '-' : s.coaching ? `<span class="dot o" title="${s.coaching} 人">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td>${s.flagged ? `<span class="dot o" title="${s.flagged} 人">${s.flagged}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td></tr>`).join('')}</tbody></table></div>`}`;
+        <td>${s.mode === 'practice' ? '-' : s.coaching ? `<span class="cnt o" title="${s.coaching} 人">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td>${s.flagged ? `<span class="cnt o" title="${s.flagged} 人">${s.flagged}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td></tr>`).join('')}</tbody></table></div>`}`;
     $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xresults/' + tr.dataset.x; }));
   }
 
@@ -321,7 +321,7 @@
           <td>${r.status !== 'submitted' ? atChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : practice ? `<b>${rateTxt(r.mcRate)}</b>` : `<b style="font-size:18px">${r.score}</b> / ${r.total}<div class="small soft">原始 ${r.raw} / ${r.rawTotal}${r.pending ? `・${r.pending} 題待給分` : ''}</div>`}</td>
           <td class="small">${r.wrong.map((w) => esc(w.label) + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、') || (r.status === 'submitted' ? '—' : '')}</td>
           <td class="small">${r.status === 'submitted' ? durTxt(r.secs) : ''}</td><td class="small">${r.status === 'submitted' ? (r.leaves ? `${r.leaves} 次（${durTxt(r.leaveSecs)}）` : '0') : ''}</td>
-          <td class="small">${r.flags.length ? `<span class="dot o" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
+          <td class="small">${r.flags.length ? `<span class="cnt o" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
           <td style="text-align:right;white-space:nowrap">${r.coaching ? '<span class="chip warn">需輔導</span> ' : ''}${r.status === 'submitted' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">明細</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
     $('#xRf').onclick = () => results(id, X);
     $('#xCsv').onclick = () => X.downloadCsv(`${s.sessionId}_results.csv`, [CSV_HEAD].concat(rows.map((r) => csvRow(Object.assign({ sessionId: s.sessionId, title: s.title, mode: s.mode, startAt: s.startAt }, r)))));
@@ -368,7 +368,7 @@
       const left = done.filter((r) => { const v = scoreOf(r, q.k); return v === undefined || v === null || v === ''; });
       const low = left.filter((r) => { const a = (r.ai || {})[q.k]; return a && Number(a.confidence) < 0.7; }).length;
       if (!left.length) return ' <span class="dotok" title="都給分了">✓</span>';
-      return ` <span class="dot g" title="待給分 ${left.length} 人">${left.length}</span>` + (low ? `<span class="dot o" title="AI 低信心 ${low} 人">${low}</span>` : '');
+      return ` <span class="cnt g" title="待給分 ${left.length} 人">${left.length}</span>` + (low ? `<span class="cnt o" title="AI 低信心 ${low} 人">${low}</span>` : '');
     };
     function pickTxt(q, pick) {
       if (pick === undefined || pick === null) return '<span class="soft">沒作答</span>';
@@ -402,7 +402,7 @@
             <span class="small">AI 信心度 ≥ <input id="xTh" type="number" min="0" max="1" step="0.05" value="0.85" style="width:64px"></span><button class="btn" id="xUseAll">全部採用</button>
             <button class="btn brand" id="xSaveQ">儲存給分</button>` : ''}</div>
         ${canGrade ? '<div class="small soft" style="margin-top:4px">AI 分數只是建議：採用後會填進給分欄，按「儲存給分」才算數（切換題目不會不見）。「全部採用」套用到所有題目，已經有分數的不會被覆蓋。</div>' : ''}
-        ${qs.some((q) => q.m.type === 'short') ? '<div class="dotlegend"><span><span class="dot g">n</span> 待給分</span><span><span class="dot o">n</span> AI 低信心</span><span><span class="dotok">✓</span> 都給分了</span></div>' : ''}
+        ${qs.some((q) => q.m.type === 'short') ? '<div class="dotlegend"><span><span class="cnt g"></span> 待給分</span><span><span class="cnt o"></span> AI 低信心</span><span><span class="dotok">✓</span> 都給分了</span></div>' : ''}
         <div class="tabs xqtabs" role="tablist" style="margin-top:6px">${qs.map((q) => `<button class="tab ${q.k === cur.k ? 'on' : ''}" data-q="${q.k}" role="tab">${q.i + 1}-${q.qi + 1} ${q.m.type === 'mc' ? '單選' : '簡答'}${badge(q)}</button>`).join('')}</div>
         <h3 style="margin-top:6px">案件 ${cur.i + 1}・第 ${cur.qi + 1} 題（${cur.m.type === 'mc' ? '單選' : '簡答'}，${cur.m.points} 分）<span class="small soft mono"> ${esc(cur.kc.caseId)}</span></h3>
         <div><b>${esc(cur.m.q)}</b></div>

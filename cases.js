@@ -73,7 +73,7 @@
 
   function drawCases(d, box) {
     const pend = d.cases.filter((c) => c.status !== 'approved'), appr = d.cases.filter((c) => c.status === 'approved');
-    if ($('#cqNP')) $('#cqNP').innerHTML = pend.length ? `<span class="dot g" title="待審 ${pend.length}">${pend.length}</span>` : '';
+    if ($('#cqNP')) $('#cqNP').innerHTML = pend.length ? `<span class="cnt g" title="待審 ${pend.length}">${pend.length}</span>` : '';
     if ($('#cqNA')) $('#cqNA').textContent = appr.length ? `(${appr.length})` : '';
     const all = filt.tab === 'approved' ? appr : pend;
     if (!box || !document.body.contains(box)) return;
