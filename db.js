@@ -71,7 +71,13 @@ function memoryStore() {
   };
   const clone = (o) => (o == null ? null : JSON.parse(JSON.stringify(o)));
   const deep = (a, b) => { Object.entries(b).forEach(([k, v]) => { if (v && typeof v === 'object' && !Array.isArray(v) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) deep(a[k], v); else a[k] = v; }); return a; };
+  // 和 Firestore 一樣不收 undefined（本機預覽就能抓到這類錯誤）
+  const noUndef = (v, path) => {
+    if (v === undefined) throw new Error('Unsupported field value: undefined (found in document ' + path + ')');
+    if (v && typeof v === 'object' && v !== DEL) Object.values(v).forEach((x) => noUndef(x, path));
+  };
   const apply = (o) => {
+    if (o.op !== 'del') noUndef(o.data, o.path);
     if (o.op === 'set') data[o.path] = o.merge ? deep(clone(data[o.path] || {}), clone(o.data)) : clone(o.data);
     else if (o.op === 'update') { if (!data[o.path]) throw new Error('No document to update: ' + o.path); Object.entries(o.data).forEach(([k, v]) => setPath(data[o.path], k, v === DEL ? DEL : clone(v))); }
     else if (o.op === 'del') delete data[o.path];
@@ -106,7 +112,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18e';
+const VERSION = 'V2-2026-11-18f';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2411,7 +2417,9 @@ function caseAgentView(src) {
   return c;
 }
 const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short')
-  .map((m) => ({ id: m.id, type: m.type, q: m.q || '', options: m.options || [], answer: m.answer, standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '' }));
+  // Firestore 不收 undefined：簡答題沒有 answer，一律給明確的值
+  .map((m) => ({ id: m.id, type: m.type, q: m.q || '', options: m.options || [], answer: m.type === 'mc' && Number.isInteger(m.answer) ? m.answer : null,
+    standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '' }));
 const xIndexRow = (s) => ({ title: s.title, mode: s.mode, review: s.review || '', startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, caseCount: (s.caseIds || []).length,
   questionCount: s.questionCount || 0, points: s.points || 0, assigned: (s.assignees || []).length, ended: !!s.ended, released: !!s.released, answersOpen: !!s.answersOpen,
   createdBy: s.createdBy || '', createdAt: s.createdAt || 0 });
