@@ -53,6 +53,7 @@
 
   /** 案件清單畫進 box：status = pending（案件匯入 → 待審 DMS 考題）或 approved（可用題庫 → DMS 考題） */
   async function list(box, status, ctx) {
+    if (EX) { clearInterval(EX.tick); EX = null; }
     X = ctx; CUR = null; MAIN = null; C = null;
     filt.tab = status === 'approved' ? 'approved' : 'pending';
     let d;
@@ -131,6 +132,7 @@
 
   // ═════════════════════════════ 案件編輯 ═════════════════════════════
   async function viewCase(id) {
+    if (EX) { clearInterval(EX.tick); EX = null; }
     let main = X.shell(X.me.role === 'tw' ? 'library' : 'bank', '<div class="empty-state"><span class="spin"></span> 讀取案件…</div>');
     let d;
     try { d = await X.api('c_get', { caseId: id }); } catch (e) { X.showError(e, main); return; }
@@ -199,6 +201,7 @@
 
   // ───────── 工具列：返回、案件編號、標題、模式、儲存狀態、核准、刪除 ─────────
   function renderBar() {
+    if (EX) return exBar();
     const st = CUR.status === 'approved';
     const sv = saveErr ? `<span class="sv err" title="${esc(saveErr)}">⚠ 儲存失敗：${esc(saveErr.slice(0, 60))} ${/剛修改過/.test(saveErr) ? '<button class="cbtn" onclick="location.reload()">重新整理（放棄這次修改）</button>' : '<button class="cbtn" onclick="CQ.saveNow()">重試</button>'}</span>`
       : saving ? '<span class="sv">儲存中…</span>'
@@ -249,6 +252,7 @@
   // ───────── 講師設定列：用途、時間、遮蔽、Return ID、匯入提醒、核准前檢查 ─────────
   function renderSettings() {
     const box = $('#cqSettings');
+    if (EX) return exNotice(box);
     if (!isEdit()) {
       box.className = 'pv';
       box.innerHTML = `<span>${CUR.canEdit ? '專員預覽：已套用遮蔽與隱藏，畫面和專員作答時相同。' : '只有 TW 講師可以編輯案件；這裡是專員看到的畫面。'}作答不會記錄。</span>
@@ -367,7 +371,7 @@
     if (v && v !== 'loading' && v !== 'error') return v;
     if (!v) {
       IMG[ref] = 'loading';
-      X.api('c_imgGet', { ref }).then((r) => fetch(r.dataUrl)).then((res) => res.blob())
+      (EX ? X.api('x_img', { sessionId: EX.sid, ref }) : X.api('c_imgGet', { ref })).then((r) => fetch(r.dataUrl)).then((res) => res.blob())
         .then((blob) => { IMG[ref] = URL.createObjectURL(blob); if ($('#cq')) renderSide(); })
         .catch(() => { IMG[ref] = 'error'; });
     }
@@ -404,7 +408,7 @@
   function newAnswer() {
     return { mc: {}, short: {}, submitted: false, startAt: Date.now(), leaves: 0, leaveMs: 0 };
   }
-  function saveAnswer() { /* 專員預覽不記錄作答 */ }
+  function saveAnswer() { if (EX && !EX.readOnly) EX.dirtyAns = true; }   // 專員預覽不記錄；測驗中排程自動儲存
 
   // ═════════════════════════════ 以下沿用原型（DMS 版面與講師編輯） ═════════════════════════════
   // 找出專員看得到、標記為可能洩漏結果的內容
@@ -537,7 +541,7 @@
   function mediaHtml(list, delTpl) {
     if (!list.length) return '<span class="ph">（沒有附件）</span>';
     return `<div class="thumbs">${list.map((m, i) => `
-      <div class="thumb ${m.type === 'video' ? 'video' : ''}" onclick="CQ.openLightbox('${src(m.src)}','${m.type}','${m.url ? src(m.url) : ''}')">
+      <div class="thumb ${m.type === 'video' ? 'video' : ''}" onclick="CQ.openLightbox('${src(m.src)}','${m.type}','${m.url ? src(m.url) : ''}','${mediaKey(m)}')">
         <img src="${src(m.src)}" alt="">
         ${delTpl ? `<button class="x" onclick="event.stopPropagation();${delTpl.replace('IDX', i)}">✕</button>` : ''}
       </div>`).join('')}</div>`;
@@ -693,10 +697,10 @@
       if (m.type === 'text') {
         content = isEdit() ? `<span class="pw" contenteditable data-set="msg" data-room="${room}" data-i="${i}">${esc(m.text)}</span>` : `<span class="pw">${esc(m.text)}</span>`;
       } else if (m.type === 'video' && m.url) {
-        content = `<video controls preload="metadata" width="220" height="220" src="${esc(m.url)}"></video>
+        content = `<video controls preload="metadata" width="220" height="220" src="${esc(m.url)}" data-mk="${mediaKey(m)}"></video>
           <div class="hint">影片無法播放時，請確認已連上公司內網／VPN</div>`;
       } else if (m.type === 'image' || m.type === 'video') {
-        content = `<div class="${m.type === 'video' ? 'thumb video' : ''}" style="${m.type === 'video' ? 'width:120px;height:120px' : ''}" onclick="CQ.openLightbox('${src(m.src)}','${m.type}')"><img src="${src(m.src)}" alt=""></div>`;
+        content = `<div class="${m.type === 'video' ? 'thumb video' : ''}" style="${m.type === 'video' ? 'width:120px;height:120px' : ''}" onclick="CQ.openLightbox('${src(m.src)}','${m.type}','','${mediaKey(m)}')"><img src="${src(m.src)}" alt=""></div>`;
       } else {
         content = `<span class="ph">[${esc(m.desc)}]</span>`;
       }
@@ -776,21 +780,21 @@
 
   function quizAgentHtml() {
     const qn = qNumbers();
-    let html = A.submitted ? resultHtml() : '';
+    let html = EX ? exResultHtml() : A.submitted ? resultHtml() : '';
     C.modules.forEach(md => {
       if (md.type === 'note') {
         html += `<div class="mod note"><div class="mh">情境說明</div><div style="white-space:pre-wrap">${esc(md.text)}</div></div>`;
       }
       if (md.type === 'image' && md.images.length) {
-        html += `<div class="mod"><div class="mh">補充資訊</div>${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s) })), '')}
+        html += `<div class="mod"><div class="mh">補充資訊</div>${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s), k: s })), '')}
           <div class="hint">點圖片可放大</div></div>`;
       }
       if (md.type === 'mc') html += mcAgentHtml(md, qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">說明第 ${qn[md.bindTo]} 題的選擇</div>` : '';
         html += `<div class="mod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${bind}
-          <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)">${esc(A.short[md.id] || '')}</textarea>
-          ${A.submitted && C.meta.usage === 'practice' ? `<div class="explain"><b>參考答案：</b>${esc(md.standard)}</div>` : ''}</div>`;
+          <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)" onpaste="CQ.paste('${md.id}',event)">${esc(A.short[md.id] || '')}</textarea>
+          ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>參考答案：</b>${esc(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
       }
     });
     return html || '<div class="hint">講師還沒有設定考題</div>';
@@ -798,7 +802,7 @@
 
   function mcAgentHtml(md, no) {
     const pick = A.mc[md.id];
-    const showAns = A.submitted && C.meta.usage === 'practice';
+    const showAns = A.submitted && reveal();
     const opts = md.options.map((o, i) => {
       let cls = 'copt';
       if (pick === i) cls += ' sel';
@@ -812,8 +816,10 @@
 
   function pickMc(id, i) {
     if (A.submitted) return;
-    A.mc[id] = i; saveAnswer(); renderSide();
+    A.mc[id] = i; exEdit(id); saveAnswer(); renderSide();
   }
+  // 專員預覽：練習用顯示正解；測驗：依測驗設定（隨時檢討、公布解答、公布成績）
+  const reveal = () => (EX ? EX.reveal : C.meta.usage === 'practice');
 
   function submitAnswer(auto) {
     if (A.submitted) return;
@@ -863,7 +869,7 @@
         body = `<textarea onchange="CQ.setMod(${i},'text',this.value)">${esc(md.text)}</textarea>`;
       }
       if (md.type === 'image') {
-        body = `${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s) })), `CQ.delImg(${i},IDX)`)}
+        body = `${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s), k: s })), `CQ.delImg(${i},IDX)`)}
           <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
             <button class="mbtn" style="padding:8px 14px;font-size:13px;border-color:var(--brand);color:var(--brand)" onclick="CQ.pickImg(${i})">⬆ 上傳補充資訊圖片</button>
             <div class="drop" tabindex="0" style="flex:1;padding:8px" onclick="this.focus()" onpaste="CQ.pasteImg(event,${i})">或點這裡後按 Ctrl+V 貼上截圖</div></div>
@@ -943,15 +949,16 @@
     inp.click();
   }
   // ===== 燈箱（滾輪縮放） =====
-  function openLightbox(url, type, videoUrl) {
+  function openLightbox(url, type, videoUrl, mk) {
     lbScale = 1;
+    exMedia(mk, 0);
     const img = document.getElementById('cqLbImg');
     const old = document.getElementById('cqLbVideo');
     if (old) old.remove();
     if (type === 'video' && videoUrl) {
       // 有影片網址就直接播放（需要公司內網／VPN）
       img.style.display = 'none';
-      img.insertAdjacentHTML('afterend', `<video id="cqLbVideo" controls autoplay src="${videoUrl}" style="max-width:92vw;max-height:84vh;background:#000"></video>`);
+      img.insertAdjacentHTML('afterend', `<video id="cqLbVideo" controls autoplay src="${videoUrl}" data-mk="${esc(mk || '')}" style="max-width:92vw;max-height:84vh;background:#000"></video>`);
       document.getElementById('cqLbTip').textContent = '影片無法播放時，請確認已連上公司內網／VPN；點背景關閉';
     } else {
       img.style.display = '';
@@ -967,6 +974,287 @@
     const v = document.getElementById('cqLbVideo');
     if (v) v.remove();
     document.getElementById('cqLb').classList.remove('on');
+  }
+
+
+  // ═════════════════════════════ 專員作答（DMS 考題測驗） ═════════════════════════════
+  // 作答足跡 track：{ c: {案件序: { t 秒, b: {區塊: 秒}, s: {右側分頁: 秒}, p: {前幾次申退: 秒}, m: {媒體: [打開, 最高播放%, 播放秒]} } },
+  //                   lv: [[離開時間點秒, 離開秒數]], ed: {'案件序:題': [作答時間點秒]}, ps: {'案件序:題': [貼上次數, 字數]} }
+  let EX = null;
+  const SAVE_MS = 30000;            // 自動儲存：有變動才存，最多 30 秒一次（切換案件、離開頁面、交卷時另外存）
+  const hashStr = (s) => { let h = 5381; s = String(s || ''); for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); };
+  const mediaKey = (m) => 'm' + hashStr(m.k || m.src || m.url || '');
+
+  /** 案件裡所有照片、影片（算「打開 3 / 5」的分母）：{key, type, where} */
+  function mediaOf(c) {
+    const out = [], seen = new Set();
+    const walk = (o, where) => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach((x) => walk(x, where)); return; }
+      if ((o.type === 'image' || o.type === 'video') && typeof (o.src || o.url) === 'string' && (o.src || o.url)) {
+        const k = mediaKey(o);
+        if (!seen.has(k)) { seen.add(k); out.push({ key: k, type: o.type, where }); }
+      }
+      Object.keys(o).forEach((x) => { if (x !== 'src' && x !== 'url') walk(o[x], where); });
+    };
+    (c.blocks || []).forEach((b) => walk(b, b.title));
+    walk(c.chat, 'Chat History');
+    walk((c.drc || {}).buyer, 'Discuss 買家'); walk((c.drc || {}).seller, 'Discuss 賣家');
+    walk(c.ops, 'Operation History');
+    (c.modules || []).forEach((md) => (md.images || []).forEach((r) => { const k = mediaKey({ k: r }); if (!seen.has(k)) { seen.add(k); out.push({ key: k, type: 'image', where: '補充資訊' }); } }));
+    (c.prev || []).forEach((p, i) => walk(p, (c.prev.length > 1 ? `前 ${i + 1} 次申退` : '前一次申退')));
+    return out;
+  }
+  function normCase(c) {
+    c.meta = Object.assign({ usage: 'exam', mask: { id: true, account: true }, accounts: { buyer: '***', seller: '***' } }, c.meta || {});
+    c.meta.mask = Object.assign({ id: true, account: true }, c.meta.mask);
+    c.blocks = c.blocks || []; c.modules = c.modules || []; c.ops = c.ops || []; c.chat = c.chat || []; c.drc = c.drc || { buyer: [], seller: [] };
+    c.prev = (c.prev || []).map((p) => Object.assign({ blocks: [], ops: [], drc: { buyer: [], seller: [] } }, p));
+    return c;
+  }
+
+  /** 作答畫面：d 來自 x_open / x_start（作答中）或 x_result（交卷後）；opt.result = 交卷後檢視 */
+  function take(main, d, ctx, opt = {}) {
+    X = ctx; CUR = null;
+    const cases = (d.paper.cases || []).map((x) => normCase(JSON.parse(x.body)));
+    if (d.key) (d.key.cases || []).forEach((kc, i) => (kc.mods || []).forEach((k) => {      // 公布後：把正解、參考答案、詳解放回題目
+      const md = (cases[i] || { modules: [] }).modules.find((x) => x.id === k.id);
+      if (md) Object.assign(md, { answer: k.answer, standard: k.standard, explain: k.explain });
+    }));
+    const readOnly = !!opt.result;
+    if (EX && EX.tick) clearInterval(EX.tick);
+    EX = { sid: d.session.sessionId, session: d.session, cases, idx: 0, readOnly, reveal: readOnly && !!d.key, result: d.result || null,
+      ans: cases.map((_, i) => { const a = (d.answers || {})[i] || {}; return Object.assign(newAnswer(), { mc: a.mc || {}, short: a.short || {}, submitted: readOnly }); }),
+      track: Object.assign({ c: {}, lv: [], ed: {}, ps: {} }, d.track || {}),
+      offset: (d.serverNow || Date.now()) - Date.now(), startedAt: (d.attempt || {}).startedAt || Date.now(), deadline: (d.attempt || {}).deadline || 0,
+      dirtyAns: false, dirtyTrack: false, lastSave: Date.now(), saving: false, saveErr: '', awayAt: null, submitting: false };
+    mode = 'agent'; sideTab = 'quiz'; VIEW = -1;
+    main.classList.add('cq-full');
+    main.innerHTML = `<div class="cq" id="cq">
+      <div class="cq-bar" id="cqBar"></div>
+      <div id="cqSettings"></div>
+      <div id="cqViews"></div>
+      <div class="wrap" id="cqWrap">
+        <nav class="cq-nav" id="cqNav"></nav>
+        <div class="main" id="cqMain"></div>
+        <div class="side"><div class="ctabs" id="cqTabs"></div><div id="cqSide"></div></div>
+      </div>
+      <div id="cqWm"></div>
+      <div id="cqLb" onclick="CQ.closeLightbox(event)"><img id="cqLbImg" alt=""><div class="tip" id="cqLbTip"></div></div>
+      <div id="cqPop"></div></div>`;
+    $('#cqLb').addEventListener('wheel', (e) => {
+      e.preventDefault();
+      lbScale = Math.min(5, Math.max(1, lbScale * (e.deltaY < 0 ? 1.15 : 0.87)));
+      $('#cqLbImg').style.transform = `scale(${lbScale})`;
+    }, { passive: false });
+    exShow(0);
+    if (!readOnly) {
+      EX.tick = setInterval(exTick, 1000);
+      X.setLeaveGuard(() => { exSave(true); return true; });
+    }
+  }
+  const exNowSec = () => Math.max(0, Math.round((Date.now() + EX.offset - EX.startedAt) / 1000));
+  const exCase = () => {
+    const c = EX.track.c[EX.idx] || (EX.track.c[EX.idx] = {});
+    ['b', 's', 'p', 'm'].forEach((k) => { if (!c[k]) c[k] = {}; });
+    if (!c.t) c.t = 0;
+    return c;
+  };
+  function exShow(i) {
+    EX.idx = i; MAIN = C = EX.cases[i]; VIEW = -1; A = EX.ans[i];
+    renderAll();
+    window.scrollTo({ top: 0 });
+  }
+  function exSwitch(i) {
+    if (!EX || i === EX.idx) return;
+    if (!EX.readOnly) exSave(true);
+    exShow(i);
+  }
+  const answeredAll = (i) => EX.cases[i].modules.every((m) => (m.type === 'mc' ? EX.ans[i].mc[m.id] !== undefined : m.type === 'short' ? String(EX.ans[i].short[m.id] || '').trim() : true));
+  function exBar() {
+    const s = EX.session, left = EX.deadline ? Math.max(0, EX.deadline - (Date.now() + EX.offset)) : 0;
+    const mm = Math.floor(left / 60000), ss = Math.floor((left % 60000) / 1000);
+    const sv = EX.saveErr ? `<span class="sv err">⚠ ${esc(EX.saveErr.slice(0, 40))}</span>` : EX.saving ? '<span class="sv">儲存中…</span>'
+      : `<span class="sv">已自動儲存 ${new Date(EX.lastSave).toLocaleTimeString('sv-SE').slice(0, 5)}</span>`;
+    $('#cqBar').innerHTML = `<a class="cbtn" href="${X.me.isTeacher ? '#/mine' : '#/'}">← 我的測驗</a><span class="cid">${esc(s.sessionId)}</span><b>${esc(s.title)}</b>
+      <span class="chipc ${EX.readOnly ? 'ok' : ''}">${s.mode === 'practice' ? '練習' : '考試'}${EX.readOnly ? '・已交卷' : ''}</span>
+      <span class="exnav">${EX.cases.map((_, i) => `<button class="${i === EX.idx ? 'on' : ''}" onclick="CQ.exCase(${i})">案件 ${i + 1}${!EX.readOnly && answeredAll(i) ? ' ✓' : ''}</button>`).join('')}</span>
+      <span style="flex:1"></span>
+      ${EX.readOnly ? (EX.result ? `<span class="exscore">成績 <b>${EX.result.score}</b> / ${EX.result.total}</span>` : '')
+        : `${sv}<span class="extimer ${left < 300000 ? 'warn' : ''}" id="cqTimer">剩餘 ${mm}:${String(ss).padStart(2, '0')}</span>
+           <button class="cbtn ok" onclick="CQ.exSubmit()">交卷</button>`}`;
+  }
+  function exNotice(box) {
+    box.className = 'pv';
+    const s = EX.session;
+    box.innerHTML = EX.readOnly
+      ? `<span>${EX.reveal ? '已顯示正解與詳解。' : s.mode === 'practice' ? '講師公布解答後，這裡會顯示正解與詳解。' : '講師公布成績後，這裡會顯示分數與正解。'}</span>`
+      : `<span>作答過程會記錄：瀏覽的區塊與分頁、開啟的照片與影片、離開考試頁面的時間（講師看得到）。作答會自動儲存。</span>`;
+  }
+  function exResultHtml() {
+    if (!EX.readOnly) return '';
+    const mods = C.modules.filter((m) => m.type === 'mc');
+    if (!EX.reveal) return `<div class="cres"><div>已交卷</div><div class="hint">${EX.session.mode === 'practice' ? '等講師公布解答' : '等講師公布成績'}</div></div>`;
+    const got = mods.filter((m) => A.mc[m.id] === m.answer).length;
+    return `<div class="cres"><div>單選題答對 <b class="big">${got}</b> / ${mods.length} 題</div>
+      ${C.modules.some((m) => m.type === 'short') ? '<div class="hint">簡答題請對照下方的參考答案</div>' : ''}</div>`;
+  }
+  function exShortScore(md) {
+    if (!EX || !EX.result || !EX.result.detail) return '';
+    const v = EX.result.detail[EX.idx + ':' + md.id];
+    return v === null || v === undefined ? '' : `<div class="hint">得分 ${v} / ${md.points}</div>`;
+  }
+
+  // ── 足跡 ──
+  function exTick() {
+    if (EX && !$('#cq')) { clearInterval(EX.tick); const ex = EX; exSave(true).finally(() => { if (EX === ex) EX = null; }); return; }
+    if (!EX || EX.readOnly) return;
+    const nowS = exNowSec();
+    const away = document.hidden || !document.hasFocus();
+    if (away) { if (EX.awayAt === null) { EX.awayAt = nowS; exSave(true); } }
+    else {
+      if (EX.awayAt !== null) {
+        const dur = nowS - EX.awayAt;
+        if (dur >= 2 && EX.track.lv.length < 200) EX.track.lv.push([EX.awayAt, dur]);
+        EX.awayAt = null;
+      }
+      const tc = exCase();
+      tc.t++;
+      if (VIEW >= 0) tc.p[VIEW] = (tc.p[VIEW] || 0) + 1;
+      else {
+        const top = cqTop(), h = window.innerHeight;
+        $$('#cqMain .blk').forEach((el) => {
+          const r = el.getBoundingClientRect(), vis = Math.min(r.bottom, h) - Math.max(r.top, top);
+          if (vis >= Math.min(150, r.height * 0.5)) { const id = el.id.slice(4); tc.b[id] = (tc.b[id] || 0) + 1; }
+        });
+      }
+      const tab = sideTab === 'drc' ? 'drc-' + drcRoom : sideTab;
+      tc.s[tab] = (tc.s[tab] || 0) + 1;
+      EX.dirtyTrack = true;
+    }
+    // 計時：到時間自動交卷
+    if (EX.deadline && Date.now() + EX.offset >= EX.deadline) { exSubmit(true); return; }
+    const tm = $('#cqTimer');
+    if (tm) {
+      const left = Math.max(0, EX.deadline - (Date.now() + EX.offset));
+      tm.textContent = `剩餘 ${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, '0')}`;
+      tm.classList.toggle('warn', left < 300000);
+    }
+    if ((EX.dirtyAns || EX.dirtyTrack) && Date.now() - EX.lastSave >= SAVE_MS) exSave();
+    if (nowS % 60 === 0) X.api('x_status', { sessionId: EX.sid }).then((r) => { if (EX && !EX.readOnly && r.state !== 'open' && r.attempt.status === 'in_progress') exSubmit(true); }).catch(() => {});
+  }
+  function exEdit(id) {
+    if (!EX || EX.readOnly) return;
+    const k = EX.idx + ':' + id, list = EX.track.ed[k] || (EX.track.ed[k] = []), t = exNowSec();
+    if (!list.length || t - list[list.length - 1] >= 10) { if (list.length < 30) list.push(t); else list[29] = t; }
+  }
+  function exPaste(id, ev) {
+    if (!EX || EX.readOnly) return;
+    const txt = (ev.clipboardData || window.clipboardData).getData('text') || '';
+    const k = EX.idx + ':' + id, p = EX.track.ps[k] || (EX.track.ps[k] = [0, 0]);
+    p[0]++; p[1] += txt.length; EX.dirtyTrack = true;
+  }
+  /** 照片、影片：打開記 1；影片另外記最高播放百分比與播放秒數 */
+  function exMedia(mk, pct, secs) {
+    if (!EX || EX.readOnly || !mk) return;
+    const tc = exCase(), m = tc.m[mk] || (tc.m[mk] = [0, 0, 0]);
+    m[0] = 1;
+    if (pct) m[1] = Math.max(m[1], Math.min(100, Math.round(pct)));
+    if (secs) m[2] += secs;
+    EX.dirtyTrack = true;
+  }
+  const vidLast = new WeakMap();
+  document.addEventListener('timeupdate', (e) => {
+    const v = e.target, mk = v && v.dataset && v.dataset.mk;
+    if (!EX || !mk || !v.duration) return;
+    const last = vidLast.get(v) || 0, d = v.currentTime - last;
+    vidLast.set(v, v.currentTime);
+    exMedia(mk, (v.currentTime / v.duration) * 100, d > 0 && d < 2 ? d : 0);
+  }, true);
+  document.addEventListener('play', (e) => { const mk = e.target && e.target.dataset && e.target.dataset.mk; if (mk) exMedia(mk, 0); }, true);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && EX && !EX.readOnly) exSave(true); });
+
+  const exAnswersOut = () => { const o = {}; EX.ans.forEach((a, i) => { o[i] = { mc: a.mc, short: a.short }; }); return o; };
+  function exTrackOut() {   // 播放秒數四捨五入，資料小一點
+    const t = JSON.parse(JSON.stringify(EX.track));
+    Object.values(t.c || {}).forEach((c) => Object.values(c.m || {}).forEach((m) => { m[2] = Math.round(m[2]); }));
+    return t;
+  }
+  async function exSave(force) {
+    if (!EX || EX.readOnly || EX.saving || EX.submitting) return;
+    if (!force && !(EX.dirtyAns || EX.dirtyTrack)) return;
+    EX.saving = true; EX.dirtyAns = false; EX.dirtyTrack = false;
+    try { await X.api('x_save', { sessionId: EX.sid, answers: exAnswersOut(), track: exTrackOut() }); EX.lastSave = Date.now(); EX.saveErr = ''; }
+    catch (e) { EX.dirtyAns = true; EX.saveErr = e.message || String(e); }
+    EX.saving = false;
+    if ($('#cqBar') && EX) exBar();
+  }
+  async function exSubmit(auto) {
+    if (!EX || EX.readOnly || EX.submitting) return;
+    if (!auto) {
+      const miss = EX.cases.map((_, i) => i).filter((i) => !answeredAll(i)).map((i) => '案件 ' + (i + 1));
+      if (!confirm((miss.length ? `還有沒作答完的題目：${miss.join('、')}\n` : '') + '確定交卷？交卷後不能再修改。')) return;
+    }
+    EX.submitting = true;
+    clearInterval(EX.tick);
+    try {
+      await X.api('x_submit', { sessionId: EX.sid, answers: exAnswersOut(), track: exTrackOut(), auto: !!auto });
+    } catch (e) {
+      EX.submitting = false;
+      if (!/已交卷|closed|window/i.test(e.message)) { EX.tick = setInterval(exTick, 1000); X.toast('交卷失敗：' + e.message, 6000); return; }
+    }
+    X.setLeaveGuard(null);
+    X.toast(auto ? '時間到，已自動交卷' : '已交卷');
+    const sid = EX.sid;
+    try { take(document.getElementById('main'), await X.api('x_result', { sessionId: sid }), X, { result: true }); }
+    catch (e) { location.hash = X.me.isTeacher ? '#/mine' : '#/'; }
+  }
+
+  // ═════════════════════════════ 講師看作答足跡 ═════════════════════════════
+  const BLOCK_NAME = (c, id) => ((c.blocks || []).find((b) => b.id === id) || {}).title || id;
+  const TAB_NAME = { quiz: '考題', ops: 'Operation History', chat: 'Chat History', 'drc-buyer': 'Discuss 買家', 'drc-seller': 'Discuss 賣家' };
+  const fmtS = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `0:${String(s).padStart(2, '0')}`);
+  /** 單一專員、單一案件的足跡卡：paperCase＝專員版案件 JSON、track＝整份作答的足跡、i＝案件序、ans＝這個案件的作答、keyCase＝解答 */
+  function footprint(paperCase, track, i, ans, keyCase) {
+    const c = normCase(JSON.parse(JSON.stringify(paperCase))), t = (track && track.c && track.c[i]) || {};
+    const b = t.b || {}, sTab = t.s || {}, pv = t.p || {}, md = t.m || {};
+    const media = mediaOf(c), imgs = media.filter((x) => x.type === 'image'), vids = media.filter((x) => x.type === 'video');
+    const opened = (x) => md[x.key] && md[x.key][0];
+    const chip = (label, sec) => `<span class="fpc ${sec >= 2 ? 'ok' : ''}">${esc(label)} ${sec >= 2 ? fmtS(sec) : '沒看'}</span>`;
+    const blocks = c.blocks.map((x) => chip(x.title, b[x.id] || 0)).join('');
+    const tabs = ['ops', 'chat', 'drc-buyer', 'drc-seller'].map((k) => chip(TAB_NAME[k], sTab[k] || 0)).join('')
+      + c.prev.map((_, j) => chip(c.prev.length > 1 ? `前 ${j + 1} 次申退` : '前一次申退', pv[j] || 0)).join('');
+    // 影片：打開過的逐段列；沒打開的依位置合併成一行
+    const notOpen = {};
+    vids.filter((v) => !md[v.key]).forEach((v) => { notOpen[v.where] = (notOpen[v.where] || 0) + 1; });
+    const vidRows = vids.filter((v) => md[v.key]).map((v) => { const m = md[v.key]; return `<li>${esc(v.where)}：${m[1] >= 80 ? `看完（${m[1]}%）` : `看了 ${m[1]}%`}</li>`; }).join('')
+      + (Object.keys(notOpen).length ? `<li class="soft">沒打開：${Object.entries(notOpen).map(([w, n]) => `${esc(w)} ${n} 段`).join('、')}</li>` : '');
+    // 需要留意
+    const flags = [], keys = ((keyCase && keyCase.mods) || []).map((m) => i + ':' + m.id);
+    const mcs = ((keyCase && keyCase.mods) || []).filter((m) => m.type === 'mc');
+    const allRight = mcs.length && mcs.every((m) => ((ans || {}).mc || {})[m.id] === m.answer);
+    const seenBlocks = Object.values(b).filter((x) => x >= 2).length + Object.values(sTab).filter((x) => x >= 2).length - (sTab.quiz >= 2 ? 1 : 0);
+    if ((t.t || 0) < 60 && Object.keys((ans || {}).mc || {}).length) flags.push(`這個案件只看了 ${t.t || 0} 秒就作答`);
+    if (allRight && seenBlocks <= 2 && !Object.keys(md).length) flags.push(`單選題全對，但只看了 ${seenBlocks} 個區塊、沒有打開照片或影片`);
+    (track && track.lv || []).forEach(([at, dur]) => {
+      if (dur < 20) return;
+      const back = at + dur;
+      if (keys.some((k) => ((track.ed || {})[k] || []).some((x) => x >= back && x <= back + 30))) flags.push(`離開頁面 ${fmtS(dur)} 後回來，30 秒內作答`);
+    });
+    keys.forEach((k) => { const p = (track && track.ps || {})[k]; if (p && p[1] >= 30) flags.push(`簡答題貼上 ${p[1]} 字（${p[0]} 次）`); });
+    return `<div class="fp">
+      <div class="fpm"><div><b>${fmtS(t.t || 0)}</b><span>這個案件花的時間</span></div>
+        <div><b>${imgs.filter(opened).length} / ${imgs.length}</b><span>照片打開</span></div>
+        <div><b>${vids.filter(opened).length} / ${vids.length}</b><span>影片打開</span></div></div>
+      ${flags.length ? `<div class="fpflag">⚠ 需要留意：${[...new Set(flags)].map(esc).join('；')}</div>` : ''}
+      <div class="fpl">中間的 DMS 區塊</div><div class="fpr">${blocks}</div>
+      <div class="fpl">右側分頁</div><div class="fpr">${tabs}</div>
+      ${vids.length ? `<div class="fpl">影片</div><ul class="fpv">${vidRows}</ul>` : ''}</div>`;
+  }
+  /** 整份作答：離開頁面摘要 */
+  function leaveSummary(track) {
+    const lv = (track && track.lv) || [];
+    return lv.length ? `離開頁面 ${lv.length} 次，共 ${fmtS(lv.reduce((n, x) => n + x[1], 0))}` : '沒有離開頁面';
   }
 
   // ===== 浮水印：登入者 email＋時間 =====
@@ -995,7 +1283,8 @@
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
-    pickMc, shortAns: (id, v) => { A.short[id] = v; }, submitAnswer, retry,
+    pickMc, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
+    paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
     addMod, moveMod, delMod, setMod, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };
 
@@ -1004,5 +1293,5 @@
     X = ctx;
     return viewCase(arg);
   }
-  window.RRQP_CASES = { route, list };
+  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf };
 })();

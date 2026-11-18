@@ -218,3 +218,28 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* 導覽列多了「DMS 案件」：中等寬度的螢幕縮小間距，避免換成兩行 */
 @media (max-width:1700px){header.top{gap:12px}header.top .nav a{padding-left:9px;padding-right:9px}}
 @media (max-width:1560px){header.top .hdr-email{display:none}}
+/* 專員作答：案件切換、計時、成績 */
+.cq-bar .exnav{display:inline-flex;gap:4px;flex-wrap:wrap}
+.cq-bar .exnav button{border:1px solid #d0d0d8;background:#fff;border-radius:6px;padding:4px 12px;font-size:13px;color:#333}
+.cq-bar .exnav button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.cq-bar .extimer{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink);background:#f1f5f9;border-radius:6px;padding:4px 10px}
+.cq-bar .extimer.warn{color:#b91c1c;background:#fef2f2}
+.cq-bar .exscore{font-size:14px}.cq-bar .exscore b{font-size:18px;color:var(--brand)}
+/* 講師看作答足跡（在測驗頁，不在 .cq 裡） */
+.fp{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff;font-size:13px}
+.fpm{display:flex;gap:10px;flex-wrap:wrap}
+.fpm>div{background:var(--chip);border-radius:8px;padding:6px 12px;min-width:110px}
+.fpm b{display:block;font-size:17px}.fpm span{font-size:12px;color:var(--muted)}
+.fpl{font-size:12px;color:var(--muted);margin:10px 0 4px}
+.fpr{display:flex;gap:6px;flex-wrap:wrap}
+.fpc{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:var(--soft)}
+.fpc.ok{background:#ecfdf3;border-color:#b7e4c7;color:#166534}
+.fpflag{margin-top:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:6px 10px}
+.fpv{margin:0;padding-left:18px}
+/* 講師：DMS 考題測驗 */
+.xq{border-top:1px solid var(--line);padding:10px 0}
+.xq .ok{color:#166534}.xq .bad{color:#b91c1c}
+.xq input.sc{width:70px;height:32px;border:1px solid var(--line2);border-radius:6px;padding:0 8px}
+.xpick{max-height:420px;overflow:auto}
+.xsel{display:flex;flex-direction:column;gap:6px}
+.xsel .it{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff}

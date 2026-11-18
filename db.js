@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18d';
+const VERSION = 'V2-2026-11-18e';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2366,6 +2366,331 @@ const CASES = {
 };
 Object.assign(ACTIONS, CASES);
 
+// ═════════════════════════════════════════════════════════════
+// V3：DMS 考題測驗 — v3sessions/{X001}
+//   paper/public  專員版案件（已套用隱藏、遮蔽，沒有 Return ID、正解）；開始時間後指派的專員讀得到
+//   paper/key     正解、標準答案、詳解、配分（講師；練習交卷後或公布後，指派的專員也讀得到，由規則把關）
+//   images/{Ixxxxx}＋chunks  補充資訊圖片（發佈時從 v3images 複製一份）
+//   attempts/{email}  作答：answers＝{案件序: {mc, short}}；track＝作答足跡（每 30 秒自動存）
+//   grades/{email}    講師給分（簡答題）；v3results/{sid}_{email} 公布的成績
+// ═════════════════════════════════════════════════════════════
+const X_MAX_CASES = 20;
+const X_MASK = '***';
+/** 專員版案件：拿掉隱藏內容、套用遮蔽、拿掉 Return ID 與帳號、拿掉講師提醒與正解（和 rrqp_cases.agent_view 相同） */
+function caseAgentView(src) {
+  const c = JSON.parse(JSON.stringify(src || {}));
+  const mask = (c.meta && c.meta.mask) || {};
+  const blocks = (c.blocks || []).concat(...(c.prev || []).map((p) => p.blocks || []));
+  blocks.forEach((b) => {
+    if (b.fields) b.fields = b.fields.map((fd) => {
+      if (fd.hidden) return { k: '', v: '', blank: true };          // 留空格，其他欄位維持 DMS 的位置
+      const o = Object.assign({}, fd);
+      if (o.mask && mask[o.mask]) o.v = X_MASK;
+      delete o.leak;
+      return o;
+    });
+    (b.tables || []).forEach((t) => (t.rows || []).forEach((row) => row.forEach((cell) => {
+      if (cell && typeof cell === 'object' && cell.mask && mask[cell.mask]) cell.text = X_MASK;
+    })));
+    if (b.timeline) b.timeline = b.timeline.filter((n) => !n.hidden).map((n) => { const o = Object.assign({}, n); delete o.leak; return o; });
+    (b.cards || []).forEach((cd) => { cd.rows = (cd.rows || []).filter((r) => r[2] !== 'hidden').map((r) => (r[2] === 'leak' ? r.slice(0, 2) : r)); });
+  });
+  const cleanOps = (ops) => (ops || []).filter((n) => !n.hidden).map((n) => {
+    const o = Object.assign({}, n); delete o.leak;
+    o.kv = (o.kv || []).map((k) => [k[0], k[2] === 'id' && mask.id ? X_MASK : k[1]]);
+    if (o.cat === 'bs' && mask.account) o.op = X_MASK;
+    return o;
+  });
+  c.ops = cleanOps(c.ops);
+  (c.prev || []).forEach((p) => { p.ops = cleanOps(p.ops); delete p.rid; });
+  c.meta = Object.assign({}, c.meta);
+  if (mask.account) c.meta.accounts = { buyer: X_MASK, seller: X_MASK };
+  delete c.meta.rid; delete c.meta.title; delete c.meta.groups; delete c.meta.topics; delete c.meta.tags;
+  delete c.notes;
+  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; return o; });
+  return c;
+}
+const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short')
+  .map((m) => ({ id: m.id, type: m.type, q: m.q || '', options: m.options || [], answer: m.answer, standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '' }));
+const xIndexRow = (s) => ({ title: s.title, mode: s.mode, review: s.review || '', startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, caseCount: (s.caseIds || []).length,
+  questionCount: s.questionCount || 0, points: s.points || 0, assigned: (s.assignees || []).length, ended: !!s.ended, released: !!s.released, answersOpen: !!s.answersOpen,
+  createdBy: s.createdBy || '', createdAt: s.createdAt || 0 });
+function xSessionOut(id, s, t) {
+  return { sessionId: id, title: s.title || id, mode: s.mode || 'exam', review: s.review || '', startAt: s.startAt, endAt: s.endAt, minutes: s.minutes,
+    state: sessionState(s, t), caseCount: s.caseCount || (s.caseIds || []).length, questionCount: s.questionCount || 0, points: s.points || 0,
+    answersOpen: !!s.answersOpen, released: !!s.released, createdBy: s.createdBy || '' };
+}
+async function xSessionDoc(id) {
+  const sid = String(id || '').trim().toUpperCase();
+  const s = await S.get('v3sessions/' + sid);
+  if (!s) fail('找不到測驗 / Quiz not found: ' + id);
+  return [sid, s];
+}
+/** 單選題自動計分＋講師給的簡答分數 */
+function xScore(key, att, grade) {
+  const detail = {};
+  let score = 0, total = 0, pending = 0;
+  (key.cases || []).forEach((kc, i) => {
+    const a = ((att && att.answers) || {})[i] || {};
+    kc.mods.forEach((m) => {
+      const k = i + ':' + m.id;
+      total += m.points;
+      if (m.type === 'mc') detail[k] = (a.mc || {})[m.id] === m.answer ? m.points : 0;
+      else {
+        const g = ((grade && grade.scores) || {})[k];
+        if (g === undefined || g === null || g === '') { pending++; detail[k] = null; } else detail[k] = Math.max(0, Math.min(m.points, Number(g) || 0));
+      }
+      score += detail[k] || 0;
+    });
+  });
+  return { score: r2(score), total: r2(total), pending, detail };
+}
+const xAnswersIn = (v, n) => {
+  const out = {};
+  for (let i = 0; i < n; i++) {
+    const a = (v || {})[i] || {}, mc = {}, short = {};
+    Object.entries(a.mc || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k) && Number.isInteger(x)) mc[k] = x; });
+    Object.entries(a.short || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k)) short[k] = String(x || '').slice(0, 3000); });
+    out[i] = { mc, short };
+  }
+  return out;
+};
+const xTrackIn = (t) => { const s = JSON.stringify(t || {}); if (s.length > 200000) fail('作答紀錄太大 / Track data too large'); return JSON.parse(s); };
+
+const EXAM = {
+  /** 案件挑選時：這些專員做過哪些案件（以曾被指派計） */
+  x_seen: async (b) => {
+    await needTeacher();
+    const emails = [...new Set((b.emails || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))].slice(0, 300);
+    const out = {};
+    await Promise.all(emails.map(async (e) => { const d = await S.get('v3seen/' + e).catch(() => null); ((d && d.caseIds) || []).forEach((c) => { out[c] = (out[c] || 0) + 1; }); }));
+    return { seen: out };
+  },
+
+  /** 發佈：鎖定專員版案件與解答（之後改案件不影響這場）、複製補充資訊圖片、記錄誰做過 */
+  x_create: async (b) => {
+    const m = await needTeacher();
+    const title = String(b.title || '').trim().slice(0, 80);
+    if (!title) fail('請填寫測驗名稱 / Title is required');
+    const mode = b.mode === 'practice' ? 'practice' : 'exam';
+    const review = mode === 'practice' ? (b.review === 'unified' ? 'unified' : 'instant') : '';
+    const startAt = Number(b.startAt), endAt = Number(b.endAt), minutes = Number(b.minutes);
+    if (!(startAt > 0 && endAt > startAt)) fail('結束時間需晚於開始時間 / End must be after start');
+    if (endAt < now()) fail('結束時間已過 / End time is in the past');
+    if (!(minutes >= 1 && minutes <= 600)) fail('作答時間需介於 1–600 分鐘 / Duration must be 1–600 minutes');
+    const assignees = validEmails(b.assignees);
+    const ids = [...new Set((b.caseIds || []).map((x) => String(x).trim().toUpperCase()).filter(Boolean))];
+    if (!ids.length) fail('請選擇案件 / Pick at least one case');
+    if (ids.length > X_MAX_CASES) fail('每場最多 ' + X_MAX_CASES + ' 個案件 / Too many cases');
+    const docs = await Promise.all(ids.map((id) => S.get('v3cases/' + id)));
+    const pub = [], key = [], refs = new Set();
+    docs.forEach((d, i) => {
+      if (!d) fail('找不到案件 / Case not found: ' + ids[i]);
+      if (d.status !== 'approved') fail(ids[i] + ' 還沒核准 / is not approved');
+      const body = JSON.parse(d.body || '{}');
+      if (mode === 'exam' && (body.meta || {}).usage !== 'exam') fail(ids[i] + ' 是練習用案件，不能放進考試 / is for practice only');
+      (body.modules || []).forEach((md) => (md.images || []).forEach((r) => { if (/^v3img:/.test(r)) refs.add(r.slice(6)); }));
+      pub.push({ caseId: ids[i], body: JSON.stringify(caseAgentView(body)) });
+      key.push({ caseId: ids[i], title: d.title || '', mods: xKeyMods(body.modules) });
+    });
+    const size = pub.reduce((n, c) => n + c.body.length, 0);
+    if (size > 900000) fail('案件內容太多，超過一份試卷的上限，請減少案件 / Too much content for one quiz');
+    const qn = key.reduce((n, c) => n + c.mods.length, 0), pts = key.reduce((n, c) => n + c.mods.reduce((s, x) => s + x.points, 0), 0);
+    if (!qn) fail('選到的案件沒有作答題 / No questions in the selected cases');
+    const settings = ((await S.get('settings/app')) || {}).values || {};
+    const sid = 'X' + String(await S.nextIds('X', 1)).padStart(3, '0'), t = now();
+    // 補充資訊圖片：先複製（測驗本體最後寫，專員看得到考卷時圖片一定已經在）
+    for (const id of refs) {
+      const im = await S.get('v3images/' + id);
+      if (!im) fail('補充資訊圖片不見了 / Image missing: ' + id);
+      for (let i = 0; i < (im.n || 0); i++) await S.set(`v3sessions/${sid}/images/${id}/chunks/${i}`, (await S.get(`v3images/${id}/chunks/${i}`)) || { d: '' });
+      await S.set(`v3sessions/${sid}/images/${id}`, { mime: im.mime || '', n: im.n || 0 });
+    }
+    const sess = { title, mode, review, startAt: S.ts(startAt), endAt: S.ts(endAt), minutes, graceMin: Number((settings.autoSubmitGraceMin || {}).value) || GRACE_MIN,
+      assignees, caseIds: ids, caseCount: ids.length, questionCount: qn, points: r2(pts), ended: false, released: false, answersOpen: false, createdBy: m.email, createdAt: t };
+    const ops = [
+      { op: 'set', path: `v3sessions/${sid}/paper/public`, data: { cases: pub } },
+      { op: 'set', path: `v3sessions/${sid}/paper/key`, data: { cases: key } },
+      { op: 'set', path: 'v3sessions/' + sid, data: sess },
+      { op: 'set', path: 'meta/v3SessionIndex', merge: true, data: { items: { [sid]: xIndexRow(Object.assign({}, sess, { startAt, endAt })) } } },
+    ];
+    for (const e of assignees) {
+      const d = await S.get('v3seen/' + e).catch(() => null);
+      ops.push({ op: 'set', path: 'v3seen/' + e, data: { caseIds: [...new Set([...((d && d.caseIds) || []), ...ids])], updatedAt: t } });
+    }
+    await S.batch(ops);
+    return { sessionId: sid };
+  },
+
+  x_list: async () => {
+    await needTeacher();
+    const items = ((await S.get('meta/v3SessionIndex')) || {}).items || {}, t = now();
+    const ids = Object.keys(items).sort().reverse();
+    const atts = await Promise.all(ids.map((id) => S.list('v3sessions/' + id + '/attempts').catch(() => [])));
+    return { sessions: ids.map((id, i) => Object.assign(xSessionOut(id, items[id], t), { assigned: items[id].assigned || 0, started: atts[i].length, submitted: atts[i].filter((a) => a.submittedAt).length })) };
+  },
+
+  /** 講師看單場：名單、作答（含足跡）、解答、專員版案件（算照片影片總數用）、給分 */
+  x_get: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    const [atts, key, pub, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`)]);
+    const roster = (s.assignees || []).map((email) => {
+      const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
+      return Object.assign({ email }, attemptOut(s, a, t), { answers: (a && a.answers) || {}, track: (a && a.track) || null, scores: (g && g.scores) || {},
+        result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
+    });
+    return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] } };
+  },
+
+  x_end: async (b) => {
+    await needTeacher();
+    const [sid] = await xSessionDoc(b.sessionId), t = now();
+    await S.batch([{ op: 'update', path: 'v3sessions/' + sid, data: { ended: true, endAt: S.ts(t) } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.ended']: true, ['items.' + sid + '.endAt']: t } }]);
+    return { sessionId: sid };
+  },
+
+  /** 練習（統一檢討）：講師公布解答後，交過卷的專員看得到正解與詳解 */
+  x_openAnswers: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId);
+    if (s.mode !== 'practice') fail('只有練習可以公布解答；考試請公布成績 / Practice only');
+    const on = b.open !== false;
+    await S.batch([{ op: 'update', path: 'v3sessions/' + sid, data: { answersOpen: on } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.answersOpen']: on } }]);
+    return { answersOpen: on };
+  },
+
+  x_grade: async (b) => {
+    const m = await needTeacher();
+    const [sid] = await xSessionDoc(b.sessionId);
+    const email = String(b.email || '').toLowerCase();
+    const scores = {};
+    Object.entries(b.scores || {}).forEach(([k, v]) => { if (/^\d+:[\w-]{1,20}$/.test(k)) scores[k] = v === '' || v === null ? null : Number(v); });
+    await S.set(`v3sessions/${sid}/grades/${email}`, { scores, by: m.email, at: now() }, true);
+    return { ok: true };
+  },
+
+  /** 考試：公布成績（寫 v3results 給專員看；專員也讀得到正解與詳解） */
+  x_release: async (b) => {
+    const m = await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    if (s.mode !== 'exam') fail('練習不計分，請用「公布解答」 / Exams only');
+    if (sessionState(s, t) === 'open' || sessionState(s, t) === 'scheduled') fail('測驗結束後才能公布成績 / End the quiz first');
+    const [atts, key, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.list(`v3sessions/${sid}/grades`)]);
+    const ops = atts.filter((a) => a.submittedAt).map((a) => {
+      const r = xScore(key || {}, a, grades.find((g) => g.id === a.id));
+      return { op: 'set', path: `v3results/${sid}_${a.id}`, data: { email: a.id, sessionId: sid, title: s.title, score: r.score, total: r.total, detail: r.detail, releasedAt: t, releasedBy: m.email } };
+    });
+    ops.push({ op: 'update', path: 'v3sessions/' + sid, data: { released: true, releasedAt: t } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.released']: true } });
+    await S.batch(ops);
+    return { released: ops.length - 2 };
+  },
+
+  x_delete: async (b) => {
+    await needDelete('session');
+    const [sid] = await xSessionDoc(b.sessionId);
+    const [atts, grades, imgs] = await Promise.all(['attempts', 'grades', 'images'].map((c) => S.list(`v3sessions/${sid}/${c}`).catch(() => [])));
+    const ops = [];
+    atts.forEach((a) => ops.push({ op: 'del', path: `v3sessions/${sid}/attempts/${a.id}` }, { op: 'del', path: `v3results/${sid}_${a.id}` }));
+    grades.forEach((g) => ops.push({ op: 'del', path: `v3sessions/${sid}/grades/${g.id}` }));
+    imgs.forEach((im) => { for (let i = 0; i < (im.n || 0); i++) ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}/chunks/${i}` }); ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}` }); });
+    ops.push({ op: 'del', path: `v3sessions/${sid}/paper/public` }, { op: 'del', path: `v3sessions/${sid}/paper/key` }, { op: 'del', path: 'v3sessions/' + sid },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid]: S.deleteField() } });
+    await S.batch(ops);
+    return { sessionId: sid };
+  },
+
+  // ── 專員 ──
+  x_mine: async () => {
+    const m = await whoAmI(), t = now();
+    const rows = await S.query('v3sessions', 'assignees', 'array-contains', m.email);
+    const atts = await Promise.all(rows.map((s) => S.get(`v3sessions/${s.id}/attempts/${m.email}`).catch(() => null)));
+    const res = await Promise.all(rows.map((s) => (s.released ? S.get(`v3results/${s.id}_${m.email}`).catch(() => null) : null)));
+    return { serverNow: t, sessions: rows.map((s, i) => Object.assign(xSessionOut(s.id, s, t), { attempt: attemptOut(s, atts[i], t), score: res[i] ? res[i].score : null, total: res[i] ? res[i].total : null }))
+      .sort((a, b) => b.sessionId.localeCompare(a.sessionId)) };
+  },
+
+  /** 進入測驗：作答中就帶出試卷與已存的作答 */
+  x_open: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const t = now(), a = await S.get(`v3sessions/${sid}/attempts/${m.email}`), att = attemptOut(s, a, t);
+    const out = { serverNow: t, session: xSessionOut(sid, s, t), attempt: att, graceMin: s.graceMin || GRACE_MIN };
+    if (att.status === 'in_progress') Object.assign(out, { paper: (await S.get(`v3sessions/${sid}/paper/public`)) || { cases: [] }, answers: a.answers || {}, track: a.track || null });
+    return out;
+  },
+
+  /** 開始作答：開始時間由伺服器記錄（規則強制） */
+  x_start: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const path = `v3sessions/${sid}/attempts/${m.email}`;
+    if (!(await S.get(path))) {
+      const st = sessionState(s, now());
+      if (st === 'scheduled') fail('測驗尚未開始 / The quiz has not started yet');
+      if (st !== 'open') fail('測驗已結束 / The quiz has ended');
+      await S.set(path, { email: m.email, startedAt: S.serverTime(), submittedAt: null, answers: {}, autoSubmitted: false, track: {}, savedAt: S.serverTime() });
+    }
+    return ACTIONS.x_open(b);
+  },
+
+  /** 自動儲存（交卷前）：作答＋足跡 */
+  x_save: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const path = `v3sessions/${sid}/attempts/${m.email}`;
+    try { await S.update(path, { answers: xAnswersIn(b.answers, (s.caseIds || []).length), track: xTrackIn(b.track), savedAt: S.serverTime() }); }
+    catch (e) { if (/permission/i.test(String(e.code || e.message))) fail('已超過作答時間或已交卷 / The quiz is closed'); throw e; }
+    return { savedAt: now() };
+  },
+
+  x_submit: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const path = `v3sessions/${sid}/attempts/${m.email}`;
+    const a = await S.get(path) || fail('尚未開始作答 / You have not started this quiz');
+    if (a.submittedAt) return { attempt: attemptOut(s, a, now()), already: true };
+    try { await S.update(path, { answers: xAnswersIn(b.answers, (s.caseIds || []).length), track: xTrackIn(b.track), savedAt: S.serverTime(), submittedAt: S.serverTime(), autoSubmitted: !!b.auto }); }
+    catch (e) { if (/permission/i.test(String(e.code || e.message))) fail('已超過交卷時間 / The submission window has closed'); throw e; }
+    return { attempt: attemptOut(s, await S.get(path), now()) };
+  },
+
+  x_status: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const t = now();
+    return { serverNow: t, state: sessionState(s, t), attempt: attemptOut(s, await S.get(`v3sessions/${sid}/attempts/${m.email}`), t) };
+  },
+
+  /** 交卷後：自己的作答＋試卷；解答（練習隨時檢討、講師公布解答、考試公布成績後）由規則決定讀不讀得到 */
+  x_result: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
+    const t = now(), a = await S.get(`v3sessions/${sid}/attempts/${m.email}`);
+    const att = attemptOut(s, a, t);
+    if (!a || !a.submittedAt) return { serverNow: t, session: xSessionOut(sid, s, t), attempt: att };
+    const reveal = s.mode === 'practice' ? (s.review === 'instant' || !!s.answersOpen) : !!s.released;
+    const [pub, key, res] = await Promise.all([S.get(`v3sessions/${sid}/paper/public`),
+      reveal ? S.get(`v3sessions/${sid}/paper/key`).catch(() => null) : null,
+      s.released ? S.get(`v3results/${sid}_${m.email}`).catch(() => null) : null]);
+    return { serverNow: t, session: xSessionOut(sid, s, t), attempt: att, answers: a.answers || {}, paper: pub || { cases: [] }, key: key || null, result: res || null };
+  },
+
+  /** 補充資訊圖片（測驗裡的那份） */
+  x_img: async (b) => {
+    await whoAmI();
+    const [sid] = await xSessionDoc(b.sessionId);
+    const id = String(b.ref || '').replace(/^v3img:/, '');
+    const im = await S.get(`v3sessions/${sid}/images/${id}`) || fail('找不到圖片 / Image not found');
+    const parts = await Promise.all(Array.from({ length: im.n || 0 }, (_, i) => S.get(`v3sessions/${sid}/images/${id}/chunks/${i}`)));
+    return { dataUrl: parts.map((p) => (p && p.d) || '').join('') };
+  },
+};
+Object.assign(ACTIONS, EXAM);
+
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];
   if (!fn) throw new Error('V2 開發中：這個功能還沒搬到 Firebase（' + action + '）/ Not available in V2 yet');
@@ -2390,6 +2715,7 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
+    caseAgentView,                                            // V3 DMS 考題：專員版案件
     caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）

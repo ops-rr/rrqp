@@ -206,6 +206,9 @@
     const h = location.hash.replace(/^#\/?/, '').split('?')[0];
     const [page, arg] = h.split('/');
     if (page === 's' && arg) return viewQuizEntry(decodeURIComponent(arg));
+    // V3 DMS 考題測驗（exam.js）：專員作答 #/x/X001、講師單場 #/xsession/X001
+    if (page === 'x' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.entry(decodeURIComponent(arg), caseCtx());
+    if (me.isTeacher && page === 'xsession' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.session(decodeURIComponent(arg), caseCtx());
     if (me.isTeacher && page === 'draft' && arg) return viewDraft(decodeURIComponent(arg));
     // V3 DMS 考題（cases.js）：待審在「案件匯入 → 待審 DMS 考題」、核准後在「可用題庫 → DMS 考題」；編輯頁 #/case/Cxxx
     if (me.isTeacher && page === 'case' && arg && window.RRQP_CASES) return window.RRQP_CASES.route('case', decodeURIComponent(arg), caseCtx());
@@ -1223,8 +1226,14 @@
   }
   async function viewSessions() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    // V3：分頁「變化題測驗｜DMS 考題測驗」
+    const sessTabs = window.RRQP_EXAM ? `<div class="tabs"><a class="tab ${params.get('tab') !== 'cases' ? 'on' : ''}" href="#/sessions">${esc(t('sessTabQ'))}</a><a class="tab ${params.get('tab') === 'cases' ? 'on' : ''}" href="#/sessions?tab=cases">${esc(t('sessTabCases'))}</a></div>` : '';
+    if (window.RRQP_EXAM && params.get('tab') === 'cases') {
+      shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1></div>${sessTabs}<div id="xBox"></div>`);
+      return window.RRQP_EXAM.sessions($('#xBox'), caseCtx());
+    }
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
-        <button class="btn" id="refresh">${esc(t('refresh'))}</button><button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>
+        <button class="btn" id="refresh">${esc(t('refresh'))}</button><button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>${sessTabs}
       <div id="createBox"></div><div id="doneBox"></div>
       <div class="card scroll-x" id="listBox"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     let showArch = params.get('archived') === '1';
@@ -1314,8 +1323,9 @@
     const main = shell('', `<div class="row"><h1>${esc(t('myQuizzes'))}</h1></div><div id="qz"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     let d;
     try { d = await api('s_list'); } catch (e) { showError(e, $('#qz')); return; }
-    if (!d.sessions.length) { $('#qz').innerHTML = `<div class="card empty-state"><h2>${esc(t('noQuiz'))}</h2><p>${esc(t('agentHomeSub'))}</p></div>`; return; }
-    $('#qz').innerHTML = d.sessions.map((s) => {
+    const xc = window.RRQP_EXAM ? await window.RRQP_EXAM.cards(caseCtx()) : { html: '', count: 0 };      // V3 DMS 考題測驗
+    if (!d.sessions.length && !xc.count) { $('#qz').innerHTML = `<div class="card empty-state"><h2>${esc(t('noQuiz'))}</h2><p>${esc(t('agentHomeSub'))}</p></div>`; return; }
+    $('#qz').innerHTML = xc.html + d.sessions.map((s) => {
       const a = s.attempt;
       let btn = '';
       if (a.status === 'in_progress') btn = `<a class="btn brand" href="#/s/${esc(s.sessionId)}">${esc(t('continueQuiz'))}</a>`;
@@ -2154,7 +2164,7 @@
 
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
-    library: '案件匯入', libPending: '待審 DMS 範例', libCases: '待審 DMS 考題', bankTabQ: '變化題', bankTabCases: 'DMS 考題', libActive: '範例庫', libRequests: '申請匯入', reqTitle: '申請匯入 DMS 案件', reqHint: '貼上 DMS 的 Return ID，排程會自動讀取 DMS 資料。DMS 考題：整個案件直接當考題，完成後到「待審 DMS 考題」出題、核准，核准後就能考。DMS 範例：去識別化後到「待審 DMS 範例」初審，再到「題庫生成」做變化題（一次最多 30 筆）。兩個都勾，同一筆會兩種都做。',
+    library: '案件匯入', libPending: '待審 DMS 範例', libCases: '待審 DMS 考題', bankTabQ: '變化題', bankTabCases: 'DMS 考題', sessTabQ: '變化題測驗', sessTabCases: 'DMS 考題測驗', libActive: '範例庫', libRequests: '申請匯入', reqTitle: '申請匯入 DMS 案件', reqHint: '貼上 DMS 的 Return ID，排程會自動讀取 DMS 資料。DMS 考題：整個案件直接當考題，完成後到「待審 DMS 考題」出題、核准，核准後就能考。DMS 範例：去識別化後到「待審 DMS 範例」初審，再到「題庫生成」做變化題（一次最多 30 筆）。兩個都勾，同一筆會兩種都做。',
     reqUsage: '用途', reqUseCase: 'DMS 考題（原案件直接考）', reqUseSample: 'DMS 範例（AI 出變化題）', reqPickUsage: '請至少勾選一種用途', reqNoIds: '請輸入 Return ID',
     reqCaseOneHint: '勾選 DMS 考題時，一次申請一筆。', reqCaseOne: '勾選 DMS 考題時一次只能申請一筆 Return ID', reqPrevIds: '前幾次申退（選填）', reqPrevShort: '前幾次申退',
     reqPrevHint: '同一筆訂單之前申退的 Return ID，逗號分隔，最多 5 筆。專員作答時可以切換查看前一次申退的完整頁面。', reqCaseAdded: '已送出 DMS 考題申請 {id}',
@@ -2191,7 +2201,7 @@
     trHint2: '排程下次執行時翻好英文（聊聊、DRC、申退備註用 DMS 翻譯，其他用 LLM）', trSent: '已送翻譯，排程下次執行時會翻好英文並通知', trWaiting: '已送翻譯，等待排程翻譯英文；翻譯完成前不能修改內容。', trCancel: '取消送翻譯',
   });
   Object.assign(I18N.en, {
-    library: 'Case import', libPending: 'Pending DMS samples', libCases: 'Pending DMS questions', bankTabQ: 'Variants', bankTabCases: 'DMS questions', libActive: 'Library', libRequests: 'Import requests', reqTitle: 'Import DMS cases', reqHint: 'Paste DMS Return IDs; the scheduler reads the DMS data. DMS question: the whole case is asked as is; write questions and approve it under "Pending DMS questions", then it is ready to use. DMS sample: de-identified for review under "Pending DMS samples", then turned into variants in Generate (up to 30). Tick both to do both.',
+    library: 'Case import', libPending: 'Pending DMS samples', libCases: 'Pending DMS questions', bankTabQ: 'Variants', bankTabCases: 'DMS questions', sessTabQ: 'Variant quizzes', sessTabCases: 'DMS quizzes', libActive: 'Library', libRequests: 'Import requests', reqTitle: 'Import DMS cases', reqHint: 'Paste DMS Return IDs; the scheduler reads the DMS data. DMS question: the whole case is asked as is; write questions and approve it under "Pending DMS questions", then it is ready to use. DMS sample: de-identified for review under "Pending DMS samples", then turned into variants in Generate (up to 30). Tick both to do both.',
     reqUsage: 'Use', reqUseCase: 'DMS question (asked as is)', reqUseSample: 'DMS sample (AI variants)', reqPickUsage: 'Choose at least one use', reqNoIds: 'Enter a Return ID',
     reqCaseOneHint: 'DMS questions are requested one at a time.', reqCaseOne: 'Only one Return ID at a time for a DMS question', reqPrevIds: 'Previous returns (optional)', reqPrevShort: 'Previous',
     reqPrevHint: 'Earlier Return IDs of the same order, comma separated, up to 5. Agents can switch to view each previous return in full.', reqCaseAdded: 'DMS question request {id} submitted',
