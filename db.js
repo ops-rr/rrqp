@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18j';
+const VERSION = 'V2-2026-11-18k';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2504,7 +2504,7 @@ const EXAM = {
       if (mode === 'exam' && (body.meta || {}).usage !== 'exam') fail(ids[i] + ' 是練習用案件，不能放進考試 / is for practice only');
       (body.modules || []).forEach((md) => (md.images || []).forEach((r) => { if (/^v3img:/.test(r)) refs.add(r.slice(6)); }));
       pub.push({ caseId: ids[i], body: JSON.stringify(caseAgentView(body)) });
-      key.push({ caseId: ids[i], title: d.title || '', mods: xKeyMods(body.modules) });
+      key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], mods: xKeyMods(body.modules) });   // topics：AI 批改用主題的批改原則
     });
     const size = pub.reduce((n, c) => n + c.body.length, 0);
     if (size > 900000) fail('案件內容太多，超過一份試卷的上限，請減少案件 / Too much content for one quiz');
@@ -2550,7 +2550,7 @@ const EXAM = {
     const [atts, key, pub, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`)]);
     const roster = (s.assignees || []).map((email) => {
       const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
-      return Object.assign({ email }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {},
+      return Object.assign({ email }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {}, ai: (g && g.ai) || {},
         result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
     });
     return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] } };

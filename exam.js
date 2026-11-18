@@ -249,10 +249,12 @@
                 <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin:6px 0">${esc((a.short || {})[m.id] || '（沒作答）')}</div>
                 <div class="small soft">標準答案：${esc(m.standard)}</div>
                 ${canGrade ? `<div class="row" style="margin-top:6px">給分 <input class="sc" type="number" min="0" max="${m.points}" step="0.5" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}</div>`
-                  : (v !== undefined && v !== null ? `<div class="small">得分 ${v} / ${m.points}</div>` : '')}</div>`;
+                  : (v !== undefined && v !== null ? `<div class="small">得分 ${v} / ${m.points}</div>` : '')}
+                ${aiTip((r.ai || {})[i + ':' + m.id], m.points, canGrade)}</div>`;
             }).join('')}</div>
             <div>${window.RRQP_CASES.footprint(paper, r.track, i, a, kc)}</div></div></div>`;
       }).join('')}</div>`;
+    bindAiUse(box);
     const sv = $('#xSave', box);
     if (sv) sv.onclick = async () => {
       const scores = {};
@@ -333,12 +335,30 @@
       sub ? durTxt(r.secs) : '', sub ? r.leaves : '', sub ? r.leaveSecs : '', r.flags.join('；'), sub ? fmtDT(r.submittedAt) : ''];
   }
 
+  /** AI 建議分數（批改 X001 寫進 grades.ai）；講師按「採用」才填進給分欄 */
+  function aiTip(ai, max, canGrade) {
+    if (!ai) return '';
+    const low = Number(ai.confidence) < 0.7;
+    return `<div class="small" style="margin-top:6px;padding:6px 8px;border-radius:8px;background:${low ? '#fef3c7' : '#eef2ff'}">
+      🤖 AI 建議 <b>${ai.score} / ${max}</b>・信心度 ${Math.round(Number(ai.confidence) * 100)}%${low ? '（偏低，請細看）' : ''}　${esc(ai.reason || '')}
+      ${canGrade ? ` <button class="btn sm aiUse" type="button" data-v="${esc(ai.score)}" data-c="${esc(ai.confidence)}">採用</button>` : ''}</div>`;
+  }
+  function bindAiUse(box) {
+    $$('.aiUse', box).forEach((b) => b.addEventListener('click', () => {
+      const inp = b.closest('.xq').querySelector('input.sc');
+      if (inp) { inp.value = b.dataset.v; inp.dispatchEvent(new Event('input', { bubbles: true })); X.toast('已填入，記得按「儲存給分」'); }
+    }));
+  }
+
   /** 依題目：一題一題看所有人的回答；考試的簡答題可以一次給分 */
   function questionPanel(box, d, canGrade) {
     const LET = 'ABCDEFGH', done = d.roster.filter((r) => r.status === 'submitted');
     if (!done.length) { box.innerHTML = '<div class="card empty-state">還沒有人交卷</div>'; return; }
     box.innerHTML = `<div class="card pad"><div class="row"><h2>依題目${canGrade ? '批改' : '檢視'}</h2><span class="small muted">${done.length} 人交卷</span><span class="spacer"></span>
-        ${canGrade ? '<button class="btn brand" id="xSaveQ">儲存給分</button>' : ''}</div>
+        ${canGrade ? `<button class="btn" id="xCmd" title="貼到 SeaTalk 的 @RR AI Quiz Assistant">複製批改指令</button>
+          <span class="small">AI 信心度 ≥ <input id="xTh" type="number" min="0" max="1" step="0.05" value="0.85" style="width:64px"></span><button class="btn" id="xUseAll">全部採用</button>
+          <button class="btn brand" id="xSaveQ">儲存給分</button>` : ''}</div>
+      ${canGrade ? '<div class="small soft" style="margin-top:4px">AI 分數只是建議：採用後會填進給分欄，按「儲存給分」才算數。已經有分數的不會被覆蓋。</div>' : ''}
       ${(d.key.cases || []).map((kc, i) => kc.mods.map((m, qi) => {
         const head = `<h3 style="margin-top:18px">案件 ${i + 1}・第 ${qi + 1} 題（${m.type === 'mc' ? '單選' : '簡答'}，${m.points} 分）<span class="small soft mono"> ${esc(kc.caseId)}</span></h3><div><b>${esc(m.q)}</b></div>`;
         if (m.type === 'mc') {
@@ -350,8 +370,25 @@
           ${done.map((r) => { const v = (r.scores || {})[i + ':' + m.id]; return `<div class="xq"><div class="row"><b class="small">${esc(r.email)}</b><span class="spacer"></span>
             ${canGrade ? `給分 <input class="sc" type="number" min="0" max="${m.points}" step="0.5" data-e="${esc(r.email)}" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}`
               : (v !== null && v !== undefined ? `<span class="small">${v} / ${m.points}</span>` : '')}</div>
-            <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin-top:4px">${esc(((r.answers[i] || {}).short || {})[m.id] || '（沒作答）')}</div></div>`; }).join('')}`;
+            <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin-top:4px">${esc(((r.answers[i] || {}).short || {})[m.id] || '（沒作答）')}</div>
+            ${aiTip((r.ai || {})[i + ':' + m.id], m.points, canGrade)}</div>`; }).join('')}`;
       }).join('')).join('')}</div>`;
+    bindAiUse(box);
+    const cmd = $('#xCmd', box);
+    if (cmd) cmd.onclick = async () => {
+      const txt = '批改 ' + d.session.sessionId;
+      try { await navigator.clipboard.writeText(txt); X.toast(`已複製「${txt}」，貼到 SeaTalk 的 @RR AI Quiz Assistant`); } catch (e) { X.toast(txt); }
+    };
+    const all = $('#xUseAll', box);
+    if (all) all.onclick = () => {
+      const th = Number($('#xTh', box).value) || 0;
+      let n = 0;
+      $$('.aiUse', box).forEach((b) => {
+        const inp = b.closest('.xq').querySelector('input.sc');
+        if (inp && inp.value === '' && Number(b.dataset.c) >= th) { inp.value = b.dataset.v; n++; }
+      });
+      X.toast(n ? `已填入 ${n} 筆 AI 分數，確認後按「儲存給分」` : '沒有符合的 AI 分數（已有分數的不會覆蓋）');
+    };
     const sv = $('#xSaveQ', box);
     if (sv) sv.onclick = async () => {
       const scores = {};
