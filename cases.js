@@ -138,7 +138,8 @@
     CUR = { caseId: d.caseId, status: d.status, title: d.title, rev: d.rev, notes: d.notes, priv: d.private || {}, canEdit: d.canEdit, canDelete: d.canDelete,
       updatedAt: d.updatedAt, updatedBy: d.updatedBy, approvedBy: d.approvedBy, groups: d.groups || [], topics: d.topics || [], tags: d.tags || [] };
     C = d.case;
-    C.meta = Object.assign({ usage: 'practice', twOnly: true, timeLimit: 30, mask: { id: true, account: true } }, C.meta || {});
+    C.meta = Object.assign({ usage: 'practice', twOnly: true, mask: { id: true, account: true } }, C.meta || {});
+    delete C.meta.timeLimit;       // 作答時間改在組卷發佈時依整場設定（舊案件的欄位存檔時拿掉）
     C.meta.mask = Object.assign({ id: true, account: true }, C.meta.mask);
     ['groups', 'topics', 'tags'].forEach((k) => { if (!Array.isArray(C.meta[k])) C.meta[k] = []; });
     // Return ID、帳號只有 TW 講師讀得到（存在 private）；其他講師看到 ***
@@ -264,7 +265,6 @@
       <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
         <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
         <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
-      <label>時間限制 <input type="number" min="1" max="240" style="width:70px" value="${esc(m.timeLimit)}" onchange="CQ.setMeta('timeLimit',+this.value)"> 分</label>
       <label><input type="checkbox" ${m.twOnly ? 'checked' : ''} onchange="CQ.setMeta('twOnly',this.checked)"> 只限 TW（不送翻譯）</label>
       <label><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號（User ID、Shop ID、物流單號、Transaction ID）</label>
       <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
