@@ -74,6 +74,7 @@ function memoryStore() {
   // 和 Firestore 一樣不收 undefined（本機預覽就能抓到這類錯誤）
   const noUndef = (v, path) => {
     if (v === undefined) throw new Error('Unsupported field value: undefined (found in document ' + path + ')');
+    if (Array.isArray(v) && v.some((x) => Array.isArray(x))) throw new Error('Nested arrays are not supported (found in document ' + path + ')');
     if (v && typeof v === 'object' && v !== DEL) Object.values(v).forEach((x) => noUndef(x, path));
   };
   const apply = (o) => {
@@ -112,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18f';
+const VERSION = 'V2-2026-11-18g';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2463,7 +2464,9 @@ const xAnswersIn = (v, n) => {
   }
   return out;
 };
-const xTrackIn = (t) => { const s = JSON.stringify(t || {}); if (s.length > 200000) fail('作答紀錄太大 / Track data too large'); return JSON.parse(s); };
+// 足跡存成 JSON 字串：裡面有二維陣列（離開頁面 [時間點, 秒]），Firestore 不能直接存
+const xTrackIn = (t) => { const s = JSON.stringify(t || {}); if (s.length > 200000) fail('作答紀錄太大 / Track data too large'); return s; };
+const xTrackOut = (v) => { if (!v) return null; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (_) { return null; } };
 
 const EXAM = {
   /** 案件挑選時：這些專員做過哪些案件（以曾被指派計） */
@@ -2545,7 +2548,7 @@ const EXAM = {
     const [atts, key, pub, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`)]);
     const roster = (s.assignees || []).map((email) => {
       const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
-      return Object.assign({ email }, attemptOut(s, a, t), { answers: (a && a.answers) || {}, track: (a && a.track) || null, scores: (g && g.scores) || {},
+      return Object.assign({ email }, attemptOut(s, a, t), { answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {},
         result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
     });
     return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] } };
@@ -2627,7 +2630,7 @@ const EXAM = {
     const [sid, s] = await xSessionDoc(b.sessionId); requireAssigned(s, m);
     const t = now(), a = await S.get(`v3sessions/${sid}/attempts/${m.email}`), att = attemptOut(s, a, t);
     const out = { serverNow: t, session: xSessionOut(sid, s, t), attempt: att, graceMin: s.graceMin || GRACE_MIN };
-    if (att.status === 'in_progress') Object.assign(out, { paper: (await S.get(`v3sessions/${sid}/paper/public`)) || { cases: [] }, answers: a.answers || {}, track: a.track || null });
+    if (att.status === 'in_progress') Object.assign(out, { paper: (await S.get(`v3sessions/${sid}/paper/public`)) || { cases: [] }, answers: a.answers || {}, track: xTrackOut(a.track) || null });
     return out;
   },
 
@@ -2640,7 +2643,7 @@ const EXAM = {
       const st = sessionState(s, now());
       if (st === 'scheduled') fail('測驗尚未開始 / The quiz has not started yet');
       if (st !== 'open') fail('測驗已結束 / The quiz has ended');
-      await S.set(path, { email: m.email, startedAt: S.serverTime(), submittedAt: null, answers: {}, autoSubmitted: false, track: {}, savedAt: S.serverTime() });
+      await S.set(path, { email: m.email, startedAt: S.serverTime(), submittedAt: null, answers: {}, autoSubmitted: false, track: '', savedAt: S.serverTime() });
     }
     return ACTIONS.x_open(b);
   },
