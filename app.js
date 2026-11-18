@@ -191,7 +191,7 @@
 
   // ───────── router ─────────
   /** 給 cases.js 用的共用工具（V3 DMS 考題的畫面在另一個檔案） */
-  const caseCtx = () => ({ me, api, shell, toast, confirmBox, DB, showError: (e, el) => showError(e, el),
+  const caseCtx = () => ({ me, api, shell, toast, confirmBox, DB, downloadCsv, showError: (e, el) => showError(e, el),
     setLeaveGuard: (fn) => { leaveGuard = fn; }, setLive: (off) => { if (liveOff) liveOff(); liveOff = off; } });
   let pollTimer = null;
   let liveOff = null;   // 即時監聽的取消函式（換頁時取消）
@@ -223,6 +223,7 @@
     if (me.isTeacher && page === 'bank') return viewBank();
     if (me.isTeacher && page === 'grading' && arg) return viewGrading(decodeURIComponent(arg));
     if (me.isTeacher && page === 'grading') return viewGradingList();
+    if (me.isTeacher && page === 'xresults' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.results(decodeURIComponent(arg), caseCtx());   // V3 DMS 考題測驗的成績
     if (me.isTeacher && page === 'results' && arg) return viewSessionResults(decodeURIComponent(arg));
     if (me.isTeacher && page === 'results') return viewResults();
     if (me.isTeacher && page === 'agent' && arg) return viewAgentHistory(decodeURIComponent(arg));
@@ -1538,7 +1539,8 @@
   const isText = (t) => t === 'B' || t === 'C';
 
   async function viewGradingList() {
-    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1></div><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div>`);
+    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1></div><h2 style="margin:6px 0 8px">變化題測驗</h2><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div><div id="xgl"></div>`);
+    if (window.RRQP_EXAM) window.RRQP_EXAM.gradingList($('#xgl'), caseCtx());     // V3 DMS 考題測驗
     let showArch = false;
     async function load() { try {
       const { sessions, archivedCount } = await api('t_listSessions', { includeArchived: showArch });
@@ -1746,10 +1748,11 @@
     const tab = params.get('tab') === 'agent' ? 'agent' : 'session';
     const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1></div>
       <div class="tabs"><a class="tab ${tab === 'session' ? 'on' : ''}" href="#/results">${esc(t('bySession'))}</a><a class="tab ${tab === 'agent' ? 'on' : ''}" href="#/results?tab=agent">${esc(t('byAgent'))}</a></div>
-      <div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div>`);
-    let d;
-    try { d = await api('t_resultsIndex'); } catch (e) { showError(e, $('#rl')); return; }
+      ${tab === 'session' ? '<h2 style="margin:6px 0 8px">變化題測驗</h2>' : ''}<div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div><div id="xrl"></div>`);
+    let d, x;
+    try { [d, x] = await Promise.all([api('t_resultsIndex'), window.RRQP_EXAM ? api('x_resultsIndex') : { sessions: [], rows: [] }]); } catch (e) { showError(e, $('#rl')); return; }
     if (tab === 'session') {
+      if (window.RRQP_EXAM) window.RRQP_EXAM.resultsSessions($('#xrl'), x);      // V3 DMS 考題測驗
       if (!d.sessions.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noResults'))}</div>`; return; }
       $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th><th>${esc(t('belowLine', { n: d.coachLine }))}</th><th></th></tr></thead><tbody>${
         d.sessions.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}${s.parentSession ? `<div class="small soft">${esc(t('makeupOf', { id: s.parentSession }))}</div>` : ''}<div class="small soft">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</div></td>
@@ -1757,12 +1760,42 @@
           <td>${s.coaching ? `<span class="chip warn">${s.coaching}</span>` : '0'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
       $$('[data-open]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/results/' + r.dataset.open; }));
     } else {
-      if (!d.agents.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noAgents'))}</div>`; return; }
-      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colAgent'))}</th><th>${esc(t('colTaken'))}</th><th>${esc(t('colAvg'))}</th><th>${esc(t('colCoach'))}</th><th>${esc(t('colLast'))}</th><th></th></tr></thead><tbody>${
-        d.agents.map((a) => `<tr class="click" data-email="${esc(a.email)}"><td>${esc(a.email)}</td><td>${a.taken}</td><td><b>${r2(a.avg)}</b>${a.avg < d.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}</td>
-          <td>${a.coaching || 0}</td><td class="small">${a.last ? `${esc(L(a.last.title))} · <b>${r2(a.last.score)}</b>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('history'))}</button></td></tr>`).join('')}</tbody></table>`;
+      // 依專員：變化題＋DMS 考題（考試看百分比、練習看單選答對率）
+      const xa = {};
+      x.rows.filter((r) => r.status === 'submitted').forEach((r) => {
+        const o = xa[r.email] || (xa[r.email] = { exam: [], prac: [], coaching: 0 });
+        if (r.mode === 'practice') { if (r.mcRate !== null) o.prac.push(r.mcRate); } else if (r.pct !== null) { o.exam.push(r.pct); if (r.coaching) o.coaching++; }
+      });
+      const emails = [...new Set(d.agents.map((a) => a.email).concat(Object.keys(xa)))];
+      const avg = (l) => (l.length ? l.reduce((n, v) => n + v, 0) / l.length : null);
+      const list = emails.map((email) => ({ email, v2: d.agents.find((a) => a.email === email), x: xa[email] || { exam: [], prac: [], coaching: 0 } }))
+        .sort((a, b) => (a.v2 ? a.v2.avg : 999) - (b.v2 ? b.v2.avg : 999) || (avg(a.x.exam) ?? 999) - (avg(b.x.exam) ?? 999));
+      if (!list.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noAgents'))}</div>`; return; }
+      $('#rl').innerHTML = `<div class="row" style="padding:10px 14px"><span class="small soft">每位專員每一場一列；可以作為訪談依據</span><span class="spacer"></span><button class="btn" id="aCsv">匯出全部專員 CSV</button></div>
+        <table class="list"><thead><tr><th>${esc(t('colAgent'))}</th><th>變化題（次數・平均）</th><th>DMS 考題（次數・平均）</th><th>DMS 練習（次數・單選答對）</th><th>${esc(t('colCoach'))}</th><th>${esc(t('colLast'))}</th><th></th></tr></thead><tbody>${
+        list.map(({ email, v2: a, x: o }) => { const xe = avg(o.exam), xp = avg(o.prac); return `<tr class="click" data-email="${esc(email)}"><td>${esc(email)}</td>
+          <td>${a ? `${a.taken} 次・<b>${r2(a.avg)}</b>${a.avg < d.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}` : '<span class="soft">-</span>'}</td>
+          <td>${o.exam.length ? `${o.exam.length} 次・<b>${Math.round(xe * 10) / 10}%</b>${xe < x.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}` : '<span class="soft">-</span>'}</td>
+          <td>${o.prac.length ? `${o.prac.length} 次・<b>${Math.round(xp * 100)}%</b>` : '<span class="soft">-</span>'}</td>
+          <td>${((a && a.coaching) || 0) + o.coaching}</td><td class="small">${a && a.last ? `${esc(L(a.last.title))} · <b>${r2(a.last.score)}</b>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('history'))}</button></td></tr>`; }).join('')}</tbody></table>`;
       $$('[data-email]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/agent/' + encodeURIComponent(r.dataset.email); }));
+      $('#aCsv').onclick = () => downloadCsv(`agents_results_${new Date().toISOString().slice(0, 10)}.csv`, agentCsv(d.rows, x.rows));
     }
+  }
+
+  // 專員維度匯出：一列＝某位專員的某一場（變化題＋DMS 考題，依專員、時間排序）
+  const ATT_TXT = { not_started: '未開始', in_progress: '作答中', submitted: '已交卷', expired: '逾時未交' };
+  function v2CsvRow(r) {
+    const sub = r.status === 'submitted';
+    return [r.email, r.sessionId, L(r.title), '變化題', '考試', fmtDT(r.startAt), ATT_TXT[r.status === 'not_started' && r.state && r.state !== 'open' ? 'expired' : r.status] || r.status, sub ? r.score : '', sub ? r.total : '',
+      sub && r.total ? r2((r.score / r.total) * 100) : '', '', r.coaching ? 'Y' : '',
+      r.wrong.map((w) => 'Q' + String(w.seq).padStart(2, '0') + (w.partial ? '（部分）' : '') + (w.point ? ' ' + L(w.point) : '')).join('、'), '', '', '', '', sub ? fmtDT(r.submittedAt) : ''];
+  }
+  function agentCsv(v2rows, xrows) {
+    const E = window.RRQP_EXAM;
+    const all = (v2rows || []).map((r) => ({ email: r.email, at: r.startAt, row: v2CsvRow(r) })).concat((E ? xrows || [] : []).map((r) => ({ email: r.email, at: r.startAt, row: E.csvRow(r) })));
+    all.sort((a, b) => a.email.localeCompare(b.email) || a.at - b.at);
+    return [E ? E.CSV_HEAD : ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間']].concat(all.map((x) => x.row));
   }
 
   async function viewSessionResults(id) {
@@ -1808,9 +1841,21 @@
   async function viewAgentHistory(email) {
     const main = shell('results', `<div class="empty-state"><span class="spin"></span></div>`);
     let d;
-    try { d = await api('t_agentHistory', { email }); } catch (e) { showError(e); return; }
-    main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1></div>
-      <div class="timeline">${d.items.map((it) => {
+    let xh = { items: [] };
+    try { [d, xh] = await Promise.all([api('t_agentHistory', { email }), window.RRQP_EXAM ? api('x_agentHistory', { email }) : xh]); } catch (e) { showError(e); return; }
+    const all = d.items.map((it) => Object.assign({ at: it.session.startAt }, it)).concat(xh.items.map((it) => ({ at: it.session.startAt, x: true, session: it.session, row: it.row }))).sort((a, b) => a.at - b.at);
+    const xCard = (it) => {   // V3 DMS 考題（練習也列入，當作學習歷程）
+      const r = it.row || { status: 'not_started', flags: [], wrong: [] }, s = it.session, prac = s.mode === 'practice', sub = r.status === 'submitted';
+      return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span><span class="chip brand">DMS 考題</span><span class="chip">${prac ? '練習' : '考試'}</span>${sessChip(s.state)}</div>
+        <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(s.title)}</h2><span class="spacer"></span>
+          ${!sub ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : prac ? `<span class="tlscore ${r.mcRate !== null && r.mcRate * 100 < (xh.coachLine || 70) ? 'low' : ''}">${r.mcRate === null ? '-' : Math.round(r.mcRate * 100) + '%'}</span>` : `<span class="tlscore ${r.coaching ? 'low' : ''}">${r.score} / ${r.total}</span>`}</div>
+        ${sub && r.wrong.length ? `<div class="small" style="margin-top:6px"><span class="soft">${prac ? '單選錯的題目' : esc(t('wrongPoints'))}：</span>${r.wrong.map((w) => `<span class="chip warn" style="margin:2px">${esc(w.label)}${w.pending ? '（待給分）' : w.partial ? '（部分）' : ''}</span>`).join('')}</div>` : ''}
+        ${sub && r.flags.length ? `<div class="small" style="margin-top:6px;color:#b45309">⚠ ${r.flags.map(esc).join('；')}</div>` : ''}
+        ${sub ? `<div style="margin-top:8px"><a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(d.email)}">${esc(t('detail'))}</a> <a class="small" href="#/xresults/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
+    };
+    main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1><span class="spacer"></span><button class="btn" id="hCsv">匯出 CSV</button></div>
+      <div class="timeline">${all.map((it) => {
+        if (it.x) return xCard(it);
         const r = it.row, s = it.session;
         const pts = r && r.wrong ? [...new Set(r.wrong.map((w) => L(w.point)).filter(Boolean))] : [];
         return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}</div>
@@ -1820,6 +1865,9 @@
           ${r && r.score !== null ? `<div style="margin-top:8px"><button class="btn sm" data-det="${esc(s.sessionId)}">${esc(t('detail'))}</button> <a class="small" href="#/results/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
       }).join('')}</div>`;
     $$('[data-det]').forEach((b) => b.addEventListener('click', () => attemptModal(b.dataset.det, d.email)));
+    $('#hCsv').onclick = () => downloadCsv(`${d.email.split('@')[0]}_history.csv`, agentCsv(
+      d.items.filter((it) => it.row).map((it) => Object.assign({ sessionId: it.session.sessionId, title: it.session.title, startAt: it.session.startAt, state: it.session.state }, it.row)),
+      xh.items.filter((it) => it.row).map((it) => Object.assign({ sessionId: it.session.sessionId, title: it.session.title, mode: it.session.mode, startAt: it.session.startAt }, it.row))));
   }
 
   async function attemptModal(sid, email) {

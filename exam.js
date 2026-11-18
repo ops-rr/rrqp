@@ -137,7 +137,8 @@
   async function session(id, ctx) {
     X = ctx;
     const main = X.shell('sessions', '<div class="empty-state"><span class="spin"></span></div>');
-    const want = new URLSearchParams(location.hash.split('?')[1] || '').get('agent') || '';
+    const qp = new URLSearchParams(location.hash.split('?')[1] || '');
+    const want = qp.get('agent') || '', byQ = qp.get('view') === 'q';
     let d;
     try { d = await X.api('x_get', { sessionId: id }); } catch (e) { X.showError(e, main); return; }
     const s = d.session, sub = d.roster.filter((r) => r.status === 'submitted').length;
@@ -157,7 +158,9 @@
         <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・${s.points} 分</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div></div>
       </div>
-      <div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>${exam ? '成績' : '單選題'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
+      <div class="tabs"><a class="tab ${byQ ? '' : 'on'}" href="#/xsession/${esc(s.sessionId)}">依專員</a><a class="tab ${byQ ? 'on' : ''}" href="#/xsession/${esc(s.sessionId)}?view=q">依題目${exam ? '批改' : '檢視'}</a>
+        <a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
+      <div class="card scroll-x" ${byQ ? 'hidden' : ''}><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>${exam ? '成績' : '單選題'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
         ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
           <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
@@ -216,6 +219,7 @@
       if (!(await X.confirmBox(`把 ${b.dataset.rm} 從這場測驗移除？`, '移除', undefined, true))) return;
       try { await X.api('x_removeAssignee', { sessionId: s.sessionId, email: b.dataset.rm }); X.toast('已移除'); session(id, ctx); } catch (e) { X.toast(e.message, 5000); }
     }));
+    if (byQ) return questionPanel($('#xAgent'), d, exam && !s.released);
     const r = d.roster.find((x) => x.email === want);
     if (r) agentPanel($('#xAgent'), d, r, exam && !s.released);
   }
@@ -258,6 +262,105 @@
       catch (e) { X.toast(e.message, 5000); sv.disabled = false; }
     };
     box.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ═════════════════════════════ 閱卷發佈、歷史成績 ═════════════════════════════
+  const pctTxt = (v) => (v === null || v === undefined ? '-' : `${Math.round(v * 10) / 10}%`);
+  const rateTxt = (v) => (v === null || v === undefined ? '-' : `${Math.round(v * 100)}%`);
+  const durTxt = (s) => `${Math.floor((s || 0) / 60)}:${String((s || 0) % 60).padStart(2, '0')}`;
+
+  /** 閱卷發佈：已結束的 DMS 考題測驗 */
+  async function gradingList(box, ctx) {
+    X = ctx;
+    let d;
+    try { d = await X.api('x_list'); } catch (e) { X.showError(e, box); return; }
+    const list = d.sessions.filter((s) => s.state === 'closed' || s.state === 'released');
+    box.innerHTML = `<h2 style="margin:18px 0 8px">DMS 考題測驗</h2>${!list.length ? '<div class="card empty-state">還沒有已結束的 DMS 考題測驗</div>' : `<div class="card scroll-x"><table class="list"><thead><tr><th>測驗</th><th>類型</th><th>開放時間</th><th>交卷</th><th>狀態</th></tr></thead><tbody>
+      ${list.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}</td><td class="small">${MODE(s)}</td>
+        <td class="small">${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</td><td class="small">${s.submitted} / ${s.assigned}</td><td>${stChip(s.state)}</td></tr>`).join('')}</tbody></table></div>`}`;
+    $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xsession/' + tr.dataset.x; }));
+  }
+
+  /** 歷史成績・依測驗：DMS 考題測驗的摘要（d＝x_resultsIndex 的結果） */
+  function resultsSessions(box, d) {
+    box.innerHTML = `<h2 style="margin:18px 0 8px">DMS 考題測驗</h2>${!d.sessions.length ? '<div class="card empty-state">還沒有 DMS 考題測驗的成績</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
+      <th>測驗</th><th>類型</th><th>狀態</th><th>交卷</th><th>平均（百分比）</th><th>低於 ${d.coachLine}%</th><th>需要留意</th></tr></thead><tbody>
+      ${d.sessions.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}<div class="small soft">${fmtDT(s.startAt)}</div></td>
+        <td class="small">${MODE(s)}</td><td>${stChip(s.state)}</td><td class="small">${s.submitted} / ${s.assigned}</td>
+        <td><b>${s.mode === 'practice' ? `單選答對 ${rateTxt(s.mcRate)}` : pctTxt(s.avg)}</b></td>
+        <td>${s.mode === 'practice' ? '-' : s.coaching ? `<span class="chip warn">${s.coaching}</span>` : '0'}</td><td>${s.flagged ? `<span class="chip warn">${s.flagged} 人</span>` : '0'}</td></tr>`).join('')}</tbody></table></div>`}`;
+    $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xresults/' + tr.dataset.x; }));
+  }
+
+  /** 單場成績：每題答對率、名單（分數、錯在哪、足跡摘要）、匯出 CSV */
+  async function results(id, ctx) {
+    X = ctx;
+    const main = X.shell('results', '<div class="empty-state"><span class="spin"></span></div>');
+    let d;
+    try { d = await X.api('x_results', { sessionId: id }); } catch (e) { X.showError(e, main); return; }
+    const s = d.session, st = d.stats, practice = s.mode === 'practice';
+    const rows = d.rows.slice().sort((a, b) => (a.pct === null ? -1 : b.pct === null ? 1 : a.pct - b.pct));
+    main.innerHTML = `<div class="row"><a href="#/results">← 歷史成績</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}<span class="spacer"></span>
+        <a class="btn" href="#/xsession/${esc(s.sessionId)}" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
+      ${!practice && !s.released ? `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}">前往批改 →</a></div>` : ''}
+      <div class="stats five">
+        <div class="card pad"><div class="small soft">${practice ? '單選題平均答對率' : '平均（百分比）'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
+        <div class="card pad"><div class="small soft">交卷</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
+        <div class="card pad"><div class="small soft">低於 ${d.coachLine}%</div><div class="big" style="color:${st.coaching ? 'var(--err)' : 'inherit'}">${practice ? '-' : st.coaching + ' 人'}</div></div>
+        <div class="card pad"><div class="small soft">需要留意</div><div class="big">${st.flagged} 人</div></div>
+        <div class="card pad"><div class="small soft">中位數・最高／最低</div><div class="big">${practice ? '-' : pctTxt(st.median)}</div><div class="small soft">${practice || st.max === null ? '' : pctTxt(st.max) + ' / ' + pctTxt(st.min)}</div></div>
+      </div>
+      <div class="card pad"><h2>每題答對率</h2><div class="rates">${d.questions.map((q) => `<div class="rate" title="${esc(q.q)}"><div class="rbar"><i style="height:${q.rate === null ? 0 : Math.round(q.rate * 100)}%;background:${q.rate === null ? '#ccc' : q.rate >= 0.8 ? '#16a34a' : q.rate >= 0.5 ? '#d97706' : '#dc2626'}"></i></div>
+        <b>${q.rate === null ? '-' : Math.round(q.rate * 100) + '%'}</b><span>案件${q.caseNo}-${q.no} ${q.type === 'mc' ? '單選' : '簡答'}</span></div>`).join('')}</div>
+        <div class="small soft">簡答題以已給分的人計算平均得分率；滑過長條可以看題目。</div></div>
+      <div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>${practice ? '單選答對率' : '分數'}</th><th>錯在哪</th><th>作答時間</th><th>離開頁面</th><th>需要留意</th><th></th></tr></thead><tbody>
+        ${rows.map((r) => `<tr><td>${esc(r.email)}${r.extraMin ? ` <span class="chip">加時 ${r.extraMin} 分</span>` : ''}</td>
+          <td>${r.status !== 'submitted' ? atChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : practice ? `<b>${rateTxt(r.mcRate)}</b>` : `<b style="font-size:18px">${r.score}</b> / ${r.total}<div class="small soft">${pctTxt(r.pct)}${r.pending ? `・${r.pending} 題待給分` : ''}</div>`}</td>
+          <td class="small">${r.wrong.map((w) => esc(w.label) + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、') || (r.status === 'submitted' ? '—' : '')}</td>
+          <td class="small">${r.status === 'submitted' ? durTxt(r.secs) : ''}</td><td class="small">${r.status === 'submitted' ? (r.leaves ? `${r.leaves} 次（${durTxt(r.leaveSecs)}）` : '0') : ''}</td>
+          <td class="small">${r.flags.length ? `<span class="chip warn" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
+          <td style="text-align:right;white-space:nowrap">${r.coaching ? '<span class="chip warn">需輔導</span> ' : ''}${r.status === 'submitted' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">明細</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#xCsv').onclick = () => X.downloadCsv(`${s.sessionId}_results.csv`, [CSV_HEAD].concat(rows.map((r) => csvRow(Object.assign({ sessionId: s.sessionId, title: s.title, mode: s.mode, startAt: s.startAt }, r)))));
+  }
+
+  // 專員維度匯出（和 app.js 的變化題列合併）：一列＝某位專員的某一場
+  const CSV_HEAD = ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間'];
+  function csvRow(r) {
+    const sub = r.status === 'submitted';
+    return [r.email, r.sessionId, r.title, 'DMS 考題', r.mode === 'practice' ? '練習' : '考試', fmtDT(r.startAt), ATT[r.status] || r.status,
+      sub && r.score !== null ? r.score : '', sub && r.total !== null ? r.total : '', sub && r.pct !== null ? r.pct : '', sub && r.mcRate !== null ? Math.round(r.mcRate * 100) + '%' : '',
+      r.coaching ? 'Y' : '', r.wrong.map((w) => w.label + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、'),
+      sub ? durTxt(r.secs) : '', sub ? r.leaves : '', sub ? r.leaveSecs : '', r.flags.join('；'), sub ? fmtDT(r.submittedAt) : ''];
+  }
+
+  /** 依題目：一題一題看所有人的回答；考試的簡答題可以一次給分 */
+  function questionPanel(box, d, canGrade) {
+    const LET = 'ABCDEFGH', done = d.roster.filter((r) => r.status === 'submitted');
+    if (!done.length) { box.innerHTML = '<div class="card empty-state">還沒有人交卷</div>'; return; }
+    box.innerHTML = `<div class="card pad"><div class="row"><h2>依題目${canGrade ? '批改' : '檢視'}</h2><span class="small muted">${done.length} 人交卷</span><span class="spacer"></span>
+        ${canGrade ? '<button class="btn brand" id="xSaveQ">儲存給分</button>' : ''}</div>
+      ${(d.key.cases || []).map((kc, i) => kc.mods.map((m, qi) => {
+        const head = `<h3 style="margin-top:18px">案件 ${i + 1}・第 ${qi + 1} 題（${m.type === 'mc' ? '單選' : '簡答'}，${m.points} 分）<span class="small soft mono"> ${esc(kc.caseId)}</span></h3><div><b>${esc(m.q)}</b></div>`;
+        if (m.type === 'mc') {
+          const cnt = m.options.map((_, oi) => done.filter((r) => ((r.answers[i] || {}).mc || {})[m.id] === oi).length);
+          return head + `<div class="small" style="margin-top:6px">${m.options.map((o, oi) => `<div class="${oi === m.answer ? 'ok' : ''}" style="padding:2px 0">${LET[oi]}. ${esc(o)}${oi === m.answer ? '（正解）' : ''}　<b>${cnt[oi]}</b> 人</div>`).join('')}
+            <div class="soft">沒作答 ${done.length - cnt.reduce((n, v) => n + v, 0)} 人</div></div>`;
+        }
+        return head + `<div class="small soft" style="margin:4px 0 6px">標準答案：${esc(m.standard)}</div>
+          ${done.map((r) => { const v = (r.scores || {})[i + ':' + m.id]; return `<div class="xq"><div class="row"><b class="small">${esc(r.email)}</b><span class="spacer"></span>
+            ${canGrade ? `給分 <input class="sc" type="number" min="0" max="${m.points}" step="0.5" data-e="${esc(r.email)}" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}`
+              : (v !== null && v !== undefined ? `<span class="small">${v} / ${m.points}</span>` : '')}</div>
+            <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin-top:4px">${esc(((r.answers[i] || {}).short || {})[m.id] || '（沒作答）')}</div></div>`; }).join('')}`;
+      }).join('')).join('')}</div>`;
+    const sv = $('#xSaveQ', box);
+    if (sv) sv.onclick = async () => {
+      const scores = {};
+      $$('input.sc', box).forEach((x) => { (scores[x.dataset.e] || (scores[x.dataset.e] = {}))[x.dataset.k] = x.value === '' ? null : Number(x.value); });
+      sv.disabled = true;
+      try { const r = await X.api('x_gradeMany', { sessionId: d.session.sessionId, scores }); X.toast(`已儲存 ${r.saved} 位專員的給分`); }
+      catch (e) { X.toast(e.message, 5000); }
+      sv.disabled = false;
+    };
   }
 
   // ═════════════════════════════ 專員：我的測驗卡片、入口 ═════════════════════════════
@@ -303,5 +406,5 @@
     };
   }
 
-  window.RRQP_EXAM = { sessions, session, cards, entry };
+  window.RRQP_EXAM = { sessions, session, cards, entry, gradingList, resultsSessions, results, CSV_HEAD, csvRow };
 })();

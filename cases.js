@@ -1249,24 +1249,12 @@
     vids.filter((v) => !md[v.key]).forEach((v) => { notOpen[v.where] = (notOpen[v.where] || 0) + 1; });
     const vidRows = vids.filter((v) => md[v.key]).map((v) => { const m = md[v.key]; return `<li>${esc(v.where)}：${m[1] >= 80 ? `看完（${m[1]}%）` : `看了 ${m[1]}%`}</li>`; }).join('')
       + (Object.keys(notOpen).length ? `<li class="soft">沒打開：${Object.entries(notOpen).map(([w, n]) => `${esc(w)} ${n} 段`).join('、')}</li>` : '');
-    // 需要留意
-    const flags = [], keys = ((keyCase && keyCase.mods) || []).map((m) => i + ':' + m.id);
-    const mcs = ((keyCase && keyCase.mods) || []).filter((m) => m.type === 'mc');
-    const allRight = mcs.length && mcs.every((m) => ((ans || {}).mc || {})[m.id] === m.answer);
-    const seenBlocks = Object.values(b).filter((x) => x >= 2).length + Object.values(sTab).filter((x) => x >= 2).length - (sTab.quiz >= 2 ? 1 : 0);
-    if ((t.t || 0) < 60 && Object.keys((ans || {}).mc || {}).length) flags.push(`這個案件只看了 ${t.t || 0} 秒就作答`);
-    if (allRight && seenBlocks <= 2 && !Object.keys(md).length) flags.push(`單選題全對，但只看了 ${seenBlocks} 個區塊、沒有打開照片或影片`);
-    (track && track.lv || []).forEach(([at, dur]) => {
-      if (dur < 20) return;
-      const back = at + dur;
-      if (keys.some((k) => ((track.ed || {})[k] || []).some((x) => x >= back && x <= back + 30))) flags.push(`離開頁面 ${fmtS(dur)} 後回來，30 秒內作答`);
-    });
-    keys.forEach((k) => { const p = (track && track.ps || {})[k]; if (p && p[1] >= 30) flags.push(`簡答題貼上 ${p[1]} 字（${p[0]} 次）`); });
+    const flags = window.RRQP_DB && window.RRQP_DB.xFlags ? window.RRQP_DB.xFlags(track, i, ans, keyCase) : [];   // 需要留意（和成績頁、匯出共用）
     return `<div class="fp">
       <div class="fpm"><div><b>${fmtS(t.t || 0)}</b><span>這個案件花的時間</span></div>
         <div><b>${imgs.filter(opened).length} / ${imgs.length}</b><span>照片打開</span></div>
         <div><b>${vids.filter(opened).length} / ${vids.length}</b><span>影片打開</span></div></div>
-      ${flags.length ? `<div class="fpflag">⚠ 需要留意：${[...new Set(flags)].map(esc).join('；')}</div>` : ''}
+      ${flags.length ? `<div class="fpflag">⚠ 需要留意：${flags.map(esc).join('；')}</div>` : ''}
       <div class="fpl">中間的 DMS 區塊</div><div class="fpr">${blocks}</div>
       <div class="fpl">右側分頁</div><div class="fpr">${tabs}</div>
       ${vids.length ? `<div class="fpl">影片</div><ul class="fpv">${vidRows}</ul>` : ''}</div>`;

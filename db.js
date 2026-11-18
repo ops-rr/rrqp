@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18i';
+const VERSION = 'V2-2026-11-18j';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1882,7 +1882,7 @@ function sessionResults(sid, s, qs, atts, g, line) {
     if (st.status !== 'submitted') return { email, status: st.status, score: null, wrong: [] };
     const per = qs.map((q) => { const r = rows.find((x) => x.email === email && x.qid === q.qid) || {}; return { q, got: r2(rowScore(r)), max: qMax(q) }; });
     const score = r2(per.reduce((n, x) => n + x.got, 0));
-    return { email, status: 'submitted', score, coaching: score < line, autoSubmitted: st.autoSubmitted, startedAt: st.startedAt, submittedAt: st.submittedAt,
+    return { email, status: 'submitted', score, total: r2(per.reduce((n, x) => n + x.max, 0)), coaching: score < line, autoSubmitted: st.autoSubmitted, startedAt: st.startedAt, submittedAt: st.submittedAt,
       wrong: per.filter((x) => x.got < x.max - 1e-9).map((x) => ({ seq: x.q.seq, partial: x.got > 0, point: x.q.point || null })) };
   });
   const done = out.filter((r) => r.status === 'submitted'), scores = done.map((r) => r.score).sort((a, b) => a - b);
@@ -1913,7 +1913,9 @@ const M6 = {
       if (!a.last || x.submittedAt > a.last.submittedAt) a.last = { sessionId: r.session.sessionId, title: r.session.title, score: x.score, submittedAt: x.submittedAt };
     }));
     return { coachLine: line, sessions: list.map((r) => Object.assign({}, r.session, r.stats)).reverse(),
-      agents: Object.values(agents).map((a) => ({ email: a.email, taken: a.taken, avg: r2(a.total / a.taken), coaching: a.coaching, last: a.last })).sort((a, b) => a.avg - b.avg) };
+      agents: Object.values(agents).map((a) => ({ email: a.email, taken: a.taken, avg: r2(a.total / a.taken), coaching: a.coaching, last: a.last })).sort((a, b) => a.avg - b.avg),
+      // 依專員匯出用：所有作答列（含錯題）
+      rows: list.flatMap((r) => r.rows.map((x) => Object.assign({ sessionId: r.session.sessionId, title: r.session.title, startAt: r.session.startAt, state: r.session.state }, x))) };
   },
 
   t_results: async (b) => { await needTeacher(); const [sid] = await sessionDoc(b.sessionId); return resultsOf(sid); },
@@ -2783,6 +2785,100 @@ const EXAM = {
 };
 Object.assign(ACTIONS, EXAM);
 
+/** 足跡的「需要留意」：講師的足跡卡、成績頁、匯出共用 */
+function xFlags(track, i, ans, keyCase) {
+  const t = (track && track.c && track.c[i]) || {}, b = t.b || {}, sTab = t.s || {}, md = t.m || {};
+  const flags = [], mods = (keyCase && keyCase.mods) || [], keys = mods.map((m) => i + ':' + m.id);
+  const mcs = mods.filter((m) => m.type === 'mc');
+  const allRight = mcs.length && mcs.every((m) => ((ans || {}).mc || {})[m.id] === m.answer);
+  const seen = Object.values(b).filter((x) => x >= 2).length + Object.entries(sTab).filter(([k, x]) => k !== 'quiz' && x >= 2).length;
+  if ((t.t || 0) < 60 && Object.keys((ans || {}).mc || {}).length) flags.push(`這個案件只看了 ${t.t || 0} 秒就作答`);
+  if (allRight && seen <= 2 && !Object.keys(md).length) flags.push(`單選題全對，但只看了 ${seen} 個區塊、沒有打開照片或影片`);
+  ((track && track.lv) || []).forEach(([at, dur]) => {
+    if (dur < 20) return;
+    const back = at + dur, m = Math.floor(dur / 60), s2 = String(dur % 60).padStart(2, '0');
+    if (keys.some((k) => (((track.ed || {})[k]) || []).some((x) => x >= back && x <= back + 30))) flags.push(`離開頁面 ${m}:${s2} 後回來，30 秒內作答`);
+  });
+  keys.forEach((k) => { const p = ((track && track.ps) || {})[k]; if (p && p[1] >= 30) flags.push(`簡答題貼上 ${p[1]} 字（${p[0]} 次）`); });
+  return [...new Set(flags)];
+}
+
+/** DMS 考題測驗的成績：每位專員（分數、百分比、錯在哪、足跡摘要）＋每題答對率；練習只看單選答對率 */
+async function xResultsOf(sid, s) {
+  const [atts, key, grades, line] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.list(`v3sessions/${sid}/grades`), coachLine()]);
+  const t = now(), practice = s.mode === 'practice', kc = (key && key.cases) || [];
+  const det = {};
+  const rows = (s.assignees || []).map((email) => {
+    const a = atts.find((x) => x.id === email), st = attemptOut(s, a, t);
+    if (st.status !== 'submitted') return { email, status: st.status === 'not_started' && sessionState(s, t) !== 'open' ? 'expired' : st.status, score: null, total: null, pct: null, mcRate: null, wrong: [], flags: [], secs: 0, leaves: 0, leaveSecs: 0, extraMin: (a && Number(a.extraMin)) || 0 };
+    const r = xScore(key || {}, a, grades.find((x) => x.id === email)), track = xTrackOut(a.track) || {};
+    det[email] = r.detail;
+    const wrong = [];
+    let mcN = 0, mcOk = 0;
+    kc.forEach((c, i) => c.mods.forEach((m, qi) => {
+      const got = r.detail[i + ':' + m.id];
+      if (m.type === 'mc') { mcN++; if (got > 0) mcOk++; }
+      if (practice && m.type !== 'mc') return;
+      if (got === null) wrong.push({ label: `案件${i + 1} 第${qi + 1}題`, pending: true });
+      else if (got < m.points - 1e-9) wrong.push({ label: `案件${i + 1} 第${qi + 1}題`, partial: got > 0 });
+    }));
+    const lv = track.lv || [], pct = r.total ? r2((r.score / r.total) * 100) : null;
+    return { email, status: 'submitted', score: practice ? null : r.score, total: practice ? null : r.total, pct: practice ? null : pct, pending: practice ? 0 : r.pending,
+      coaching: !practice && pct !== null && pct < line, mcRate: mcN ? r2(mcOk / mcN) : null, wrong,
+      flags: kc.flatMap((c, i) => xFlags(track, i, (a.answers || {})[i] || {}, c).map((f) => `案件${i + 1}：${f}`)),
+      secs: Object.values(track.c || {}).reduce((n, c) => n + (c.t || 0), 0), leaves: lv.length, leaveSecs: lv.reduce((n, x) => n + x[1], 0),
+      startedAt: st.startedAt, submittedAt: st.submittedAt, autoSubmitted: st.autoSubmitted, extraMin: Number(a.extraMin) || 0 };
+  });
+  const done = rows.filter((x) => x.status === 'submitted');
+  const questions = kc.flatMap((c, i) => c.mods.map((m, qi) => {
+    const got = done.map((x) => det[x.email][i + ':' + m.id]).filter((v) => v !== null && v !== undefined);
+    return { key: i + ':' + m.id, caseNo: i + 1, caseId: c.caseId, no: qi + 1, type: m.type, q: m.q, points: m.points,
+      rate: got.length && m.points ? r2(got.reduce((n, v) => n + v / m.points, 0) / got.length) : null, graded: got.length };
+  }));
+  const pcts = done.map((x) => x.pct).filter((v) => v !== null).sort((a, b) => a - b);
+  const mid = pcts.length ? (pcts.length % 2 ? pcts[(pcts.length - 1) / 2] : (pcts[pcts.length / 2 - 1] + pcts[pcts.length / 2]) / 2) : null;
+  const rates = done.map((x) => x.mcRate).filter((v) => v !== null);
+  return { session: xSessionOut(sid, s, t), coachLine: line, rows, questions,
+    stats: { assigned: rows.length, submitted: done.length, auto: done.filter((x) => x.autoSubmitted).length, coaching: done.filter((x) => x.coaching).length,
+      avg: pcts.length ? r2(pcts.reduce((n, v) => n + v, 0) / pcts.length) : null, median: mid === null ? null : r2(mid),
+      max: pcts.length ? pcts[pcts.length - 1] : null, min: pcts.length ? pcts[0] : null, flagged: done.filter((x) => x.flags.length).length,
+      mcRate: rates.length ? r2(rates.reduce((n, v) => n + v, 0) / rates.length) : null } };
+}
+
+const EXAM_RESULTS = {
+  /** 歷史成績・閱卷發佈：已開始的 DMS 考題測驗摘要＋所有作答列（依專員、匯出用） */
+  x_resultsIndex: async () => {
+    await needTeacher();
+    const items = ((await S.get('meta/v3SessionIndex')) || {}).items || {}, t = now();
+    const ids = Object.keys(items).filter((id) => sessionState(items[id], t) !== 'scheduled').sort();
+    const list = await Promise.all(ids.map(async (id) => { const s = await S.get('v3sessions/' + id); return s ? xResultsOf(id, s) : null; }));
+    const ok = list.filter(Boolean);
+    return { coachLine: await coachLine(), sessions: ok.map((r) => Object.assign({}, r.session, r.stats)).reverse(),
+      rows: ok.flatMap((r) => r.rows.map((x) => Object.assign({ sessionId: r.session.sessionId, title: r.session.title, mode: r.session.mode, startAt: r.session.startAt }, x))) };
+  },
+  x_results: async (b) => { await needTeacher(); const [sid, s] = await xSessionDoc(b.sessionId); return xResultsOf(sid, s); },
+  x_agentHistory: async (b) => {
+    await needTeacher();
+    const email = String(b.email || '').trim().toLowerCase();
+    const rows = await S.query('v3sessions', 'assignees', 'array-contains', email);
+    const items = await Promise.all(rows.map(async (s) => { const r = await xResultsOf(s.id, s); return { session: r.session, row: r.rows.find((x) => x.email === email) }; }));
+    return { email, coachLine: await coachLine(), items: items.sort((x, y) => x.session.startAt - y.session.startAt) };
+  },
+  /** 依題目批改：一次存多位專員的分數 { email: { '案件序:題': 分數 } } */
+  x_gradeMany: async (b) => {
+    const m = await needTeacher();
+    const [sid] = await xSessionDoc(b.sessionId), t = now();
+    const ops = Object.entries(b.scores || {}).map(([email, sc]) => {
+      const scores = {};
+      Object.entries(sc || {}).forEach(([k, v]) => { if (/^\d+:[\w-]{1,20}$/.test(k)) scores[k] = v === '' || v === null ? null : Number(v); });
+      return { op: 'set', path: `v3sessions/${sid}/grades/${String(email).toLowerCase()}`, merge: true, data: { scores, by: m.email, at: t } };
+    });
+    if (ops.length) await S.batch(ops);
+    return { saved: ops.length };
+  },
+};
+Object.assign(ACTIONS, EXAM_RESULTS);
+
 async function api(action, payload = {}) {
   const fn = ACTIONS[action];
   if (!fn) throw new Error('V2 開發中：這個功能還沒搬到 Firebase（' + action + '）/ Not available in V2 yet');
@@ -2807,7 +2903,8 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
-    caseAgentView,                                            // V3 DMS 考題：專員版案件
+    caseAgentView,
+    xFlags,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
     caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）
