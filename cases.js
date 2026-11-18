@@ -1,5 +1,6 @@
-/* RR AI Quiz Platform — V3 DMS 案件題：案件庫（#/cases）與案件編輯（#/case/Cxxx）
- * app.js 的 route() 呼叫 window.RRQP_CASES.route(page, arg, ctx)；資料一律走 db.js 的 api（c_* 動作）。
+/* RR AI Quiz Platform — V3 DMS 考題：案件清單與案件編輯（#/case/Cxxx）
+ * 清單畫在「案件匯入 → 待審 DMS 考題」與「可用題庫 → DMS 考題」：app.js 呼叫 window.RRQP_CASES.list(box, status, ctx)；
+ * 編輯頁：app.js 的 route() 呼叫 window.RRQP_CASES.route('case', caseId, ctx)。資料一律走 db.js 的 api（c_* 動作）。
  * 案件編輯的畫面沿用 dev/case-quiz 原型：中間 DMS 區塊、右側 考題／Operation History／Chat History／Discuss。
  * 畫面上的按鈕呼叫 window.CQ.xxx(...)。
  */
@@ -13,7 +14,9 @@
 
   // ───────── 案件編輯的狀態 ─────────
   let CUR = null;        // { caseId, status, title, rev, notes, private, canEdit, canDelete }
-  let C = null;          // 案件內容（講師編輯會改這份）
+  let MAIN = null;       // 案件內容（存檔送這份）
+  let C = null;          // 畫面正在顯示的案件：本次＝MAIN；切到前一次申退時，換成那一筆的 blocks／ops／drc（考題、設定仍是 MAIN 的）
+  let VIEW = -1;         // -1 = 本次申退；0、1… = 前幾次申退
   let A = null;          // 專員預覽的作答（只在這個畫面，不存）
   let mode = 'edit';     // edit = 講師編輯；agent = 專員預覽
   let sideTab = 'quiz';
@@ -42,141 +45,110 @@
     root.style.setProperty('--cqTop', (cqTop() + 12) + 'px');
   }
 
-  // ═════════════════════════════ 案件庫清單 ═════════════════════════════
+  // ═════════════════════════════ 案件清單 ═════════════════════════════
   const STATUS = { pending: '待審', approved: '已核准' };
-  const REQ_STATUS = { queued: '等待中', processing: '處理中', done: '已完成', failed: '失敗', cancelled: '已取消' };
-  const filt = { tab: 'pending', q: '', usage: '' };
+  const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
+  const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
+  const L = (n) => (n && typeof n === 'object' ? n.zh || n.en || '' : String(n || ''));
 
-  async function viewCases() {
-    const tw = X.me.role === 'tw';
-    const q = new URLSearchParams(location.hash.split('?')[1] || '');
-    if (['pending', 'approved', 'requests'].includes(q.get('tab'))) filt.tab = q.get('tab');
-    if (filt.tab === 'requests' && !tw) filt.tab = 'pending';
-    const main = X.shell('cases', `<div class="row"><h1>DMS 案件庫</h1><span class="chip brand">案件題</span><span class="spacer"></span>
-        <button class="btn" id="cqReload" type="button">重新整理</button></div>
-      ${tw ? `<div class="card pad"><div class="small muted" style="margin-bottom:8px">申請匯入：排程會從 DMS 抓完整案件（照片、影片、聊聊、Discuss、Operation History），匯入後在「待審」編輯考題、核准。</div>
-        <form class="cql-req" id="cqReq" autocomplete="off">
-          <label>Return ID<input name="rid" inputmode="numeric" placeholder="例如 247554065232694" required></label>
-          <label>前幾次申退的 Return ID（選填，逗號分隔）<input name="prev" placeholder="同一筆訂單之前的 Return ID"></label>
-          <label>給排程的備註（選填）<input name="note" maxlength="500"></label>
-          <button class="btn brand" type="submit">申請匯入</button></form></div>` : ''}
-      <div class="tabs">
-        <a class="tab ${filt.tab === 'pending' ? 'on' : ''}" href="#/cases?tab=pending">待審 <span id="cqNP"></span></a>
-        <a class="tab ${filt.tab === 'approved' ? 'on' : ''}" href="#/cases?tab=approved">已核准 <span id="cqNA"></span></a>
-        ${tw ? `<a class="tab ${filt.tab === 'requests' ? 'on' : ''}" href="#/cases?tab=requests">申請紀錄 <span id="cqNR"></span></a>` : ''}
-      </div>
-      <div id="cqList"><div class="empty-state"><span class="spin"></span></div></div>`);
-    $('#cqReload').onclick = () => viewCases();
-    if (tw) $('#cqReq').onsubmit = submitRequest;
-    if (filt.tab === 'requests') return drawRequests();
+  /** 案件清單畫進 box：status = pending（案件匯入 → 待審 DMS 考題）或 approved（可用題庫 → DMS 考題） */
+  async function list(box, status, ctx) {
+    X = ctx; CUR = null; MAIN = null; C = null;
+    filt.tab = status === 'approved' ? 'approved' : 'pending';
     let d;
-    try { d = await X.api('c_list'); } catch (e) { X.showError(e, $('#cqList')); return; }
-    drawCases(d);
+    try { d = await X.api('c_list'); } catch (e) { X.showError(e, box); return; }
+    drawCases(d, box);
     // 索引有變動（排程送來新案件、別的講師核准）就重畫；正在輸入搜尋時不打斷
     if (X.DB() && X.DB().live && X.DB().live.caseIndex) {
       let first = true;
       X.setLive(X.DB().live.caseIndex(() => {
         if (first) { first = false; return; }
-        if (!/^#\/cases(\?|$)/.test(location.hash)) return;
+        if (!document.body.contains(box)) return;
         if (document.activeElement && document.activeElement.id === 'cqQ') return;
-        X.api('c_list').then(drawCases).catch(() => {});
+        X.api('c_list').then((x) => drawCases(x, box)).catch(() => {});
       }));
     }
   }
 
-  function drawCases(d) {
+  function drawCases(d, box) {
     const pend = d.cases.filter((c) => c.status !== 'approved'), appr = d.cases.filter((c) => c.status === 'approved');
     if ($('#cqNP')) $('#cqNP').textContent = pend.length ? `(${pend.length})` : '';
     if ($('#cqNA')) $('#cqNA').textContent = appr.length ? `(${appr.length})` : '';
     const all = filt.tab === 'approved' ? appr : pend;
-    const box = $('#cqList');
-    if (!box) return;
+    if (!box || !document.body.contains(box)) return;
     if (!all.length) {
-      box.innerHTML = `<div class="card empty-state">${filt.tab === 'approved' ? '還沒有核准的案件' : (d.canEdit ? '沒有待審的案件。上方輸入 Return ID 申請匯入。' : '沒有待審的案件')}</div>`;
+      box.innerHTML = `<div class="card empty-state">${filt.tab === 'approved' ? '還沒有核准的 DMS 考題' : '沒有待審的 DMS 考題。到「申請匯入」勾選「DMS 考題」申請。'}</div>`;
       return;
     }
-    box.innerHTML = `<div class="cql-filter" style="margin-bottom:10px">
+    const gName = (id) => (d.groups.find((x) => x.id === id) || {}).name || id;
+    const tpName = (id) => L((d.topics.find((x) => x.topicId === id) || {}).name) || id;
+    const tgName = (id) => L((d.tags.find((x) => x.tagId === id) || {}).name) || id;
+    box.innerHTML = `<div class="lib-grid"><aside class="card lib-side" id="cqSideF"></aside>
+      <div class="lib-main"><div class="cql-filter">
         <input type="search" id="cqQ" placeholder="搜尋案件編號、標題、Return ID、講師" value="${esc(filt.q)}">
         <select id="cqU"><option value="">練習＋考試</option><option value="practice" ${filt.usage === 'practice' ? 'selected' : ''}>練習用</option><option value="exam" ${filt.usage === 'exam' ? 'selected' : ''}>考試用</option></select>
-        <span class="small muted" id="cqC"></span></div><div id="cqRows"></div>`;
+        <span class="small muted" id="cqC"></span></div><div id="cqRows"></div></div></div>`;
+    const inF = (c) => !filt.kind || (filt.kind === 'none' ? !(c.groups || []).length
+      : (filt.kind === 'group' ? c.groups : filt.kind === 'topic' ? c.topics : c.tags || []).includes(filt.id));
+    const drawSide = () => {
+      const row = (kind, id, label, n, sub) => `<button type="button" class="lib-row ${filt.kind === kind && filt.id === id ? 'on' : ''}" data-k="${kind}" data-id="${esc(id)}" ${sub ? 'style="padding-left:22px"' : ''}><span>${esc(label)}</span><span class="n">${n}</span></button>`;
+      const used = (key) => [...new Set(all.flatMap((c) => c[key] || []))];
+      const noGroup = all.filter((c) => !(c.groups || []).length).length;
+      $('#cqSideF').innerHTML = `<div class="lib-side-hd"><b>分類</b></div>${row('', '', '全部', all.length)}
+        <div class="lib-grp">組別</div>
+        ${d.groups.filter((g) => g.active || used('groups').includes(g.id)).map((g) => row('group', g.id, g.name, all.filter((c) => (c.groups || []).includes(g.id)).length)).join('')}
+        ${noGroup ? row('none', '', '（還沒分組）', noGroup) : ''}
+        <div class="lib-grp">主題與標籤</div>
+        ${d.topics.filter((tp) => tp.active || used('topics').includes(tp.topicId)).map((tp) => row('topic', tp.topicId, L(tp.name), all.filter((c) => (c.topics || []).includes(tp.topicId)).length)
+          + d.tags.filter((tg) => tg.topicId === tp.topicId && used('tags').includes(tg.tagId)).map((tg) => row('tag', tg.tagId, L(tg.name), all.filter((c) => (c.tags || []).includes(tg.tagId)).length, true)).join('')).join('')}`;
+      $$('#cqSideF [data-k]').forEach((b) => b.addEventListener('click', () => { filt.kind = b.dataset.k; filt.id = b.dataset.id; drawSide(); draw(); }));
+    };
     const draw = () => {
       const q = filt.q.trim().toLowerCase();
-      const list = all.filter((c) => (!filt.usage || c.usage === filt.usage)
+      const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示匯入提醒與狀態
+      const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage)
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
-          <th>案件</th><th>標題</th><th>用途</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}<th>匯入提醒</th><th>最後修改</th><th>狀態</th></tr></thead><tbody>
+          <th>案件</th><th>標題</th><th>分類</th><th>用途</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}</td>
           <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}${c.twOnly ? ' <span class="chip">只限 TW</span>' : ''}</td>
+          <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
+            <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
           <td>${c.usage === 'exam' ? '考試' : '練習'}</td><td>${c.questions} 題／${c.points} 分</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
-          <td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>
+          ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
           <td class="small">${esc(fmtTime(c.updatedAt))}<div class="soft">${esc(c.updatedBy || '')}</div></td>
-          <td><span class="chip ${c.status === 'approved' ? 'ok' : 'warn'}">${STATUS[c.status] || c.status}</span></td></tr>`).join('')}
+          ${pend ? `<td><span class="chip ${c.status === 'approved' ? 'ok' : 'warn'}">${STATUS[c.status] || c.status}</span></td>` : ''}</tr>`).join('')}
         </tbody></table></div>`;
       $$('#cqRows tr[data-id]').forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/case/' + encodeURIComponent(tr.dataset.id); }));
     };
     $('#cqQ').oninput = (e) => { filt.q = e.target.value; draw(); };
     $('#cqU').onchange = (e) => { filt.usage = e.target.value; draw(); };
+    drawSide();
     draw();
-  }
-
-  async function submitRequest(e) {
-    e.preventDefault();
-    const f = e.target, btn = f.querySelector('button');
-    btn.disabled = true;
-    try {
-      const r = await X.api('c_request', { returnId: f.rid.value, prevIds: f.prev.value, note: f.note.value });
-      X.toast(`已送出申請 ${r.requestId}，排程處理完會出現在「待審」`);
-      f.reset();
-      if (filt.tab === 'requests') drawRequests();
-    } catch (err) { X.toast(err.message, 5000); }
-    btn.disabled = false;
-  }
-
-  function drawRequests() {
-    const box = $('#cqList');
-    const draw = (rows) => {
-      if (!$('#cqList')) return;
-      $('#cqNR').textContent = rows.length ? `(${rows.length})` : '';
-      if (!rows.length) { box.innerHTML = '<div class="card empty-state">還沒有申請紀錄</div>'; return; }
-      box.innerHTML = `<div class="card scroll-x"><table class="list"><thead><tr><th>申請</th><th>Return ID</th><th>前幾次申退</th><th>備註</th><th>申請人</th><th>狀態</th><th></th></tr></thead><tbody>
-        ${rows.map((r) => `<tr><td class="mono">${esc(r.requestId)}</td><td class="mono">${esc(r.returnId)}</td>
-          <td class="mono small">${esc(r.prevIds.join(', ') || '-')}</td><td class="small">${esc(r.note || '')}</td>
-          <td class="small">${esc(r.requestedBy)}<div class="soft">${esc(fmtTime(r.requestedAt))}</div></td>
-          <td><span class="chip ${r.status === 'done' ? 'ok' : r.status === 'failed' ? 'warn' : ''}">${REQ_STATUS[r.status] || esc(r.status)}</span>
-            ${r.caseId ? ` <a href="#/case/${encodeURIComponent(r.caseId)}">${esc(r.caseId)}</a>` : ''}
-            ${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td>
-          <td class="nowrap">${['queued', 'failed'].includes(r.status) ? `<button class="btn sm" data-act="c_cancelRequest" data-id="${r.requestId}">取消</button>` : ''}
-            ${['failed', 'cancelled', 'processing'].includes(r.status) ? `<button class="btn sm" data-act="c_retryRequest" data-id="${r.requestId}">重試</button>` : ''}
-            ${['queued', 'failed', 'cancelled'].includes(r.status) && X.me.can && X.me.can.request ? `<button class="btn sm danger" data-act="c_deleteRequest" data-id="${r.requestId}">刪除</button>` : ''}</td></tr>`).join('')}
-        </tbody></table></div>`;
-      $$('#cqList [data-act]').forEach((b) => b.addEventListener('click', async () => {
-        if (b.dataset.act === 'c_deleteRequest' && !(await X.confirmBox(`刪除申請 ${b.dataset.id}？`, '刪除', undefined, true))) return;
-        b.disabled = true;
-        try { await X.api(b.dataset.act, { requestId: b.dataset.id }); if (!X.DB().live) drawRequests(); } catch (err) { X.toast(err.message, 5000); b.disabled = false; }
-      }));
-    };
-    if (X.DB() && X.DB().live && X.DB().live.caseRequests) X.setLive(X.DB().live.caseRequests(draw));
-    else X.api('c_listRequests').then((d) => draw(d.requests)).catch((e) => X.showError(e, box));
   }
 
   // ═════════════════════════════ 案件編輯 ═════════════════════════════
   async function viewCase(id) {
-    const main = X.shell('cases', '<div class="empty-state"><span class="spin"></span> 讀取案件…</div>');
+    let main = X.shell(X.me.role === 'tw' ? 'library' : 'bank', '<div class="empty-state"><span class="spin"></span> 讀取案件…</div>');
     let d;
     try { d = await X.api('c_get', { caseId: id }); } catch (e) { X.showError(e, main); return; }
+    if (d.status === 'approved' || X.me.role !== 'tw') main = X.shell('bank', '');      // 導覽列亮在案件所在的頁面
     CUR = { caseId: d.caseId, status: d.status, title: d.title, rev: d.rev, notes: d.notes, priv: d.private || {}, canEdit: d.canEdit, canDelete: d.canDelete,
-      updatedAt: d.updatedAt, updatedBy: d.updatedBy, approvedBy: d.approvedBy };
+      updatedAt: d.updatedAt, updatedBy: d.updatedBy, approvedBy: d.approvedBy, groups: d.groups || [], topics: d.topics || [], tags: d.tags || [] };
     C = d.case;
     C.meta = Object.assign({ usage: 'practice', twOnly: true, timeLimit: 30, mask: { id: true, account: true } }, C.meta || {});
     C.meta.mask = Object.assign({ id: true, account: true }, C.meta.mask);
+    ['groups', 'topics', 'tags'].forEach((k) => { if (!Array.isArray(C.meta[k])) C.meta[k] = []; });
     // Return ID、帳號只有 TW 講師讀得到（存在 private）；其他講師看到 ***
     C.meta.rid = CUR.priv.rid || '';
     C.meta.accounts = CUR.priv.accounts || { buyer: '***', seller: '***' };
     (C.prev || []).forEach((p, i) => { p.rid = (CUR.priv.prevIds || [])[i] || ''; });
     C.modules = C.modules || [];
     C.ops = C.ops || []; C.chat = C.chat || []; C.drc = C.drc || { buyer: [], seller: [] };
+    C.prev = (C.prev || []).map((p) => Object.assign({ blocks: [], ops: [], drc: { buyer: [], seller: [] } }, p));
+    MAIN = C; VIEW = -1;
     A = newAnswer();
     mode = CUR.canEdit ? 'edit' : 'agent';
     sideTab = 'quiz'; dirty = false; saving = false; saveErr = '';
@@ -184,7 +156,8 @@
     main.innerHTML = `<div class="cq ${isEdit() ? 'edit' : ''}" id="cq">
       <div class="cq-bar" id="cqBar"></div>
       <div id="cqSettings"></div>
-      <div class="wrap">
+      <div id="cqViews"></div>
+      <div class="wrap" id="cqWrap">
         <nav class="cq-nav" id="cqNav"></nav>
         <div class="main" id="cqMain"></div>
         <div class="side"><div class="ctabs" id="cqTabs"></div><div id="cqSide"></div></div>
@@ -209,6 +182,7 @@
       root.classList.toggle('edit', isEdit());
       renderBar();
       renderSettings();
+      renderViews();
       renderNav();
       renderMain();
       renderSide();
@@ -229,7 +203,7 @@
       : saving ? '<span class="sv">儲存中…</span>'
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
-    $('#cqBar').innerHTML = `<a class="cbtn" href="#/cases?tab=${st ? 'approved' : 'pending'}">← 案件庫</a>
+    $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '待審 DMS 考題'}</a>
       <span class="cid">${esc(CUR.caseId)}</span><span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>
       ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
@@ -238,6 +212,30 @@
       ${CUR.canEdit ? sv : ''}
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
+  }
+
+  // ───────── 本次／前幾次申退切換（方案 A：整頁切換，考題固定在右側） ─────────
+  function prevLabel(i) {
+    const name = MAIN.prev.length === 1 ? '前一次申退' : `前 ${i + 1} 次申退`;
+    const rid = MAIN.prev[i].rid;
+    const showRid = isEdit() ? rid : (MAIN.meta.mask.id ? '***' : rid);
+    return name + (showRid ? `（${esc(showRid)}）` : '');
+  }
+  function renderViews() {
+    const box = $('#cqViews');
+    if (!MAIN.prev.length) { box.innerHTML = ''; box.className = ''; return; }
+    box.className = 'views' + (VIEW >= 0 ? ' prev' : '');
+    box.innerHTML = `<button class="${VIEW < 0 ? 'on' : ''}" onclick="CQ.view(-1)">本次申退</button>
+      ${MAIN.prev.map((p, i) => `<button class="${VIEW === i ? 'on' : ''}" onclick="CQ.view(${i})">${prevLabel(i)}</button>`).join('')}
+      <span class="hint">${VIEW >= 0 ? '正在看前一次申退的資料；右側「考題」仍是本次案件的題目' : '可以切換查看同一筆訂單之前的申退'}</span>`;
+    $('#cqWrap').classList.toggle('prev', VIEW >= 0);
+  }
+  function setView(i) {
+    VIEW = i;
+    C = i < 0 ? MAIN : { blocks: MAIN.prev[i].blocks, ops: MAIN.prev[i].ops, drc: MAIN.prev[i].drc,
+      chat: MAIN.chat, meta: MAIN.meta, modules: MAIN.modules, prev: MAIN.prev, version: MAIN.version };
+    renderAll();
+    window.scrollTo({ top: 0 });
   }
 
   function setTitle(v) { CUR.title = String(v || '').trim(); saveCase(); }
@@ -258,7 +256,7 @@
     }
     box.className = '';
     const m = C.meta;
-    const chk = (X.DB().caseCheck || (() => ({ errors: [], warns: [] })))(C, CUR.title);
+    const chk = (X.DB().caseCheck || (() => ({ errors: [], warns: [] })))(MAIN, CUR.title);
     const leaks = findLeaks();
     const prev = (CUR.priv.prevIds || []).join(', ');
     box.innerHTML = `
@@ -270,12 +268,29 @@
       <label><input type="checkbox" ${m.twOnly ? 'checked' : ''} onchange="CQ.setMeta('twOnly',this.checked)"> 只限 TW（不送翻譯）</label>
       <label><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號（User ID、Shop ID、物流單號、Transaction ID）</label>
       <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
+      <div class="cls">${clsRow('組別', 'groups', CUR.groups.filter((g) => g.active || m.groups.includes(g.id)).map((g) => [g.id, g.name]))}
+        ${clsRow('主題', 'topics', CUR.topics.filter((x) => x.active || m.topics.includes(x.topicId)).map((x) => [x.topicId, L(x.name)]))}
+        ${m.topics.length ? clsRow('標籤', 'tags', CUR.tags.filter((x) => m.topics.includes(x.topicId) && (x.active || m.tags.includes(x.tagId))).map((x) => [x.tagId, L(x.name)]), '這個主題還沒有標籤，可到「主題設定 → 標籤」新增') : ''}</div>
       <span class="dts">
         ${dt('note', '匯入提醒', (CUR.notes || []).map((n) => n.text || n))}
         ${dt('err', '核准前要完成', chk.errors)}
         ${dt('warn', '提醒', chk.warns)}
         ${dt('leak', '專員看得到、可能洩漏結果', leaks.map((x) => `<a onclick="CQ.jumpTo('${x.go}')">${esc(x.label)}</a>`), true)}
       </span>`;
+  }
+  // 分類：組別、主題、標籤（可複選；點一下切換）
+  function clsRow(label, key, opts, empty) {
+    const on = C.meta[key] || [];
+    return `<span class="clsr"><b>${label}</b>${opts.length ? opts.map(([id, name]) => `<button type="button" class="${on.includes(id) ? 'on' : ''}" onclick="CQ.toggleCls('${key}','${esc(id)}')">${esc(name)}</button>`).join('')
+      : `<span class="hint">${esc(empty || '（沒有可選的項目）')}</span>`}</span>`;
+  }
+  function toggleCls(key, id) {
+    const a = C.meta[key] || (C.meta[key] = []);
+    const i = a.indexOf(id);
+    if (i >= 0) a.splice(i, 1); else a.push(id);
+    // 取消主題時，一併拿掉這個主題底下的標籤
+    if (key === 'topics' && i >= 0) C.meta.tags = C.meta.tags.filter((tg) => { const x = CUR.tags.find((y) => y.tagId === tg); return !x || C.meta.topics.includes(x.topicId); });
+    saveCase(); renderSettings(); layout();
   }
   // 設定列的下拉清單（點開才看內容，平常只顯示數量）
   function dt(kind, label, items, raw) {
@@ -303,7 +318,7 @@
     renderBar();
     const caseId = CUR.caseId;
     try {
-      const r = await X.api('c_save', { caseId, rev: CUR.rev, title: CUR.title, case: C });
+      const r = await X.api('c_save', { caseId, rev: CUR.rev, title: CUR.title, case: MAIN });
       if (!CUR || CUR.caseId !== caseId) return true;
       CUR.rev = r.rev; CUR.updatedAt = Date.now();
       if (r.demoted) X.toast('案件內容不符合核准條件，已退回待審', 5000);
@@ -320,7 +335,7 @@
 
   async function approve() {
     if (dirty || saving) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
-    const chk = X.DB().caseCheck(C, CUR.title);
+    const chk = X.DB().caseCheck(MAIN, CUR.title);
     if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能核准：' + chk.errors.join('；'), 6000); }
     const leaks = findLeaks();
     if (leaks.length && !(await X.confirmBox('專員看得到這些可能洩漏結果的內容：\n' + leaks.map((x) => '・' + x.label).join('\n') + '\n\n確定都是要給專員看的？', '核准'))) return;
@@ -339,7 +354,7 @@
       clearTimeout(saveTimer); dirty = false;
       await X.api('c_delete', { caseId: CUR.caseId });
       X.toast('已刪除 ' + CUR.caseId);
-      location.hash = '#/cases';
+      location.hash = backOf(CUR.status);
     } catch (e) { X.toast(e.message, 6000); }
   }
 
@@ -440,7 +455,7 @@
   function renderMain() {
     document.getElementById('cqMain').innerHTML = C.blocks.map((b, bi) => `
       <div class="blk" id="blk-${b.id}">
-        <h2>${esc(b.title)}</h2>
+        <h2>${esc(b.title)}${VIEW >= 0 ? ' <span class="prevtag">前一次申退</span>' : ''}</h2>
         ${b.fields ? `<div class="grid${b.id === 'general' ? ' g4' : ''}">${b.fields.map((fd, fi) => fieldHtml(bi, fi, fd)).join('')}</div>` : ''}
         ${isEdit() && b.fields ? `<button class="addfd" onclick="CQ.addField(${bi})">＋ 新增欄位</button>` : ''}
         ${b.timeline ? timelineHtml(bi, b.timeline) : ''}
@@ -975,7 +990,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, del,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, del,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
@@ -987,9 +1002,7 @@
   // ===== 入口（app.js 的 route 呼叫） =====
   function route(page, arg, ctx) {
     X = ctx;
-    if (page === 'case' && arg) return viewCase(arg);
-    CUR = null; C = null;
-    return viewCases();
+    return viewCase(arg);
   }
-  window.RRQP_CASES = { route };
+  window.RRQP_CASES = { route, list };
 })();

@@ -106,7 +106,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18a';
+const VERSION = 'V2-2026-11-18c';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -155,7 +155,11 @@ const needTW = async () => { const m = await whoAmI(); if (m.role !== 'tw') fail
 const needAdmin = async () => { const m = await whoAmI(); if (!m.isAdmin) fail('只有管理員可以使用 / Admins only'); return m; };
 const needDelete = async (k) => { const m = await whoAmI(); if (!m.can[k]) fail('你沒有刪除權限（管理員可在「管理 → 刪除權限」設定） / You do not have delete permission'); return m; };
 
-const topicOut = (t) => ({ topicId: t.id, name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', active: t.active !== false,
+/** 主題用途：sample = 範例出題（AI）、case = DMS 考題；舊資料沒有設定 = 兩種都用 */
+const TOPIC_USAGE = ['sample', 'case'];
+const topicUsage = (t) => { const u = (Array.isArray(t && t.usage) ? t.usage : []).filter((x) => TOPIC_USAGE.includes(x)); return u.length ? u : TOPIC_USAGE.slice(); };
+const cleanUsage = (u) => { const v = TOPIC_USAGE.filter((x) => (u || []).includes(x)); if (!v.length) fail('主題至少要有一種用途 / Choose at least one usage'); return v; };
+const topicOut = (t) => ({ topicId: t.id, usage: topicUsage(t), name: t.name || { zh: t.id, en: t.id }, criteriaVersion: t.criteriaVersion || 'v1', active: t.active !== false,
   prompt: t.prompt || null, defaultOptionSet: t.defaultOptionSet || '', group: normGroup(t.group) });
 
 // ───────── DMS 系統規則（與主題無關，所有題目都要遵守） ─────────
@@ -206,7 +210,14 @@ function cutoffErrors(q) {
   ((q.logistics || {}).events || []).forEach((e, j) => chk(e && e.t, 'logistics.events[' + j + '].t'));
   return out;
 }
-const tagOut = (t) => ({ tagId: t.id, topicId: t.topicId, name: t.name || { zh: t.id, en: t.id }, desc: t.desc || '' });
+const tagOut = (t) => ({ tagId: t.id, topicId: t.topicId, name: t.name || { zh: t.id, en: t.id }, desc: t.desc || '', active: t.active !== false });
+
+// ───────── 組別（settings/groups；還沒設定時用預設值） ─────────
+const GROUPS_DEFAULT = [{ id: 'c2c', name: 'C2C' }, { id: 'newbie', name: '新人訓練' }, { id: 'mall', name: 'Mall' }, { id: 'cb', name: 'CB' }, { id: 'review', name: 'Review' }];
+async function loadGroups() {
+  const d = await S.get('settings/groups').catch(() => null);
+  return ((d && d.items) || GROUPS_DEFAULT).map((x) => ({ id: x.id, name: x.name, active: x.active !== false }));
+}
 
 // ───────── 範例的共用處理 ─────────
 const reqOut = (r) => ({ requestId: r.id, requestedBy: r.requestedBy || '', requestedAt: r.requestedAt || null, returnId: r.returnId || '', topicId: r.topicId || 'agreement',
@@ -218,6 +229,7 @@ async function activeTopic(topicId) {
   const t = await S.get('topics/' + topicId);
   if (!t) fail('找不到主題 / Topic not found');
   if (t.active === false) fail('這個主題已停用 / This topic is inactive');
+  if (!topicUsage(t).includes('sample')) fail('這個主題只用在 DMS 考題，不能用來出範例或題庫 / This topic is for DMS questions only');
   return t;
 }
 const indexRow = (x, req) => ({ topicId: x.topicId, tags: x.tags || [], pointZh: x.pointZh || '', answer: x.answer || '', changeHint: x.changeHint || '', status: x.status,
@@ -549,8 +561,9 @@ const ACTIONS = {
   /** 主題、標籤（啟用 / 停用）、選項範本：各頁共用 */
   t_topics: async () => {
     await needTeacher();
-    const [topics, tags, sets, dms] = await Promise.all([S.list('topics'), S.list('tags'), S.list('optionSets'), loadDms()]);
+    const [topics, tags, sets, dms, groups] = await Promise.all([S.list('topics'), S.list('tags'), S.list('optionSets'), loadDms(), loadGroups()]);
     return {
+      groups,
       topics: topics.map(topicOut).sort((a, b) => (b.active - a.active) || a.topicId.localeCompare(b.topicId)),
       dms,
       tags: tags.filter((t) => t.active !== false).map(tagOut),
@@ -1078,6 +1091,7 @@ const ACTIONS = {
       if (!p.active && t.active !== false && (await S.list('topics')).filter((x) => x.active !== false).length <= 1) fail('至少要保留一個啟用中的主題 / Keep at least one active topic');
       patch.active = !!p.active;
     }
+    if (p.usage !== undefined) patch.usage = cleanUsage(p.usage);
     if (typeof p.rules === 'string') patch.rules = p.rules;
     if (typeof p.gradingGuide === 'string') patch.gradingGuide = p.gradingGuide.trim().slice(0, 3000);
     let bumped = null;
@@ -1103,7 +1117,7 @@ const ACTIONS = {
     while (all.some((x) => x.id === topicId)) topicId = base + '-' + (n++);
     const src = b.copyFrom ? all.find((x) => x.id === b.copyFrom) : null;
     const t = now();
-    const doc = { name: { zh, en }, active: true, criteriaVersion: 'v1', criteria: String(b.criteria || '').trim() || '（請填寫判斷標準）',
+    const doc = { name: { zh, en }, active: true, usage: b.usage ? cleanUsage(b.usage) : TOPIC_USAGE.slice(), criteriaVersion: 'v1', criteria: String(b.criteria || '').trim() || '（請填寫判斷標準）',
       keyFactors: src ? (src.keyFactors || []) : [], rules: src ? (src.rules || '') : '', blocks: src ? (src.blocks || []) : [],
       prompt: b.prompt && b.prompt.zh && b.prompt.en ? b.prompt : (src ? src.prompt : { zh: '', en: '' }), defaultOptionSet: src ? (src.defaultOptionSet || '') : '',
       history: [], createdAt: t, createdBy: m.email, updatedAt: t, updatedBy: m.email };
@@ -1237,6 +1251,26 @@ const ACTIONS = {
   },
 
   // ─── 刪除權限（管理員） ───
+  /** 組別（整個系統共用的分類，只有管理員能改）：停用的組別不能再選，已經用在案件上的保留 */
+  ad_saveGroups: async (b) => {
+    const m = await needAdmin();
+    const seen = new Set(), names = new Set();
+    const given = new Set((b.items || []).map((x) => String(x.id || '').trim()).filter(Boolean));   // 新組別的代碼避開既有的
+    const items = (b.items || []).map((x) => {
+      const name = String(x.name || '').trim().slice(0, 30);
+      if (!name) fail('組別名稱不能空白 / Group name is required');
+      if (names.has(name)) fail('組別名稱重複 / Duplicate group name: ' + name);
+      names.add(name);
+      let id = String(x.id || '').trim() || slug(name, 20) || 'g';
+      if (!x.id) { const base = id; let n = 2; while (seen.has(id) || given.has(id)) id = base + '-' + (n++); }
+      if (seen.has(id)) fail('組別代碼重複 / Duplicate group id: ' + id);
+      seen.add(id);
+      return { id, name, active: x.active !== false };
+    });
+    if (!items.some((x) => x.active)) fail('至少要有一個啟用中的組別 / Keep at least one active group');
+    await S.set('settings/groups', { items, updatedAt: now(), updatedBy: m.email });
+    return { groups: items };
+  },
   ad_getPerms: async () => { await needAdmin(); const d = await S.get('settings/permissions'); return { perms: permsOf(d), keys: PERM_KEYS, twOnly: PERM_TW_ONLY, updatedAt: (d && d.updatedAt) || null, updatedBy: (d && d.updatedBy) || '' }; },
   ad_savePerms: async (b) => {
     const m = await needAdmin();
@@ -2114,7 +2148,7 @@ const M7 = {
 Object.assign(ACTIONS, M7);
 
 // ═════════════════════════════════════════════════════════════
-// V3：DMS 案件題 — 案件庫（申請匯入、編輯、核准、補充資訊圖片）
+// V3：DMS 考題 — 案件（申請匯入、編輯、核准、補充資訊圖片）
 //   v3caseRequests/{CRxxxx}  講師申請（排程讀取，處理完寫入案件）
 //   v3cases/{Cxxx}           案件；body = 案件 JSON 字串（表格是二維陣列，Firestore 不能直接存）
 //   v3cases/{Cxxx}/private/raw  Return ID、前幾次申退 RID、買賣家帳號（只有 TW 講師）
@@ -2124,12 +2158,16 @@ Object.assign(ACTIONS, M7);
 const IMG_CHUNK = 900000;          // 圖片每段字元數（Firestore 單一文件上限 1MB）
 const CASE_PRIVATE = ['rid', 'accounts'];
 const caseReqOut = (r) => ({ requestId: r.id, returnId: r.returnId || '', prevIds: r.prevIds || [], note: r.note || '', status: r.status || 'queued',
+  cutoffAt: r.cutoffAt || null, noCutoff: !!r.noCutoff,
   reason: r.reason || '', caseId: r.caseId || '', requestedBy: r.requestedBy || '', requestedAt: r.requestedAt || 0, updatedAt: r.updatedAt || 0 });
 
 /** 核准前檢查：errors 擋核准；warns 只提醒（洩漏結果的內容由編輯畫面另外列出） */
 function caseCheck(c, title) {
   const errors = [], warns = [];
   if (!String(title || '').trim()) errors.push('請填寫案件標題');
+  const meta = (c && c.meta) || {};
+  if (!(meta.groups || []).length) errors.push('請選擇組別');
+  if (!(meta.topics || []).length) errors.push('請選擇主題');
   const mods = (c && c.modules) || [];
   const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short');
   if (!qs.length) errors.push('還沒有作答題（單選題或簡答題）');
@@ -2164,9 +2202,11 @@ const CASES = {
     const items = (idx && idx.items) || {};
     const rid = {};
     if (m.role === 'tw') (await S.list('v3caseRequests').catch(() => [])).forEach((r) => { if (r.caseId) rid[r.caseId] = r.returnId; });
-    const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, questions: 0, points: 0, notes: 0 },
+    const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
       items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
-    return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.sample };
+    const [topics, tags, groups] = await Promise.all([S.list('topics'), S.list('tags'), loadGroups()]);
+    return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.sample, groups,
+      topics: topics.map(topicOut).filter((x) => x.usage.includes('case')), tags: tags.map(tagOut) };
   },
 
   /** 申請匯入：一筆 Return ID＋前幾次申退的 Return ID（選填）＋給排程的備註 */
@@ -2178,11 +2218,14 @@ const CASES = {
     const bad = prev.filter((x) => !/^\d{6,20}$/.test(x));
     if (bad.length) fail('前幾次申退的 Return ID 格式錯誤 / Invalid previous Return ID: ' + bad.join(', '));
     if (prev.length > 5) fail('前幾次申退最多 5 筆 / At most 5 previous Return IDs');
+    const cutoffAt = b.cutoffAt ? Number(b.cutoffAt) : null;
+    if (cutoffAt !== null && !(cutoffAt > 1.5e12 && cutoffAt < now() + 864e5)) fail('判斷時點不正確（不能是未來時間） / Invalid cutoff');
+    if (cutoffAt === null && !b.noCutoff) fail('沒有填判斷時點；若確定使用完整資料，請勾選「不截斷」 / Missing cutoff');
     const open = (await S.list('v3caseRequests')).filter((r) => ['queued', 'processing', 'done'].includes(r.status) && String(r.returnId) === rid);
     if (open.length) fail(`這個 Return ID 已經申請過（${open[0].id}${open[0].caseId ? ' → ' + open[0].caseId : ''}） / Already requested`);
     const n = await S.nextIds('CR', 1), id = 'CR' + String(n).padStart(4, '0'), t = now();
     await S.set('v3caseRequests/' + id, { requestedBy: m.email, requestedAt: t, returnId: rid, prevIds: prev, note: String(b.note || '').slice(0, 500),
-      status: 'queued', reason: '', caseId: '', updatedAt: t });
+      status: 'queued', reason: '', caseId: '', updatedAt: t, cutoffAt, noCutoff: cutoffAt === null });
     return { requestId: id };
   },
   c_listRequests: async () => {
@@ -2221,7 +2264,8 @@ const CASES = {
     try { body = JSON.parse(d.body || '{}'); } catch (_) { fail('案件內容損壞，無法讀取 / Case data is corrupted'); }
     return { caseId: b.caseId, status: d.status || 'pending', title: d.title || '', rev: d.rev || 0, version: body.version || '',
       notes: d.importNotes || [], requestId: d.requestId || '', createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '',
-      approvedBy: d.approvedBy || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample };
+      approvedBy: d.approvedBy || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample,
+      groups: await loadGroups(), topics: (await S.list('topics')).map(topicOut).filter((x) => x.usage.includes('case')), tags: (await S.list('tags')).map(tagOut) };
   },
 
   /** 儲存（TW 講師）：rev 不同代表別人改過，不覆蓋；已核准的案件改到不合格會退回待審 */
@@ -2245,6 +2289,7 @@ const CASES = {
       { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.title']: title, ['items.' + b.caseId + '.status']: status,
         ['items.' + b.caseId + '.usage']: meta.usage || 'practice', ['items.' + b.caseId + '.twOnly']: meta.twOnly !== false,
         ['items.' + b.caseId + '.questions']: st.questions, ['items.' + b.caseId + '.points']: st.points,
+        ['items.' + b.caseId + '.groups']: meta.groups || [], ['items.' + b.caseId + '.topics']: meta.topics || [], ['items.' + b.caseId + '.tags']: meta.tags || [],
         ['items.' + b.caseId + '.updatedAt']: t, ['items.' + b.caseId + '.updatedBy']: m.email } },
     ]);
     return { rev, status, check: chk, demoted: status !== (cur.status || 'pending') };
@@ -2345,7 +2390,7 @@ async function api(action, payload = {}) {
     onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
-    caseCheck,                                                // V3 案件題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
+    caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）
     enPendingAfter, biLeaves, gradingGuide: DEFAULT_GRADING_GUIDE,

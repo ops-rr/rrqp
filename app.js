@@ -23,7 +23,7 @@
     zh: {
       appSub: 'RR 部門線上測驗平台', signIn: '請使用公司 Google 帳號登入', signInGoogle: '使用 Google 帳號登入', navSettings: '主題設定', navAdmin: '管理', signOut: '登出', teacherPortal: '講師後台',
       reLogin: '登入已失效，請重新登入', noConfig: '尚未設定 config.js（firebase）', loading: '載入中…',
-      guide: '使用說明', navLibrary: '範例生成', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
+      guide: '使用說明', navLibrary: '案件匯入', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', typeG: 'G 題組', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
       created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
@@ -49,7 +49,7 @@
     en: {
       appSub: 'RR online quiz platform', signIn: 'Sign in with your company Google account', signInGoogle: 'Sign in with Google', navSettings: 'Settings', navAdmin: 'Admin', signOut: 'Sign out', teacherPortal: 'Trainer Console',
       reLogin: 'Your session expired. Please sign in again.', noConfig: 'config.js is not set (firebase)', loading: 'Loading…',
-      guide: 'Guide', navLibrary: 'Samples', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
+      guide: 'Guide', navLibrary: 'Case import', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', typeG: 'G Question set', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
       created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
@@ -139,7 +139,6 @@
         ${me.role === 'tw' ? `<a href="#/library" class="${active === 'library' ? 'on' : ''}">${esc(t('navLibrary'))}</a>` : ''}
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/bank" class="${active === 'bank' ? 'on' : ''}">${esc(t('navBank'))}</a>
-        ${window.RRQP_CASES ? `<a href="#/cases" class="${active === 'cases' ? 'on' : ''}">${lang === 'zh' ? 'DMS 案件' : 'DMS Cases'}</a>` : ''}
         <a href="#/sessions" class="${active === 'sessions' ? 'on' : ''}">${esc(t('navSessions'))}</a>
         <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
         <a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a>${me.role === 'tw' ? `<a href="#/settings" class="${active === 'settings' ? 'on' : ''}">${esc(t('navSettings'))}</a>` : ''}${me.isAdmin ? `<a href="#/admin" class="${active === 'admin' ? 'on' : ''}">${esc(t('navAdmin'))}</a>` : ''}</nav>` : '';
@@ -191,7 +190,7 @@
   }
 
   // ───────── router ─────────
-  /** 給 cases.js 用的共用工具（V3 案件題的畫面在另一個檔案） */
+  /** 給 cases.js 用的共用工具（V3 DMS 考題的畫面在另一個檔案） */
   const caseCtx = () => ({ me, api, shell, toast, confirmBox, DB, showError: (e, el) => showError(e, el),
     setLeaveGuard: (fn) => { leaveGuard = fn; }, setLive: (off) => { if (liveOff) liveOff(); liveOff = off; } });
   let pollTimer = null;
@@ -208,8 +207,9 @@
     const [page, arg] = h.split('/');
     if (page === 's' && arg) return viewQuizEntry(decodeURIComponent(arg));
     if (me.isTeacher && page === 'draft' && arg) return viewDraft(decodeURIComponent(arg));
-    // V3 DMS 案件題（cases.js）：案件庫、案件編輯
-    if (me.isTeacher && (page === 'cases' || page === 'case') && window.RRQP_CASES) return window.RRQP_CASES.route(page, decodeURIComponent(arg || ''), caseCtx());
+    // V3 DMS 考題（cases.js）：待審在「案件匯入 → 待審 DMS 考題」、核准後在「可用題庫 → DMS 考題」；編輯頁 #/case/Cxxx
+    if (me.isTeacher && page === 'case' && arg && window.RRQP_CASES) return window.RRQP_CASES.route('case', decodeURIComponent(arg), caseCtx());
+    if (me.isTeacher && page === 'cases') { location.replace(/tab=approved/.test(location.hash) || me.role !== 'tw' ? '#/bank?tab=cases' : '#/library?tab=cases'); return; }
     if (me.isTeacher && page === 'sessions') return viewSessions();
     if (me.isTeacher && page === 'session' && arg) return viewSession(decodeURIComponent(arg));
     if (me.isTeacher && page === 'preview' && arg) return viewPreview(decodeURIComponent(arg));
@@ -297,7 +297,7 @@
       if (box.innerHTML) { box.innerHTML = ''; return; }
       const seedMode = me.role === 'tw';   // V2.3：TW 講師改成「選範例出題」（BPO 講師看不到範例，維持選標籤）
       let seedRows = [];
-      const topicOpts = tp.topics.filter((x) => x.active).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
+      const topicOpts = tp.topics.filter((x) => x.active && x.usage.includes('sample')).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
       box.innerHTML = `<form class="card pad" id="cform" style="display:flex;flex-direction:column;gap:16px">
         <h2>${esc(t('newDraft'))}</h2>
         <div class="form">
@@ -1918,8 +1918,14 @@
   const rateChip = (r) => (r === null || r === undefined ? '<span class="soft">—</span>' : `<span style="color:${rateColor(r)};font-weight:700">${rateTxt(r)}</span>`);
 
   async function viewBank() {
+    const bankTab = window.RRQP_CASES && new URLSearchParams(location.hash.split('?')[1] || '').get('tab') === 'cases' ? 'cases' : 'q';
+    const bankTabs = window.RRQP_CASES ? `<div class="tabs"><a class="tab ${bankTab === 'q' ? 'on' : ''}" href="#/bank">${esc(t('bankTabQ'))}</a><a class="tab ${bankTab === 'cases' ? 'on' : ''}" href="#/bank?tab=cases">${esc(t('bankTabCases'))} <span id="cqNA"></span></a></div>` : '';
+    if (bankTab === 'cases') {
+      shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1></div>${bankTabs}<div id="cqBank"><div class="empty-state"><span class="spin"></span></div></div>`);
+      return window.RRQP_CASES.list($('#cqBank'), 'approved', caseCtx());
+    }
     const main = shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1><span class="spacer"></span><span class="small muted" id="bt"></span>${me.can.bankQ ? `<button class="btn ghost danger" id="bdel" hidden></button>` : ''}</div>
-      <div class="card pad filters" id="bf"></div><div class="card scroll-x" id="bl"><div class="empty-state"><span class="spin"></span></div></div>`);
+      ${bankTabs}<div class="card pad filters" id="bf"></div><div class="card scroll-x" id="bl"><div class="empty-state"><span class="spin"></span></div></div>`);
     let d;
     try { d = await api('t_bankList', {}); } catch (e) { showError(e, $('#bl')); return; }
     const act = d.questions.filter((q) => q.status === 'active');
@@ -2052,7 +2058,7 @@
       </div>
       <div class="compose"><div class="row"><h2>${esc(t('compose'))}</h2><span class="small muted">${esc(t('composeHint'))}</span></div>
         <div class="form">
-          <label class="k">${esc(t('topic'))}</label><select id="c_topic">${meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
+          <label class="k">${esc(t('topic'))}</label><select id="c_topic">${meta.topics.filter((x) => x.usage.includes('sample')).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
           <span class="k">${esc(t('prefTags'))}</span><div class="tags" id="c_tags"></div>
           <span class="k">${esc(t('mix'))}</span><div class="row">
             <span class="row" id="c_abc"><label class="small">${esc(t('typeA'))} <input type="number" id="c_A" min="0" max="50" value="3"></label>
@@ -2148,7 +2154,11 @@
 
   // ═════════════════════════ 範例庫（M2，僅 TW 講師） ═════════════════════════
   Object.assign(I18N.zh, {
-    library: '範例生成', libPending: '待審範例', libActive: '範例庫', libRequests: '範例申請', reqTitle: '申請範例', reqHint: '貼上 DMS 的 Return ID（一次最多 30 筆）。排程會自動抓取、去識別化並由 AI 建議分類，完成後出現在「待審範例」。',
+    library: '案件匯入', libPending: '待審 DMS 範例', libCases: '待審 DMS 考題', bankTabQ: '變化題', bankTabCases: 'DMS 考題', libActive: '範例庫', libRequests: '申請匯入', reqTitle: '申請匯入 DMS 案件', reqHint: '貼上 DMS 的 Return ID，排程會自動讀取 DMS 資料。DMS 考題：整個案件直接當考題，完成後到「待審 DMS 考題」出題、核准，核准後就能考。DMS 範例：去識別化後到「待審 DMS 範例」初審，再到「題庫生成」做變化題（一次最多 30 筆）。兩個都勾，同一筆會兩種都做。',
+    reqUsage: '用途', reqUseCase: 'DMS 考題（原案件直接考）', reqUseSample: 'DMS 範例（AI 出變化題）', reqPickUsage: '請至少勾選一種用途', reqNoIds: '請輸入 Return ID',
+    reqCaseOneHint: '勾選 DMS 考題時，一次申請一筆。', reqCaseOne: '勾選 DMS 考題時一次只能申請一筆 Return ID', reqPrevIds: '前幾次申退（選填）', reqPrevShort: '前幾次申退',
+    reqPrevHint: '同一筆訂單之前申退的 Return ID，逗號分隔，最多 5 筆。專員作答時可以切換查看前一次申退的完整頁面。', reqCaseAdded: '已送出 DMS 考題申請 {id}',
+    reqSmpFailed: 'DMS 範例申請失敗：', reqKindCase: 'DMS 考題', reqKindSample: 'DMS 範例', colResult: '結果',
     cutoffHelp: '每行一筆：Return ID，後面接判斷時點（台北時間，例如 2026-10-20 14:30，通常是案件判決前）。只保留這個時間「以前」的聊聊、DRC、物流，該分鐘內的訊息也會移除；同一分鐘內要保留較早的訊息時，可以填到秒（例如 14:30:20）。',
     noCutoff: '沒有填時間的案件不截斷（使用完整資料）', noCutoffShort: '不截斷', cutoffAtLabel: '判斷時點 {t} 以前', cutoffCount: '{n} 筆，{c} 筆有判斷時點', cutoffMissing: '{n} 筆沒有時間', cutoffBad: '無法解析的行',
     returnIds: 'Return ID', wantedTags: '預期分類（選填）', reqNote: '說明（選填）', reqNotePh: '例如：賣家只回 OK 貼圖', submitReq: '送出申請', reqAdded: '已送出 {n} 筆申請', reqDup: '已申請過而略過：{ids}',
@@ -2181,7 +2191,11 @@
     trHint2: '排程下次執行時翻好英文（聊聊、DRC、申退備註用 DMS 翻譯，其他用 LLM）', trSent: '已送翻譯，排程下次執行時會翻好英文並通知', trWaiting: '已送翻譯，等待排程翻譯英文；翻譯完成前不能修改內容。', trCancel: '取消送翻譯',
   });
   Object.assign(I18N.en, {
-    library: 'Sample Builder', libPending: 'Pending review', libActive: 'Library', libRequests: 'Requests', reqTitle: 'Request samples', reqHint: 'Paste DMS Return IDs (up to 30). The scheduler fetches, de-identifies and AI-classifies them; results appear under "Pending review".',
+    library: 'Case import', libPending: 'Pending DMS samples', libCases: 'Pending DMS questions', bankTabQ: 'Variants', bankTabCases: 'DMS questions', libActive: 'Library', libRequests: 'Import requests', reqTitle: 'Import DMS cases', reqHint: 'Paste DMS Return IDs; the scheduler reads the DMS data. DMS question: the whole case is asked as is; write questions and approve it under "Pending DMS questions", then it is ready to use. DMS sample: de-identified for review under "Pending DMS samples", then turned into variants in Generate (up to 30). Tick both to do both.',
+    reqUsage: 'Use', reqUseCase: 'DMS question (asked as is)', reqUseSample: 'DMS sample (AI variants)', reqPickUsage: 'Choose at least one use', reqNoIds: 'Enter a Return ID',
+    reqCaseOneHint: 'DMS questions are requested one at a time.', reqCaseOne: 'Only one Return ID at a time for a DMS question', reqPrevIds: 'Previous returns (optional)', reqPrevShort: 'Previous',
+    reqPrevHint: 'Earlier Return IDs of the same order, comma separated, up to 5. Agents can switch to view each previous return in full.', reqCaseAdded: 'DMS question request {id} submitted',
+    reqSmpFailed: 'DMS sample request failed: ', reqKindCase: 'DMS question', reqKindSample: 'DMS sample', colResult: 'Result',
     cutoffHelp: 'One per line: Return ID followed by the cutoff (Taipei time, e.g. 2026-10-20 14:30, usually just before the case was judged). Only chat, DRC and logistics before this time are kept, so messages within that minute are removed too; add seconds (e.g. 14:30:20) to keep earlier messages in the same minute.',
     noCutoff: 'Use the full data for lines without a time (no cutoff)', noCutoffShort: 'No cutoff', cutoffAtLabel: 'Up to {t}', cutoffCount: '{n} case(s), {c} with a cutoff', cutoffMissing: '{n} without a time', cutoffBad: 'Could not read',
     returnIds: 'Return IDs', wantedTags: 'Expected tags (optional)', reqNote: 'Note (optional)', reqNotePh: 'e.g. the seller only replied with an OK sticker', submitReq: 'Submit', reqAdded: '{n} request(s) submitted', reqDup: 'Skipped (already requested): {ids}',
@@ -2255,12 +2269,14 @@
   async function viewLibrary() {
     if (me.role !== 'tw') { shell('library', `<div class="banner warn">${esc(t('reviewOnlyTw'))}</div>`); return; }
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    const tab = ['pending', 'active', 'requests'].includes(params.get('tab')) ? params.get('tab') : 'pending';
+    const hasCases = !!window.RRQP_CASES;
+    const tab = ['pending', 'active', 'requests'].concat(hasCases ? ['cases'] : []).includes(params.get('tab')) ? params.get('tab') : (hasCases ? 'cases' : 'pending');
     const main = shell('library', `<div class="row"><h1>${esc(t('library'))}</h1><span class="spacer"></span><button class="btn" id="reload">${esc(t('refresh'))}</button></div>
-      <div class="tabs"><a class="tab ${tab === 'pending' ? 'on' : ''}" href="#/library">${esc(t('libPending'))} <span id="pn"></span></a><a class="tab ${tab === 'active' ? 'on' : ''}" href="#/library?tab=active">${esc(t('libActive'))}</a><a class="tab ${tab === 'requests' ? 'on' : ''}" href="#/library?tab=requests">${esc(t('libRequests'))}</a></div>
+      <div class="tabs">${hasCases ? `<a class="tab ${tab === 'cases' ? 'on' : ''}" href="#/library?tab=cases">${esc(t('libCases'))} <span id="cqNP"></span></a>` : ''}<a class="tab ${tab === 'pending' ? 'on' : ''}" href="#/library?tab=pending">${esc(t('libPending'))} <span id="pn"></span></a><a class="tab ${tab === 'active' ? 'on' : ''}" href="#/library?tab=active">${esc(t('libActive'))}</a><a class="tab ${tab === 'requests' ? 'on' : ''}" href="#/library?tab=requests">${esc(t('libRequests'))}</a></div>
       <div id="lb"><div class="empty-state"><span class="spin"></span></div></div>`);
     $('#reload').onclick = () => viewLibrary();
     if (liveOff) { liveOff(); liveOff = null; }
+    if (tab === 'cases') return window.RRQP_CASES.list($('#lb'), 'pending', caseCtx());
     let meta, d;
     try { [meta, d] = await Promise.all([getLibMeta(), tab === 'requests' ? api('tw_listRequests') : api('tw_listSamples')]); } catch (e) { showError(e, $('#lb')); return; }
     const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
@@ -2287,7 +2303,7 @@
       const drawSide = () => {
         $('#ls').innerHTML = `<div class="lib-side-hd"><b>${esc(t('libTopicTags'))}</b><button class="btn sm" id="addTag" type="button">＋ ${esc(t('libTag'))}</button></div>
           <button type="button" class="lib-row ${!f.topic ? 'on' : ''}" data-topic="" data-tag=""><span>${esc(t('libAll'))}</span><span class="n">${all.length}</span></button>
-          ${meta.topics.map((tp) => {
+          ${meta.topics.filter((tp) => tp.usage.includes('sample') || all.some((s) => (s.topicId || 'agreement') === tp.topicId)).map((tp) => {
             const mine = all.filter((s) => (s.topicId || 'agreement') === tp.topicId);
             const tags = meta.tags.filter((x) => x.topicId === tp.topicId);
             const untagged = mine.filter((s) => !s.tags.length).length;
@@ -2327,16 +2343,22 @@
       liveSamples(d.samples);
       return;
     }
-    // 申請
-    const topicOpts = meta.topics.filter((x) => x.active).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
+    // 申請匯入（V3）：同一張表單申請「DMS 考題」與「DMS 範例」，預設 DMS 考題；送出時分別寫進兩邊的申請
+    const topicOpts = meta.topics.filter((x) => x.active && x.usage.includes('sample')).map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('');
     $('#lb').innerHTML = `<form class="card pad" id="rf" style="display:flex;flex-direction:column;gap:14px"><h2>${esc(t('reqTitle'))}</h2><div class="small muted">${esc(t('reqHint'))}</div>
         <div class="form">
+          <span class="k">${esc(t('reqUsage'))}</span><div class="tags">
+            <label class="tag-opt on"><input type="checkbox" id="r_case" checked> ${esc(t('reqUseCase'))}</label>
+            <label class="tag-opt"><input type="checkbox" id="r_smp"> ${esc(t('reqUseSample'))}</label></div>
           <label class="k" for="r_ids">${esc(t('returnIds'))}</label><div><textarea id="r_ids" rows="5" class="mono" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="246771802264043  2026-10-20 14:30&#10;2510150001234567  2026-10-18 09:05"></textarea>
             <div class="small muted" style="margin-top:4px;max-width:520px">${esc(t('cutoffHelp'))}</div>
+            <div class="small" id="r_one" style="margin-top:4px;color:var(--warn)">${esc(t('reqCaseOneHint'))}</div>
             <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="r_nocut"> ${esc(t('noCutoff'))}</label>
             <div id="r_prev" class="small" style="margin-top:6px"></div></div>
-          <label class="k" for="r_topic">${esc(t('topic'))}</label><select id="r_topic">${topicOpts}</select>
-          <span class="k">${esc(t('wantedTags'))}</span><div class="tags" id="r_tags"></div>
+          <label class="k" for="r_prevIds" data-for="case">${esc(t('reqPrevIds'))}</label><div data-for="case"><input type="text" id="r_prevIds" class="mono" style="width:min(520px,100%)" placeholder="246771802264043, 246771802264044">
+            <div class="small muted" style="margin-top:4px;max-width:520px">${esc(t('reqPrevHint'))}</div></div>
+          <label class="k" for="r_topic" data-for="smp">${esc(t('topic'))}</label><select id="r_topic" data-for="smp">${topicOpts}</select>
+          <span class="k" data-for="smp">${esc(t('wantedTags'))}</span><div class="tags" id="r_tags" data-for="smp"></div>
           <label class="k" for="r_note">${esc(t('reqNote'))}</label><input type="text" id="r_note" maxlength="200" placeholder="${esc(t('reqNotePh'))}">
         </div><div id="r_err" class="banner err" hidden></div>
         <div class="row"><button class="btn brand" type="submit" id="r_go">${esc(t('submitReq'))}</button></div></form>
@@ -2344,6 +2366,15 @@
     const drawTags = () => { $('#r_tags').innerHTML = meta.tags.filter((x) => x.topicId === $('#r_topic').value).map((x) => `<label class="tag-opt"><input type="checkbox" value="${esc(x.tagId)}"> ${esc(L(x.name))}</label>`).join('');
       $$('#r_tags input').forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked))); };
     drawTags(); $('#r_topic').onchange = drawTags;
+    // 用途：勾了 DMS 考題才顯示「前幾次申退」，勾了範例才顯示主題與預期分類
+    const drawUsage = () => {
+      const wc = $('#r_case').checked, ws = $('#r_smp').checked;
+      $('#r_case').parentElement.classList.toggle('on', wc); $('#r_smp').parentElement.classList.toggle('on', ws);
+      $$('#rf [data-for="case"]').forEach((el) => { el.hidden = !wc; });
+      $$('#rf [data-for="smp"]').forEach((el) => { el.hidden = !ws; });
+      $('#r_one').hidden = !wc;
+    };
+    $('#r_case').onchange = drawUsage; $('#r_smp').onchange = drawUsage; drawUsage();
     /** 解析申請清單：每行「Return ID [日期 時間]」，時間為台北時間 */
     const parseReq = (txt) => {
       const items = [], bad = [];
@@ -2368,40 +2399,81 @@
         ${noT ? ` <span class="chip ${$('#r_nocut').checked ? '' : 'warn'}">${esc(t('cutoffMissing', { n: noT }))}</span>` : ''}${bad.length ? `<div style="color:var(--err);margin-top:4px">${esc(t('cutoffBad'))}：${bad.map(esc).join('、')}</div>` : ''}`;
     };
     $('#r_ids').addEventListener('input', preview); $('#r_nocut').addEventListener('change', preview);
+    // 申請紀錄：範例（Rxxxx）與DMS 考題（CRxxxx）合併成一張表，依申請時間排序
+    const caseCut = (r) => (r.cutoffAt ? esc(t('cutoffAtLabel', { t: fmtTW(r.cutoffAt) })) : r.noCutoff ? esc(t('noCutoffShort')) : '');
+    const merge = (sr, cr) => sr.map((r) => Object.assign({ kind: 'sample' }, r)).concat(cr.map((r) => Object.assign({ kind: 'case' }, r)))
+      .sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0));
+    let sReqs = d.requests, cReqs = [];
+    try { cReqs = (await api('c_listRequests')).requests; } catch (_) { /* DMS 考題申請讀不到時只顯示範例 */ }
+    const reload = async () => { [sReqs, cReqs] = await Promise.all([api('tw_listRequests').then((x) => x.requests), api('c_listRequests').then((x) => x.requests).catch(() => cReqs)]); drawReqs(merge(sReqs, cReqs)); };
+    const canRetry = (r) => r.returnId && (r.status === 'failed' || (r.kind === 'case' && r.status === 'cancelled')
+      || (r.status === 'processing' && Date.now() - (r.updatedAt || 0) > (r.kind === 'case' ? 60 : 15) * 60000));
+    const canDel = (r) => me.can.request && (r.kind === 'case' ? ['queued', 'failed', 'cancelled'] : ['queued', 'failed', 'cancelled', 'deleted']).includes(r.status);
     function drawReqs(reqs) {
       if (!reqs.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noReq'))}</div>`; return; }
-      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('colWantedNote'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colSample'))}</th><th></th></tr></thead><tbody>${
-        reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td><td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}<div class="soft" style="font-family:inherit">${r.cutoffAt ? esc(t('cutoffAtLabel', { t: fmtTW(r.cutoffAt) })) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td>
-          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td><td class="small">${r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
-          <td class="hide-sm small muted">${esc(r.requestedBy)}</td><td>${r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
-          <td style="text-align:right;white-space:nowrap">${(r.status === 'failed' || (r.status === 'processing' && Date.now() - (r.updatedAt || 0) > 15 * 60000)) && r.returnId ? `<button class="btn sm" data-retry="${esc(r.requestId)}" ${r.status === 'processing' ? `title="${esc(t('stuckHint'))}"` : ''}>${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}">${esc(t('cancel'))}</button>` : ''}${me.can.request && ['queued', 'failed', 'cancelled', 'deleted'].includes(r.status) ? ` <button class="btn sm ghost danger" data-rdel="${esc(r.requestId)}">${esc(t('del'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
-        ${me.can.request && reqs.some((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)) ? `<div class="row" style="padding:10px 14px"><span class="small muted">${esc(t('reqDelHint'))}</span><span class="spacer"></span><button class="btn sm ghost danger" id="rdelAll">${esc(t('reqDelAll', { n: reqs.filter((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)).length }))}</button></div>` : ''}`;
-      $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_retryRequest', { requestId: b.dataset.retry }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
-      $$('[data-cancel]').forEach((b) => b.addEventListener('click', async () => { try { await api('tw_cancelRequest', { requestId: b.dataset.cancel }); viewLibrary(); } catch (e) { toast(e.message, 4000); } }));
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colReq'))}</th><th>${esc(t('reqUsage'))}</th><th>${esc(t('colRid'))}</th><th>${esc(t('colStatus2'))}</th><th>${esc(t('colWantedNote'))}</th><th class="hide-sm">${esc(t('colBy'))}</th><th>${esc(t('colResult'))}</th><th></th></tr></thead><tbody>${
+        reqs.map((r) => `<tr><td><b>${esc(r.requestId)}</b><div class="small soft">${esc(fmtDT(r.requestedAt))}</div></td>
+          <td><span class="chip ${r.kind === 'case' ? 'brand' : ''}">${esc(t(r.kind === 'case' ? 'reqKindCase' : 'reqKindSample'))}</span></td>
+          <td class="mono small">${r.returnId ? esc(r.returnId) : `<span class="soft">${esc(t('ridCleared'))}</span>`}<div class="soft" style="font-family:inherit">${r.kind === 'case' ? caseCut(r) : r.cutoffAt ? esc(t('cutoffAtLabel', { t: fmtTW(r.cutoffAt) })) : r.noCutoff ? esc(t('noCutoffShort')) : ''}</div></td>
+          <td>${reqChip(r.status)}${r.reason ? `<div class="small" style="color:var(--err)">${esc(r.reason)}</div>` : ''}</td>
+          <td class="small">${r.kind === 'case' ? (r.prevIds.length ? `${esc(t('reqPrevShort'))}：<span class="mono">${esc(r.prevIds.join(', '))}</span>` : '') : r.wantedTags.map((x) => esc(tagName(x))).join('、')}${r.note ? `<div class="soft">${esc(r.note)}</div>` : ''}</td>
+          <td class="hide-sm small muted">${esc(r.requestedBy)}</td>
+          <td>${r.kind === 'case' ? (r.caseId ? `<a href="#/case/${esc(r.caseId)}">${esc(r.caseId)}</a>` : '') : r.sampleId ? `<a href="#/library/${esc(r.sampleId)}">${esc(r.sampleId)}</a>` : ''}</td>
+          <td style="text-align:right;white-space:nowrap">${canRetry(r) ? `<button class="btn sm" data-retry="${esc(r.requestId)}" data-kind="${r.kind}" ${r.status === 'processing' ? `title="${esc(t('stuckHint'))}"` : ''}>${esc(t('retry'))}</button> ` : ''}${r.status === 'queued' || r.status === 'failed' ? `<button class="btn sm ghost danger" data-cancel="${esc(r.requestId)}" data-kind="${r.kind}">${esc(t('cancel'))}</button>` : ''}${canDel(r) ? ` <button class="btn sm ghost danger" data-rdel="${esc(r.requestId)}">${esc(t('del'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        ${reqs.some((r) => canDel(r) && r.status !== 'queued') ? `<div class="row" style="padding:10px 14px"><span class="small muted">${esc(t('reqDelHint'))}</span><span class="spacer"></span><button class="btn sm ghost danger" id="rdelAll">${esc(t('reqDelAll', { n: reqs.filter((r) => canDel(r) && r.status !== 'queued').length }))}</button></div>` : ''}`;
+      $$('[data-retry]').forEach((b) => b.addEventListener('click', async () => { try { await api(b.dataset.kind === 'case' ? 'c_retryRequest' : 'tw_retryRequest', { requestId: b.dataset.retry }); await reload(); } catch (e) { toast(e.message, 4000); } }));
+      $$('[data-cancel]').forEach((b) => b.addEventListener('click', async () => { try { await api(b.dataset.kind === 'case' ? 'c_cancelRequest' : 'tw_cancelRequest', { requestId: b.dataset.cancel }); await reload(); } catch (e) { toast(e.message, 4000); } }));
+      // 刪除：範例申請一次刪多筆；DMS 考題申請逐筆刪
       const delReqs = async (ids) => {
         if (!(await confirmBox(t('reqDelConfirm', { ids: ids.join('、') }), t('del'), t('cancel'), true))) return;
-        try { await api('tw_deleteRequests', { requestIds: ids }); toast(t('reqDelDone', { n: ids.length })); viewLibrary(); } catch (e) { toast(e.message, 5000); }
+        try {
+          const cs = ids.filter((x) => /^CR/.test(x)), ss = ids.filter((x) => !/^CR/.test(x));
+          if (ss.length) await api('tw_deleteRequests', { requestIds: ss });
+          for (const id of cs) await api('c_deleteRequest', { requestId: id });
+          toast(t('reqDelDone', { n: ids.length })); await reload();
+        } catch (e) { toast(e.message, 5000); }
       };
       $$('[data-rdel]').forEach((b) => b.addEventListener('click', () => delReqs([b.dataset.rdel])));
-      const ra = $('#rdelAll'); if (ra) ra.onclick = () => delReqs(reqs.filter((r) => ['failed', 'cancelled', 'deleted'].includes(r.status)).map((r) => r.requestId));
+      const ra = $('#rdelAll'); if (ra) ra.onclick = () => delReqs(reqs.filter((r) => canDel(r) && r.status !== 'queued').map((r) => r.requestId));
     }
-    drawReqs(d.requests);
+    drawReqs(merge(sReqs, cReqs));
     // 申請狀態有變動（排程處理中、完成、失敗）就自動更新列表
     if (DB() && DB().live) {
-      let last = JSON.stringify(d.requests);
-      liveOff = DB().live.requests((rows) => { const j = JSON.stringify(rows); if (j === last) return; last = j; if ($('#rl')) drawReqs(rows); });
+      let lastS = JSON.stringify(sReqs), lastC = JSON.stringify(cReqs);
+      const offS = DB().live.requests((rows) => { const j = JSON.stringify(rows); if (j === lastS) return; lastS = j; sReqs = rows; if ($('#rl')) drawReqs(merge(sReqs, cReqs)); });
+      const offC = DB().live.caseRequests ? DB().live.caseRequests((rows) => { const j = JSON.stringify(rows); if (j === lastC) return; lastC = j; cReqs = rows; if ($('#rl')) drawReqs(merge(sReqs, cReqs)); }) : null;
+      liveOff = () => { offS && offS(); offC && offC(); };
     }
     $('#rf').addEventListener('submit', async (e) => {
       e.preventDefault(); $('#r_go').disabled = true; $('#r_err').hidden = true;
+      const wantCase = $('#r_case').checked, wantSmp = $('#r_smp').checked;
+      const msgs = [];
       try {
+        if (!wantCase && !wantSmp) throw new Error(t('reqPickUsage'));
         const pr = parseReq($('#r_ids').value);
         if (pr.bad.length) throw new Error(t('cutoffBad') + '：' + pr.bad.join('、'));
-        const r = await api('tw_requestSamples', { items: pr.items, noCutoff: $('#r_nocut').checked, topicId: $('#r_topic').value,
-          wantedTags: $$('#r_tags input:checked').map((c) => c.value), note: $('#r_note').value.trim() });
-        toast(t('reqAdded', { n: r.added }) + (r.duplicates.length ? '；' + t('reqDup', { ids: r.duplicates.join(', ') }) : ''), 5000);
-        $('#r_ids').value = ''; $('#r_note').value = ''; $('#r_nocut').checked = false; preview(); $('#r_go').disabled = false;
-        drawReqs((await api('tw_listRequests')).requests);
-      } catch (err) { $('#r_err').textContent = err.message; $('#r_err').hidden = false; $('#r_go').disabled = false; }
+        if (!pr.items.length) throw new Error(t('reqNoIds'));
+        if (wantCase && pr.items.length > 1) throw new Error(t('reqCaseOne'));
+        const note = $('#r_note').value.trim();
+        if (wantCase) {
+          const x = pr.items[0];
+          const r = await api('c_request', { returnId: x.returnId, cutoffAt: x.cutoffAt, noCutoff: $('#r_nocut').checked, prevIds: $('#r_prevIds').value, note });
+          msgs.push(t('reqCaseAdded', { id: r.requestId }));
+        }
+        if (wantSmp) {
+          try {
+            const r = await api('tw_requestSamples', { items: pr.items, noCutoff: $('#r_nocut').checked, topicId: $('#r_topic').value,
+              wantedTags: $$('#r_tags input:checked').map((c) => c.value), note });
+            msgs.push(t('reqAdded', { n: r.added }) + (r.duplicates.length ? '；' + t('reqDup', { ids: r.duplicates.join(', ') }) : ''));
+          } catch (err) { if (msgs.length) throw new Error(msgs.join('；') + '。' + t('reqSmpFailed') + err.message); throw err; }
+        }
+        toast(msgs.join('；'), 5000);
+        $('#r_ids').value = ''; $('#r_note').value = ''; $('#r_prevIds').value = ''; $('#r_nocut').checked = false; preview(); $('#r_go').disabled = false;
+        await reload();
+      } catch (err) {
+        $('#r_err').textContent = err.message; $('#r_err').hidden = false; $('#r_go').disabled = false;
+        if (msgs.length) { $('#r_ids').value = ''; preview(); reload().catch(() => {}); }
+      }
     });
   }
 
@@ -2467,7 +2539,7 @@
       const s5 = s.status === 'active' ? `${esc(t('stApproved'))}${s.approvedBy ? `<br><span class="soft">${esc(s.approvedBy)}</span>` : ''}`
         : `<span class="soft">${esc(t(canAppr ? (ok2 ? 'stApprReady' : 'stApprNoLock') : dirty ? 'stApprSave' : 'stApprWait'))}</span>`;
       const a5 = s.status === 'active' ? '' : `<button class="btn sm ok" id="appr" ${canAppr ? '' : 'disabled'}>${esc(s.status === 'pending' ? t('approve') : t('reactivate'))}</button>`;
-      main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}${s.fromSample ? `<span class="chip">⧉ ${esc(s.fromSample)}</span>` : ''}
+      main.innerHTML = `<div class="row"><a href="#/library${s.status === 'pending' ? '?tab=pending' : '?tab=active'}">← ${esc(t('library'))}</a><h1>${esc(s.sampleId)}</h1>${smChip(s.status)}${s.source ? `<span class="chip">${esc(s.source)}</span>` : ''}${s.fromSample ? `<span class="chip">⧉ ${esc(s.fromSample)}</span>` : ''}
           <span class="spacer"></span>${grp && q.type !== 'G' ? `<button class="btn brand" id="toG" ${trw ? 'disabled' : ''}>${esc(t('grpConvert'))}</button>` : ''}<button class="btn" id="copyS" title="${esc(t('copyHint'))}">⧉ ${esc(t('copySample'))}</button><button class="btn" id="qedit" ${trw ? 'disabled' : ''}>✎ ${esc(t('ceEdit'))}</button>
           ${me.can.sample || s.status === 'active' || pending ? `<details class="mmenu"><summary class="btn" title="${esc(t('more'))}">⋯</summary><div class="mmenu-pop">
             ${pending ? `<button class="btn ghost danger" id="rej">${esc(t('reject'))}</button>` : s.status === 'active' ? `<button class="btn ghost danger" id="rej">${esc(t('deactivate'))}</button>` : ''}
@@ -2605,7 +2677,7 @@
             const r = await api('tw_deleteSample', { sampleId: s.sampleId, requeue });
             dirty = false; leaveGuard = null; close('ok');
             toast(r.requestId ? t('delRequeued', { id: s.sampleId, r: r.requestId }) : t('delDone', { id: s.sampleId }), 4500);
-            location.hash = r.requestId ? '#/library?tab=requests' : '#/library';
+            location.hash = r.requestId ? '#/library?tab=requests' : '#/library?tab=pending';
           } catch (e) { er.textContent = e.message; er.hidden = false; $('#ds_go', el).disabled = false; }
         };
       } });
@@ -2648,6 +2720,8 @@
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleAdmin: '管理員', roleAdminHint: '管理員：TW 講師的全部功能，加上這個「管理」頁（講師名單、刪除權限、系統設定、V1 資料搬移），而且一律可以刪除。', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（固定是管理員，寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
     setPerms: '刪除權限', setV1: 'V1 資料搬移', setReset: '重置資料',
+    setGroups: '組別', grpHint: '整個系統共用的組別（例如 C2C、Mall、CB），講師用來分類 DMS 考題。停用的組別不能再選，已經選了的案件保留。', grpName: '組別名稱', grpActive: '啟用', grpAdd: '新增組別', grpSaved: '已儲存組別',
+    tUsage: '用途', tUsage_sample: '範例出題（AI）', tUsage_case: 'DMS 考題', tUsageHint: '只勾「DMS 考題」的主題不需要判斷標準，也不會出現在範例申請、題庫生成的主題選單。',
     resetTitle: '重置資料（清除測試資料、編號從頭開始）', resetWarn: '會永久刪除下列所有資料，無法復原。編號（D、Q、E、S、R）全部從 001 重新開始，V1 資料搬移也可以重新執行。正式上線、匯入 V1 之前使用；上線後請勿使用。',
     resetResults: '公布的成績', resetSamples: '範例', resetRequests: '範例申請紀錄', resetKeep: '會保留：主題與判斷標準、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單。',
     resetBtn: '重置資料', resetConfirm: '確定要刪除所有草稿、題庫、測驗、成績、範例與申請紀錄？無法復原。', resetRunning: '重置中…', resetDone: '已重置，編號從頭開始', adminHint: '只有管理員看得到這一頁',
@@ -2694,6 +2768,8 @@
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleAdmin: 'Admin', roleAdminHint: 'Admin: everything a TW trainer can do, plus this Admin page (trainers, delete permissions, system settings, V1 migration), and can always delete.', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (always admin, set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
     setPerms: 'Delete permissions', setV1: 'V1 migration', setReset: 'Reset data',
+    setGroups: 'Groups', grpHint: 'Groups shared across the system (e.g. C2C, Mall, CB), used to classify DMS questions. Inactive groups cannot be picked; cases that already use them keep them.', grpName: 'Group name', grpActive: 'Active', grpAdd: 'Add group', grpSaved: 'Groups saved',
+    tUsage: 'Use', tUsage_sample: 'Samples (AI)', tUsage_case: 'DMS questions', tUsageHint: 'Topics used only for DMS questions need no criteria and are hidden from sample requests and question generation.',
     resetTitle: 'Reset data (remove test data, restart IDs)', resetWarn: 'Permanently deletes everything listed below. IDs (D, Q, E, S, R) restart from 001 and the V1 migration can run again. Use before going live and before importing V1; do not use after go-live.',
     resetResults: 'Released results', resetSamples: 'Samples', resetRequests: 'Sample requests', resetKeep: 'Kept: topics and criteria, tags, option sets, DMS rules, system settings, delete permissions, trainers.',
     resetBtn: 'Reset data', resetConfirm: 'Delete all drafts, bank questions, quizzes, results, samples and requests? This cannot be undone.', resetRunning: 'Resetting…', resetDone: 'Reset done; IDs restart from 001', adminHint: 'Only admins can see this page',
@@ -2791,15 +2867,18 @@
     return modal(`<h2>${esc(t('tAdd'))}</h2>
       <div class="form" style="margin-top:12px">
         <label class="k">${esc(t('tName'))}</label><div class="row"><input id="na_zh" placeholder="${esc(t('zhL'))}" maxlength="30" style="width:180px"><input id="na_en" placeholder="${esc(t('enL'))}" maxlength="40" style="width:200px"></div>
+        <span class="k">${esc(t('tUsage'))}</span><div class="tags">${['sample', 'case'].map((u) => `<label class="tag-opt on"><input type="checkbox" data-nu="${u}" checked> ${esc(t('tUsage_' + u))}</label>`).join('')}</div>
         <label class="k" for="na_src">${esc(t('tCopyFrom'))}</label><select id="na_src"><option value="">${esc(t('none'))}</option>${meta.topics.map((x) => `<option value="${esc(x.topicId)}">${esc(L(x.name))}</option>`).join('')}</select>
       </div>
       <div class="small muted" style="margin-top:8px">${esc(t('tAddHint'))}</div>
       <div class="row" style="margin-top:14px"><span class="spacer"></span><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="na_ok" type="button">${esc(t('add'))}</button></div>`,
     { onMount: (el, close) => {
       $('#na_zh', el).focus();
+      $$('[data-nu]', el).forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked)));
       $('#na_ok', el).onclick = async () => {
         const b = $('#na_ok', el); b.disabled = true;
-        try { const r = await api('tw_addTopic', { name: { zh: $('#na_zh', el).value.trim(), en: $('#na_en', el).value.trim() }, copyFrom: $('#na_src', el).value }); toast(t('tAdded', { n: r.topic.name.zh })); close(r.topic); }
+        try { const r = await api('tw_addTopic', { name: { zh: $('#na_zh', el).value.trim(), en: $('#na_en', el).value.trim() }, copyFrom: $('#na_src', el).value,
+          usage: $$('[data-nu]', el).filter((c) => c.checked).map((c) => c.dataset.nu) }); toast(t('tAdded', { n: r.topic.name.zh })); close(r.topic); }
         catch (e) { toast(e.message, 4500); b.disabled = false; }
       };
     } });
@@ -2819,6 +2898,8 @@
       <div class="card pad" style="display:flex;flex-direction:column;gap:16px">
       <div class="form">
         <label class="k">${esc(t('tName'))}</label><div class="row"><input type="text" id="tn_zh" value="${esc(topic.name && topic.name.zh)}" placeholder="${esc(t('zhL'))}" style="width:200px"><input type="text" id="tn_en" value="${esc(topic.name && topic.name.en)}" placeholder="${esc(t('enL'))}" style="width:220px"></div>
+        <span class="k">${esc(t('tUsage'))}</span><div><div class="tags">${['sample', 'case'].map((u) => `<label class="tag-opt ${(topic.usage || ['sample', 'case']).includes(u) ? 'on' : ''}"><input type="checkbox" data-usage="${u}" ${(topic.usage || ['sample', 'case']).includes(u) ? 'checked' : ''}> ${esc(t('tUsage_' + u))}</label>`).join('')}</div>
+          <div class="small muted" style="margin-top:4px">${esc(t('tUsageHint'))}</div></div>
         <label class="k">${esc(t('tPrompt'))}</label><div style="display:flex;flex-direction:column;gap:6px;width:min(520px,100%)"><input type="text" id="tp_zh" value="${esc(topic.prompt && topic.prompt.zh)}" placeholder="${esc(t('zhL'))}" style="width:100%"><input type="text" id="tp_en" value="${esc(topic.prompt && topic.prompt.en)}" placeholder="${esc(t('enL'))}" style="width:100%"></div>
         <label class="k" for="t_set">${esc(t('tDefaultSet'))}</label><select id="t_set"><option value="">${esc(t('none'))}</option>${sets.map((o) => `<option value="${esc(o.setId)}" ${o.setId === topic.defaultOptionSet ? 'selected' : ''}>${esc(L(o.name))}</option>`).join('')}</select>
       </div>
@@ -2874,6 +2955,7 @@
       catch (e) { toast(e.message, 5000); }
     };
     const mark = () => { dirty = true; $('#t_save').disabled = false; };
+    $$('[data-usage]', box).forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked)));
     $$('input,textarea,select', box).forEach((el) => el.addEventListener('input', mark));
     leaveGuard = () => !dirty || window.confirm(t('unsavedLeave'));
     $('#t_save').onclick = async () => {
@@ -2888,6 +2970,7 @@
         const r = await api('tw_saveTopic', { topicId, baseUpdatedAt: topic.updatedAt, patch: {
           name: { zh: $('#tn_zh').value.trim(), en: $('#tn_en').value.trim() },
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
+          usage: $$('[data-usage]', box).filter((c) => c.checked).map((c) => c.dataset.usage),
           defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value, gradingGuide: $('#t_grade').value,
         } });
         if (added.size) await api('tw_setGap', { refs: [...added].flatMap((r) => (gaps.find((x) => x.ref === r) || { refs: [r] }).refs), state: 'added' }).catch(() => null);
@@ -3016,8 +3099,8 @@
   // ───────── 管理（只有管理員）：講師名單、刪除權限、系統設定、V1 資料搬移 ─────────
   async function viewAdmin() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    const TABS = ['roles', 'perms', 'system', 'v1', 'reset'];
-    const NAMES = { roles: 'setRoles', perms: 'setPerms', system: 'setSystem', v1: 'setV1', reset: 'setReset' };
+    const TABS = ['roles', 'perms', 'groups', 'system', 'v1', 'reset'];
+    const NAMES = { roles: 'setRoles', perms: 'setPerms', groups: 'setGroups', system: 'setSystem', v1: 'setV1', reset: 'setReset' };
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'roles';
     shell('admin', `<div class="row"><h1>${esc(t('navAdmin'))}</h1><span class="small muted">${esc(t('adminHint'))}</span></div>
       <div class="tabs">${TABS.map((k) => `<a class="tab ${k === tab ? 'on' : ''}" href="#/admin?tab=${k}">${esc(t(NAMES[k]))}</a>`).join('')}</div><div id="sp" style="margin-top:14px"><div class="empty-state"><span class="spin"></span></div></div>`);
@@ -3025,10 +3108,41 @@
     try {
       if (tab === 'roles') await setRolesTab(box);
       else if (tab === 'perms') await setPermsTab(box);
+      else if (tab === 'groups') await setGroupsTab(box);
       else if (tab === 'system') await setSystemTab(box);
       else if (tab === 'reset') await setResetTab(box);
       else setV1Tab(box);
     } catch (e) { showError(e, box); }
+  }
+
+  /** 組別（管理員）：整個系統共用的分類；停用的組別不能再選，已經用在案件上的保留 */
+  async function setGroupsTab(box) {
+    const meta = await api('t_topics');
+    let items = meta.groups.map((x) => Object.assign({}, x)), dirty = false;
+    const draw = () => {
+      box.innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:12px;max-width:640px">
+        <div class="small muted">${esc(t('grpHint'))}</div>
+        <table class="list"><thead><tr><th>${esc(t('grpName'))}</th><th style="text-align:center">${esc(t('grpActive'))}</th><th></th></tr></thead><tbody>
+        ${items.map((x, i) => `<tr><td><input type="text" data-gn="${i}" value="${esc(x.name)}" maxlength="30" style="width:100%;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 10px"></td>
+          <td style="text-align:center"><input type="checkbox" data-ga="${i}" ${x.active ? 'checked' : ''}></td>
+          <td style="text-align:right;white-space:nowrap"><button class="btn sm ghost" data-gu="${i}" ${i ? '' : 'disabled'}>↑</button><button class="btn sm ghost" data-gd="${i}" ${i < items.length - 1 ? '' : 'disabled'}>↓</button>
+            ${x.id ? '' : `<button class="btn sm ghost danger" data-gx="${i}">${esc(t('del'))}</button>`}</td></tr>`).join('')}</tbody></table>
+        <div class="row"><button class="btn" id="g_add" type="button">＋ ${esc(t('grpAdd'))}</button><span class="spacer"></span><button class="btn brand" id="g_save" ${dirty ? '' : 'disabled'}>${esc(t('save'))}</button></div></div>`;
+      const touch = () => { dirty = true; $('#g_save').disabled = false; leaveGuard = () => !dirty || window.confirm(t('unsavedLeave')); };
+      $$('[data-gn]', box).forEach((el) => el.addEventListener('input', () => { items[+el.dataset.gn].name = el.value; touch(); }));
+      $$('[data-ga]', box).forEach((el) => el.addEventListener('change', () => { items[+el.dataset.ga].active = el.checked; touch(); }));
+      const move = (i, d) => { const x = items.splice(i, 1)[0]; items.splice(i + d, 0, x); dirty = true; draw(); };
+      $$('[data-gu]', box).forEach((el) => el.addEventListener('click', () => move(+el.dataset.gu, -1)));
+      $$('[data-gd]', box).forEach((el) => el.addEventListener('click', () => move(+el.dataset.gd, 1)));
+      $$('[data-gx]', box).forEach((el) => el.addEventListener('click', () => { items.splice(+el.dataset.gx, 1); dirty = true; draw(); }));
+      $('#g_add').onclick = () => { items.push({ id: '', name: '', active: true }); dirty = true; draw(); const ins = $$('[data-gn]', box); ins[ins.length - 1].focus(); };
+      $('#g_save').onclick = async () => {
+        $('#g_save').disabled = true;
+        try { const r = await api('ad_saveGroups', { items }); items = r.groups.map((x) => Object.assign({}, x)); dirty = false; leaveGuard = null; topicsCache = null; libMeta = null; toast(t('grpSaved')); draw(); }
+        catch (e) { toast(e.message, 5000); $('#g_save').disabled = false; }
+      };
+    };
+    draw();
   }
 
   async function setPermsTab(box) {
