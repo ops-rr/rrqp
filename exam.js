@@ -15,6 +15,7 @@
   const fmtDT = (ms) => { if (!ms) return '-'; const d = new Date(ms); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const toLocal = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const xLink = (id) => location.origin + location.pathname + '#/x/' + id;
+  const REFRESH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';   // 和 app.js 同一個圖示
   const MODE = (s) => (s.mode === 'practice' ? (s.review === 'unified' ? '練習・統一檢討' : '練習・隨時檢討') : '考試');
   const STATE = { scheduled: '尚未開始', open: '進行中', closed: '已結束', released: '已公布成績' };
   const ATT = { not_started: '未開始', in_progress: '作答中', submitted: '已交卷', expired: '逾時未交' };
@@ -95,7 +96,7 @@
     };
     const drawSel = () => {
       const rows = st.picked.map((id) => all.find((c) => c.caseId === id)).filter(Boolean);
-      $('#x_sum').textContent = `${rows.length} 個案件・${rows.reduce((n, c) => n + c.questions, 0)} 題・${rows.reduce((n, c) => n + c.points, 0)} 分`;
+      $('#x_sum').textContent = `${rows.length} 個案件・${rows.reduce((n, c) => n + c.questions, 0)} 題・成績換算成 100 分（每個案件各佔 ${rows.length ? Math.round(1000 / rows.length) / 10 : 0} 分）`;
       $('#x_sel').innerHTML = rows.length ? rows.map((c, i) => `<div class="it"><b>案件 ${i + 1}</b><span class="mono">${esc(c.caseId)}</span><span style="flex:1">${esc(c.title)}</span>
         <button type="button" class="btn sm ghost" data-u="${i}" ${i ? '' : 'disabled'}>↑</button><button type="button" class="btn sm ghost" data-d="${i}" ${i < rows.length - 1 ? '' : 'disabled'}>↓</button>
         <button type="button" class="btn sm ghost danger" data-x="${i}">✕</button></div>`).join('') : '<div class="small muted">從左邊勾選案件；專員作答時依這裡的順序。</div>';
@@ -145,7 +146,7 @@
     const exam = s.mode === 'exam';
     main.innerHTML = `<div class="row"><a href="#/sessions?tab=cases">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
         ${s.answersOpen ? '<span class="chip ok">已公布解答</span>' : ''}<span class="spacer"></span>
-        <button class="btn" id="xr">重新整理</button>
+        <button class="btn icon" id="xr" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button>
         ${!s.released ? '<button class="btn" id="xAdd">加入專員</button><button class="btn" id="xMin">延長作答時間</button><button class="btn" id="xExt">延長結束時間</button>' : ''}
         ${s.state === 'open' || s.state === 'scheduled' ? '<button class="btn danger" id="xEnd">提前結束</button>' : ''}
         ${!exam && s.review === 'unified' ? `<button class="btn ${s.answersOpen ? '' : 'brand'}" id="xOpen">${s.answersOpen ? '收回解答' : '公布解答'}</button>` : ''}
@@ -155,7 +156,7 @@
       <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
       <div class="stats">
         <div class="card pad"><div class="small soft">開放時間</div><div><b>${fmtDT(s.startAt)}</b><br>– <b>${fmtDT(s.endAt)}</b></div></div>
-        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・${s.points} 分</div></div>
+        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・原始配分 ${s.points}，成績換算成 100 分</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div></div>
       </div>
       <div class="tabs"><a class="tab ${byQ ? '' : 'on'}" href="#/xsession/${esc(s.sessionId)}">依專員</a><a class="tab ${byQ ? 'on' : ''}" href="#/xsession/${esc(s.sessionId)}?view=q">依題目${exam ? '批改' : '檢視'}</a>
@@ -163,7 +164,7 @@
       <div class="card scroll-x" ${byQ ? 'hidden' : ''}><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>${exam ? '成績' : '單選題'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
         ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
-          <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
+          <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}<div class="soft">原始 ${r.result.raw} / ${r.result.rawTotal}</div>${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
           <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status !== 'not_started' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">查看作答</a>`
             : !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
@@ -290,7 +291,7 @@
       ${d.sessions.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}<div class="small soft">${fmtDT(s.startAt)}</div></td>
         <td class="small">${MODE(s)}</td><td>${stChip(s.state)}</td><td class="small">${s.submitted} / ${s.assigned}</td>
         <td><b>${s.mode === 'practice' ? `單選答對 ${rateTxt(s.mcRate)}` : pctTxt(s.avg)}</b></td>
-        <td>${s.mode === 'practice' ? '-' : s.coaching ? `<span class="chip warn">${s.coaching}</span>` : '0'}</td><td>${s.flagged ? `<span class="chip warn">${s.flagged} 人</span>` : '0'}</td></tr>`).join('')}</tbody></table></div>`}`;
+        <td>${s.mode === 'practice' ? '-' : s.coaching ? `<span class="dot o" title="${s.coaching} 人">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td>${s.flagged ? `<span class="dot o" title="${s.flagged} 人">${s.flagged}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td></tr>`).join('')}</tbody></table></div>`}`;
     $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xresults/' + tr.dataset.x; }));
   }
 
@@ -303,7 +304,7 @@
     const s = d.session, st = d.stats, practice = s.mode === 'practice';
     const rows = d.rows.slice().sort((a, b) => (a.pct === null ? -1 : b.pct === null ? 1 : a.pct - b.pct));
     main.innerHTML = `<div class="row"><a href="#/results">← 歷史成績</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}<span class="spacer"></span>
-        <a class="btn" href="#/xsession/${esc(s.sessionId)}" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
+        <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
       ${!practice && !s.released ? `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}">前往批改 →</a></div>` : ''}
       <div class="stats five">
         <div class="card pad"><div class="small soft">${practice ? '單選題平均答對率' : '平均（百分比）'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
@@ -317,20 +318,21 @@
         <div class="small soft">簡答題以已給分的人計算平均得分率；滑過長條可以看題目。</div></div>
       <div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>${practice ? '單選答對率' : '分數'}</th><th>錯在哪</th><th>作答時間</th><th>離開頁面</th><th>需要留意</th><th></th></tr></thead><tbody>
         ${rows.map((r) => `<tr><td>${esc(r.email)}${r.extraMin ? ` <span class="chip">加時 ${r.extraMin} 分</span>` : ''}</td>
-          <td>${r.status !== 'submitted' ? atChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : practice ? `<b>${rateTxt(r.mcRate)}</b>` : `<b style="font-size:18px">${r.score}</b> / ${r.total}<div class="small soft">${pctTxt(r.pct)}${r.pending ? `・${r.pending} 題待給分` : ''}</div>`}</td>
+          <td>${r.status !== 'submitted' ? atChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : practice ? `<b>${rateTxt(r.mcRate)}</b>` : `<b style="font-size:18px">${r.score}</b> / ${r.total}<div class="small soft">原始 ${r.raw} / ${r.rawTotal}${r.pending ? `・${r.pending} 題待給分` : ''}</div>`}</td>
           <td class="small">${r.wrong.map((w) => esc(w.label) + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、') || (r.status === 'submitted' ? '—' : '')}</td>
           <td class="small">${r.status === 'submitted' ? durTxt(r.secs) : ''}</td><td class="small">${r.status === 'submitted' ? (r.leaves ? `${r.leaves} 次（${durTxt(r.leaveSecs)}）` : '0') : ''}</td>
-          <td class="small">${r.flags.length ? `<span class="chip warn" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
+          <td class="small">${r.flags.length ? `<span class="dot o" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
           <td style="text-align:right;white-space:nowrap">${r.coaching ? '<span class="chip warn">需輔導</span> ' : ''}${r.status === 'submitted' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">明細</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+    $('#xRf').onclick = () => results(id, X);
     $('#xCsv').onclick = () => X.downloadCsv(`${s.sessionId}_results.csv`, [CSV_HEAD].concat(rows.map((r) => csvRow(Object.assign({ sessionId: s.sessionId, title: s.title, mode: s.mode, startAt: s.startAt }, r)))));
   }
 
   // 專員維度匯出（和 app.js 的變化題列合併）：一列＝某位專員的某一場
-  const CSV_HEAD = ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間'];
+  const CSV_HEAD = ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '原始得分', '原始總分', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間'];
   function csvRow(r) {
     const sub = r.status === 'submitted';
     return [r.email, r.sessionId, r.title, 'DMS 考題', r.mode === 'practice' ? '練習' : '考試', fmtDT(r.startAt), ATT[r.status] || r.status,
-      sub && r.score !== null ? r.score : '', sub && r.total !== null ? r.total : '', sub && r.pct !== null ? r.pct : '', sub && r.mcRate !== null ? Math.round(r.mcRate * 100) + '%' : '',
+      sub && r.score !== null ? r.score : '', sub && r.total !== null ? r.total : '', sub && r.pct !== null ? r.pct : '', sub && r.raw != null ? r.raw : '', sub && r.rawTotal != null ? r.rawTotal : '', sub && r.mcRate !== null ? Math.round(r.mcRate * 100) + '%' : '',
       r.coaching ? 'Y' : '', r.wrong.map((w) => w.label + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、'),
       sub ? durTxt(r.secs) : '', sub ? r.leaves : '', sub ? r.leaveSecs : '', r.flags.join('；'), sub ? fmtDT(r.submittedAt) : ''];
   }
@@ -350,54 +352,96 @@
     }));
   }
 
-  /** 依題目：一題一題看所有人的回答；考試的簡答題可以一次給分 */
+  /** 依題目：上方題目分頁，一次看一題所有人的答案（和 V2 閱卷一樣）；給分先記在 draft，切換題目不會不見，按「儲存給分」一次存 */
+  let qTab = {};
   function questionPanel(box, d, canGrade) {
-    const LET = 'ABCDEFGH', done = d.roster.filter((r) => r.status === 'submitted');
+    const LET = 'ABCDEFGH', sid = d.session.sessionId, done = d.roster.filter((r) => r.status === 'submitted');
     if (!done.length) { box.innerHTML = '<div class="card empty-state">還沒有人交卷</div>'; return; }
-    box.innerHTML = `<div class="card pad"><div class="row"><h2>依題目${canGrade ? '批改' : '檢視'}</h2><span class="small muted">${done.length} 人交卷</span><span class="spacer"></span>
-        ${canGrade ? `<button class="btn" id="xCmd" title="貼到 SeaTalk 的 @RR AI Quiz Assistant">複製批改指令</button>
-          <span class="small">AI 信心度 ≥ <input id="xTh" type="number" min="0" max="1" step="0.05" value="0.85" style="width:64px"></span><button class="btn" id="xUseAll">全部採用</button>
-          <button class="btn brand" id="xSaveQ">儲存給分</button>` : ''}</div>
-      ${canGrade ? '<div class="small soft" style="margin-top:4px">AI 分數只是建議：採用後會填進給分欄，按「儲存給分」才算數。已經有分數的不會被覆蓋。</div>' : ''}
-      ${(d.key.cases || []).map((kc, i) => kc.mods.map((m, qi) => {
-        const head = `<h3 style="margin-top:18px">案件 ${i + 1}・第 ${qi + 1} 題（${m.type === 'mc' ? '單選' : '簡答'}，${m.points} 分）<span class="small soft mono"> ${esc(kc.caseId)}</span></h3><div><b>${esc(m.q)}</b></div>`;
-        if (m.type === 'mc') {
-          const cnt = m.options.map((_, oi) => done.filter((r) => ((r.answers[i] || {}).mc || {})[m.id] === oi).length);
-          return head + `<div class="small" style="margin-top:6px">${m.options.map((o, oi) => `<div class="${oi === m.answer ? 'ok' : ''}" style="padding:2px 0">${LET[oi]}. ${esc(o)}${oi === m.answer ? '（正解）' : ''}　<b>${cnt[oi]}</b> 人</div>`).join('')}
-            <div class="soft">沒作答 ${done.length - cnt.reduce((n, v) => n + v, 0)} 人</div></div>`;
-        }
-        return head + `<div class="small soft" style="margin:4px 0 6px">標準答案：${esc(m.standard)}</div>
-          ${done.map((r) => { const v = (r.scores || {})[i + ':' + m.id]; return `<div class="xq"><div class="row"><b class="small">${esc(r.email)}</b><span class="spacer"></span>
-            ${canGrade ? `給分 <input class="sc" type="number" min="0" max="${m.points}" step="0.5" data-e="${esc(r.email)}" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}`
-              : (v !== null && v !== undefined ? `<span class="small">${v} / ${m.points}</span>` : '')}</div>
-            <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin-top:4px">${esc(((r.answers[i] || {}).short || {})[m.id] || '（沒作答）')}</div>
-            ${aiTip((r.ai || {})[i + ':' + m.id], m.points, canGrade)}</div>`; }).join('')}`;
-      }).join('')).join('')}</div>`;
-    bindAiUse(box);
-    const cmd = $('#xCmd', box);
-    if (cmd) cmd.onclick = async () => {
-      const txt = '批改 ' + d.session.sessionId;
-      try { await navigator.clipboard.writeText(txt); X.toast(`已複製「${txt}」，貼到 SeaTalk 的 @RR AI Quiz Assistant`); } catch (e) { X.toast(txt); }
+    const qs = (d.key.cases || []).flatMap((kc, i) => kc.mods.map((m, qi) => ({ k: i + ':' + m.id, i, qi, m, kc })));
+    const qOf = (i, id) => qs.find((q) => q.i === i && q.m.id === id);
+    const draft = {};                                             // { email: { k: 分數 } } 還沒儲存的給分
+    const scoreOf = (r, k) => { const v = (draft[r.email] || {})[k]; return v !== undefined ? v : (r.scores || {})[k]; };
+    const ansOf = (r, q) => ((r.answers[q.i] || {}).short || {})[q.m.id] || '';
+    const pickOf = (r, i, id) => ((r.answers[i] || {}).mc || {})[id];
+    const badge = (q) => {
+      if (q.m.type !== 'short') return '';
+      const left = done.filter((r) => { const v = scoreOf(r, q.k); return v === undefined || v === null || v === ''; });
+      const low = left.filter((r) => { const a = (r.ai || {})[q.k]; return a && Number(a.confidence) < 0.7; }).length;
+      if (!left.length) return ' <span class="dotok" title="都給分了">✓</span>';
+      return ` <span class="dot g" title="待給分 ${left.length} 人">${left.length}</span>` + (low ? `<span class="dot o" title="AI 低信心 ${low} 人">${low}</span>` : '');
     };
-    const all = $('#xUseAll', box);
-    if (all) all.onclick = () => {
-      const th = Number($('#xTh', box).value) || 0;
-      let n = 0;
-      $$('.aiUse', box).forEach((b) => {
-        const inp = b.closest('.xq').querySelector('input.sc');
-        if (inp && inp.value === '' && Number(b.dataset.c) >= th) { inp.value = b.dataset.v; n++; }
-      });
-      X.toast(n ? `已填入 ${n} 筆 AI 分數，確認後按「儲存給分」` : '沒有符合的 AI 分數（已有分數的不會覆蓋）');
-    };
-    const sv = $('#xSaveQ', box);
-    if (sv) sv.onclick = async () => {
-      const scores = {};
-      $$('input.sc', box).forEach((x) => { (scores[x.dataset.e] || (scores[x.dataset.e] = {}))[x.dataset.k] = x.value === '' ? null : Number(x.value); });
-      sv.disabled = true;
-      try { const r = await X.api('x_gradeMany', { sessionId: d.session.sessionId, scores }); X.toast(`已儲存 ${r.saved} 位專員的給分`); }
-      catch (e) { X.toast(e.message, 5000); }
-      sv.disabled = false;
-    };
+    function pickTxt(q, pick) {
+      if (pick === undefined || pick === null) return '<span class="soft">沒作答</span>';
+      const ok = pick === q.m.answer;
+      return `<span class="${ok ? 'okc' : 'errc'}"><b>${LET[pick]}</b> ${esc(q.m.options[pick] || '')} ${ok ? '✓' : '✗'}</span>`;
+    }
+    function mcView(q) {
+      const cnt = q.m.options.map((_, oi) => done.filter((r) => pickOf(r, q.i, q.m.id) === oi).length);
+      return `<div class="small soft" style="margin:4px 0 10px">正解 <b>${LET[q.m.answer]}</b>．${esc(q.m.options[q.m.answer] || '')}　｜　${q.m.options.map((_, oi) => `${LET[oi]} ${cnt[oi]} 人`).join('・')}・沒作答 ${done.length - cnt.reduce((n, v) => n + v, 0)} 人</div>
+        <div class="scroll-x"><table class="list" style="table-layout:fixed;min-width:480px"><colgroup><col style="width:40%"><col></colgroup><thead><tr><th>專員</th><th>選了</th></tr></thead><tbody>
+        ${done.map((r) => `<tr><td>${esc(r.email)}</td><td>${pickTxt(q, pickOf(r, q.i, q.m.id))}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+    function shortView(q) {
+      const bound = q.m.bindTo ? qOf(q.i, q.m.bindTo) : null;
+      return `<div class="small soft" style="margin:4px 0 10px">標準答案：${esc(q.m.standard || '（沒有填）')}${bound ? `　｜　說明案件${q.i + 1}-${bound.qi + 1} 的選擇（正解 ${LET[bound.m.answer]}）` : ''}</div>
+        <div class="scroll-x"><table class="list xqt" style="table-layout:fixed;min-width:${bound ? 760 : 660}px"><colgroup><col style="width:20%">${bound ? '<col style="width:13%">' : ''}<col><col style="width:28%"><col style="width:${canGrade ? 120 : 80}px"></colgroup>
+        <thead><tr><th>專員</th>${bound ? `<th>${q.i + 1}-${bound.qi + 1} 選了</th>` : ''}<th>答案</th><th>AI 建議</th><th>給分</th></tr></thead><tbody>
+        ${done.map((r) => { const v = scoreOf(r, q.k); return `<tr class="xq"><td class="small" style="word-break:break-all">${esc(r.email)}</td>
+          ${bound ? `<td class="small" data-l="${q.i + 1}-${bound.qi + 1} 選了">${pickTxt(bound, pickOf(r, q.i, bound.m.id))}</td>` : ''}
+          <td style="white-space:pre-wrap;word-break:break-word">${ansOf(r, q) ? esc(ansOf(r, q)) : '<span class="soft">（沒作答）</span>'}</td>
+          <td>${aiTip((r.ai || {})[q.k], q.m.points, canGrade) || '<span class="small soft">—</span>'}</td>
+          <td style="white-space:nowrap" data-l="給分">${canGrade ? `<input class="sc" type="number" min="0" max="${q.m.points}" step="0.5" style="width:56px" data-e="${esc(r.email)}" data-k="${q.k}" value="${v === null || v === undefined ? '' : v}"> / ${q.m.points}`
+            : (v !== null && v !== undefined ? `${v} / ${q.m.points}` : '<span class="soft">-</span>')}</td></tr>`; }).join('')}</tbody></table></div>`;
+    }
+    function render() {
+      let cur = qs.find((q) => q.k === qTab[sid]) || qs.find((q) => q.m.type === 'short') || qs[0];
+      qTab[sid] = cur.k;
+      box.innerHTML = `<div class="card pad">
+        <div class="row"><h2>依題目${canGrade ? '批改' : '檢視'}</h2><span class="small muted">${done.length} 人交卷</span><span class="spacer"></span>
+          ${canGrade ? `<button class="btn" id="xCmd" title="貼到 SeaTalk 的 @RR AI Quiz Assistant">複製批改指令</button>
+            <span class="small">AI 信心度 ≥ <input id="xTh" type="number" min="0" max="1" step="0.05" value="0.85" style="width:64px"></span><button class="btn" id="xUseAll">全部採用</button>
+            <button class="btn brand" id="xSaveQ">儲存給分</button>` : ''}</div>
+        ${canGrade ? '<div class="small soft" style="margin-top:4px">AI 分數只是建議：採用後會填進給分欄，按「儲存給分」才算數（切換題目不會不見）。「全部採用」套用到所有題目，已經有分數的不會被覆蓋。</div>' : ''}
+        ${qs.some((q) => q.m.type === 'short') ? '<div class="dotlegend"><span><span class="dot g">n</span> 待給分</span><span><span class="dot o">n</span> AI 低信心</span><span><span class="dotok">✓</span> 都給分了</span></div>' : ''}
+        <div class="tabs xqtabs" role="tablist" style="margin-top:6px">${qs.map((q) => `<button class="tab ${q.k === cur.k ? 'on' : ''}" data-q="${q.k}" role="tab">${q.i + 1}-${q.qi + 1} ${q.m.type === 'mc' ? '單選' : '簡答'}${badge(q)}</button>`).join('')}</div>
+        <h3 style="margin-top:6px">案件 ${cur.i + 1}・第 ${cur.qi + 1} 題（${cur.m.type === 'mc' ? '單選' : '簡答'}，${cur.m.points} 分）<span class="small soft mono"> ${esc(cur.kc.caseId)}</span></h3>
+        <div><b>${esc(cur.m.q)}</b></div>
+        ${cur.m.type === 'mc' ? mcView(cur) : shortView(cur)}</div>`;
+      $$('[data-q]', box).forEach((b) => b.addEventListener('click', () => { qTab[sid] = b.dataset.q; render(); }));
+      $$('input.sc', box).forEach((x) => x.addEventListener('input', () => { (draft[x.dataset.e] || (draft[x.dataset.e] = {}))[x.dataset.k] = x.value === '' ? null : Number(x.value); }));
+      bindAiUse(box);
+      const cmd = $('#xCmd', box);
+      if (cmd) cmd.onclick = async () => {
+        const txt = '批改 ' + sid;
+        try { await navigator.clipboard.writeText(txt); X.toast(`已複製「${txt}」，貼到 SeaTalk 的 @RR AI Quiz Assistant`); } catch (e) { X.toast(txt); }
+      };
+      const all = $('#xUseAll', box);
+      if (all) all.onclick = () => {
+        const th = Number($('#xTh', box).value) || 0;
+        let n = 0;
+        done.forEach((r) => Object.entries(r.ai || {}).forEach(([k, a]) => {
+          const v = scoreOf(r, k);
+          if ((v === undefined || v === null || v === '') && Number(a.confidence) >= th) { (draft[r.email] || (draft[r.email] = {}))[k] = Number(a.score); n++; }
+        }));
+        render();
+        X.toast(n ? `已填入 ${n} 筆 AI 分數，確認後按「儲存給分」` : '沒有符合的 AI 分數（已有分數的不會覆蓋）');
+      };
+      const sv = $('#xSaveQ', box);
+      if (sv) sv.onclick = async () => {
+        const emails = Object.keys(draft);
+        if (!emails.length) { X.toast('沒有要儲存的給分'); return; }
+        const scores = {};
+        emails.forEach((e) => { const r = done.find((x) => x.email === e); scores[e] = Object.assign({}, (r && r.scores) || {}, draft[e]); });
+        sv.disabled = true;
+        try {
+          const res = await X.api('x_gradeMany', { sessionId: sid, scores });
+          emails.forEach((e) => { const r = done.find((x) => x.email === e); if (r) r.scores = scores[e]; delete draft[e]; });
+          X.toast(`已儲存 ${res.saved} 位專員的給分`); render();
+        } catch (e) { X.toast(e.message, 5000); sv.disabled = false; }
+      };
+    }
+    render();
+    X.setLeaveGuard(() => !Object.keys(draft).length || window.confirm('還有給分沒儲存，確定要離開嗎？'));   // 回傳 true 表示可以離開
   }
 
   // ═════════════════════════════ 專員：我的測驗卡片、入口 ═════════════════════════════

@@ -1,7 +1,7 @@
 :root {
   --bg: #F6F5F2; --card: #FFFFFF; --ink: #1F1F1F; --muted: #4A4843; --soft: #7A776F;
   --line: #E4E2DC; --line2: #D6D3CC; --chip: #F2F0EB;
-  --brand: #D9431E; --link: #C2410C; --brand-soft: #FDEDE7;
+  --brand: #EA580C; --link: #C2410C; --brand-soft: #FDEEE8; --brand-line: #F3C4B2;
   --ok: #15803D; --ok-bg: #EAF6EE; --warn: #92400E; --warn-bg: #FFF8E6; --warn-line: #F5D98B;
   --err: #B91C1C; --err-bg: #FDECEC; --info: #1D4ED8; --info-bg: #EAF0FD;
   --buyer: #F1F0EC; --seller: #FDEDE7;
@@ -21,7 +21,7 @@ h2 { font-size: 17px; margin: 0; }
 /* buttons */
 .btn { height: 38px; padding: 0 16px; border: 1px solid var(--line2); border-radius: 8px; background: #fff; color: var(--ink); white-space: nowrap; }
 .btn:hover:not(:disabled) { border-color: var(--muted); }
-.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 700; }
+.btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
 .btn.brand { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
 .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); font-weight: 700; }
 .btn.ghost { border-color: transparent; background: transparent; }
@@ -92,7 +92,7 @@ table.list tr.click { cursor: pointer; } table.list tr.click:hover td { backgrou
 .qlist { position: sticky; top: 76px; max-height: calc(100vh - 100px); overflow: auto; padding: 6px; }
 .qitem { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; border: 1px solid transparent; }
 .qitem:hover { background: #FBFAF8; }
-.qitem.on { background: var(--brand-soft); border-color: #F4C3B3; }
+.qitem.on { background: var(--brand-soft); border-color: var(--brand-line); }
 .qitem .id { font-weight: 700; }
 .qitem .ans { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .dot { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line2); flex: none; display: grid; place-items: center; font-size: 11px; color: #fff; }
@@ -178,7 +178,7 @@ table.items th { color: var(--soft); font-weight: 500; font-size: 12px; }
 .timer.danger { background: var(--err-bg); color: var(--err); }
 .qnav { display: flex; flex-wrap: wrap; gap: 6px; }
 .qn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line2); background: #fff; font-weight: 700; }
-.qn.done { background: var(--ink); color: #fff; border-color: var(--ink); }
+.qn.done { background: var(--brand-soft); color: var(--link); border-color: var(--brand-line); font-weight: 700; }
 .qn.on { outline: 3px solid var(--brand); outline-offset: 1px; }
 .answerbox { margin-top: 18px; padding: 14px; border: 2px solid var(--brand); border-radius: 12px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
 .ropt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: 8px; cursor: pointer; font-size: 15px; }
@@ -196,8 +196,8 @@ table.items th { color: var(--soft); font-weight: 500; font-size: 12px; }
 
 /* ───────── M5：批改與成績 ───────── */
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
-.tab { border: 1px solid var(--line2); background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 700; }
-.tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.tab { border: 1px solid var(--line2); background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
+.tab.on { background: var(--brand-soft); color: var(--link); border-color: var(--brand-line); font-weight: 700; }
 .gq h2 { font-size: 18px; }
 .gref { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; font-size: 14px; }
 .gtable td { vertical-align: top; }
@@ -227,8 +227,8 @@ table.items th { color: var(--soft); font-weight: 500; font-size: 12px; }
 [hidden] { display: none !important; }
 
 /* ───────── M6：成績 ───────── */
-a.tab { color: var(--ink); text-decoration: none; display: inline-block; }
-a.tab.on { color: #fff; }
+a.tab { color: var(--ink); text-decoration: none; }
+a.tab.on { color: var(--link); }
 .stats.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .rates { display: flex; gap: 10px; align-items: flex-end; overflow-x: auto; padding: 12px 0 8px; }
 .rate { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 52px; font-size: 12px; }
@@ -401,7 +401,6 @@ img.stk { width: 96px; height: 96px; object-fit: contain; display: block; }
 .steps .st:last-child { border-right: 0; }
 .steps .n { font-weight: 700; display: flex; gap: 8px; align-items: center; }
 .steps .n i { font-style: normal; width: 22px; height: 22px; flex: none; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; background: var(--chip); }
-.steps .st.done .n i { background: #E6F4EA; color: #1E7B34; }
 .steps .d { color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .steps .st.todo .d b { color: #B4341A; }
 .steps details summary { font-size: 12px; }
@@ -428,3 +427,16 @@ img.stk { width: 96px; height: 96px; object-fit: contain; display: block; }
 .sf-refs{margin-top:6px}
 .sf-refs ul{margin:4px 0 0;padding-left:18px;font-size:12.5px}
 .sf-refs code{font-size:12px}
+
+/* 數量圓圈（全站同一套意思）：灰＝待處理、橘＝需要注意、綠勾＝都完成了 */
+.dot { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; color: #fff; line-height: 1; vertical-align: middle; }
+.dot.g { background: #9CA3AF; }
+.dot.o { background: #EA580C; }
+.dotok { color: var(--ok); font-weight: 700; }
+.dotlegend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--soft); margin-top: 10px; }
+.dotlegend > span { display: inline-flex; align-items: center; gap: 4px; }
+/* 圖示按鈕（重新整理）：平常灰、滑過淡橘、載入中轉圈 */
+.btn.icon { width: 38px; padding: 0; display: inline-grid; place-items: center; color: var(--soft); }
+.btn.icon svg { width: 18px; height: 18px; }
+.btn.icon:hover:not(:disabled) { color: var(--brand); border-color: var(--brand-line); background: var(--brand-soft); }
+.btn.icon.busy svg { animation: sp 1s linear infinite; }

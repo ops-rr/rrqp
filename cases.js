@@ -73,7 +73,7 @@
 
   function drawCases(d, box) {
     const pend = d.cases.filter((c) => c.status !== 'approved'), appr = d.cases.filter((c) => c.status === 'approved');
-    if ($('#cqNP')) $('#cqNP').textContent = pend.length ? `(${pend.length})` : '';
+    if ($('#cqNP')) $('#cqNP').innerHTML = pend.length ? `<span class="dot g" title="待審 ${pend.length}">${pend.length}</span>` : '';
     if ($('#cqNA')) $('#cqNA').textContent = appr.length ? `(${appr.length})` : '';
     const all = filt.tab === 'approved' ? appr : pend;
     if (!box || !document.body.contains(box)) return;
@@ -792,7 +792,7 @@
       if (md.type === 'mc') html += mcAgentHtml(md, qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">說明第 ${qn[md.bindTo]} 題的選擇</div>` : '';
-        html += `<div class="mod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${bind}
+        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${bind}
           <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)" onpaste="CQ.paste('${md.id}',event)">${esc(A.short[md.id] || '')}</textarea>
           ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>參考答案：</b>${esc(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
       }
@@ -810,7 +810,7 @@
       if (showAns && pick === i && i !== md.answer) cls += ' wrong';
       return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i})"><span class="l">${LETTERS[i]}</span><span>${esc(o)}</span></div>`;
     }).join('');
-    return `<div class="mod"><div class="mh">${no}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${opts}
+    return `<div class="mod qmod"><div class="mh">${no}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${opts}
       ${showAns && md.explain ? `<div class="explain"><b>詳解：</b>${esc(md.explain)}</div>` : ''}</div>`;
   }
 
@@ -893,7 +893,7 @@
           <div class="lbl">標準答案（AI 預評分依據）</div><textarea onchange="CQ.setMod(${i},'standard',this.value)">${esc(md.standard || '')}</textarea>
           <div class="lbl">配分</div><input type="number" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)">`;
       }
-      html += `<div class="mod ${md.type === 'note' ? 'note' : ''}">${head}${body}</div>`;
+      html += `<div class="mod ${md.type === 'note' ? 'note' : md.type === 'mc' || md.type === 'short' ? 'qmod' : ''}">${head}${body}</div>`;
     });
     html += `<div class="addbar"><span class="hint" style="width:100%;margin:0">＋ 插入模組</span>
       ${Object.keys(TYPE_NAME).map(t => `<button onclick="CQ.addMod('${t}')">${TYPE_NAME[t]}</button>`).join('')}</div>`;
@@ -1203,11 +1203,12 @@
   async function exSave(force) {
     if (!EX || EX.readOnly || EX.saving || EX.submitting) return;
     if (!force && !(EX.dirtyAns || EX.dirtyTrack)) return;
-    EX.saving = true; EX.dirtyAns = false; EX.dirtyTrack = false;
-    try { await X.api('x_save', { sessionId: EX.sid, answers: exAnswersOut(), track: exTrackOut() }); EX.lastSave = Date.now(); EX.saveErr = ''; }
-    catch (e) { EX.dirtyAns = true; EX.saveErr = e.message || String(e); }
-    EX.saving = false;
-    if ($('#cqBar') && EX) exBar();
+    const ex = EX;            // 儲存途中換頁時 EX 會被清成 null，後面一律用這份
+    ex.saving = true; ex.dirtyAns = false; ex.dirtyTrack = false;
+    try { await X.api('x_save', { sessionId: ex.sid, answers: exAnswersOut(), track: exTrackOut() }); ex.lastSave = Date.now(); ex.saveErr = ''; }
+    catch (e) { ex.dirtyAns = true; ex.saveErr = e.message || String(e); }
+    ex.saving = false;
+    if ($('#cqBar') && EX === ex) exBar();
   }
   async function exSubmit(auto) {
     if (!EX || EX.readOnly || EX.submitting) return;

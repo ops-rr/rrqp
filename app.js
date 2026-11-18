@@ -254,7 +254,7 @@
 
   async function viewDrafts(createdCmd) {
     const main = shell('drafts', `<div class="row"><h1>${esc(t('drafts'))}</h1><span class="spacer"></span>
-        <button class="btn" id="refresh">${esc(t('refresh'))}</button><button class="btn brand" id="newBtn">+ ${esc(t('newDraft'))}</button></div>
+        ${refreshBtn('refresh')}<button class="btn brand" id="newBtn">+ ${esc(t('newDraft'))}</button></div>
       <div id="createBox"></div><div id="cmdBox"></div>
       <div class="card scroll-x" id="listBox"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     $('#newBtn').onclick = () => openCreate();
@@ -879,7 +879,7 @@
         <h1>${esc(draft.draftId)} ${esc(draft.name)}</h1>${statusChip(draft.status)}
         <span class="chip">${esc(t('reviewedN', { a: rev, b: all }))}</span>
         <span class="spacer"></span>
-        <button class="btn" id="reload">${esc(t('refresh'))}</button>
+        ${refreshBtn('reload')}
         ${!busy && draft.status !== 'banked' ? `<button class="btn" id="trAll" ${nTr ? '' : 'disabled'} title="${esc(t('trHint2'))}">${esc(t('trAll', { n: nTr }))}</button>
         <button class="btn" id="revAll" ${nRev ? '' : 'disabled'} title="${esc(t('revAllHint'))}">✓ ${esc(t('revAll', { n: nRev }))}</button>
         <button class="btn ok" id="bankAdd" ${toBank ? '' : 'disabled'} title="${toBank ? '' : esc(t('readyNeed', { n: notRev }))}">${esc(t('addToBank', { n: toBank }))}</button>` : ''}
@@ -1234,7 +1234,7 @@
       return window.RRQP_EXAM.sessions($('#xBox'), caseCtx());
     }
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
-        <button class="btn" id="refresh">${esc(t('refresh'))}</button><button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>${sessTabs}
+        ${refreshBtn('refresh')}<button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>${sessTabs}
       <div id="createBox"></div><div id="doneBox"></div>
       <div class="card scroll-x" id="listBox"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     let showArch = params.get('archived') === '1';
@@ -1283,7 +1283,7 @@
       const sub = d.roster.filter((r) => r.status === 'submitted').length, inp = d.roster.filter((r) => r.status === 'in_progress').length, nst = d.roster.filter((r) => r.status === 'not_started').length;
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}<span class="spacer"></span>
-          <button class="btn" id="reload">${esc(t('refresh'))}</button><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
+          ${refreshBtn('reload')}<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
           ${M5_READY && s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
           ${s.state === 'released' ? `<button class="btn" id="arch">${esc(t(s.archived ? 'unarchive' : 'archive'))}</button>` : ''}
           ${me.can.session ? `<button class="btn ghost danger" id="sessDel">${esc(t('sessDel'))}</button>` : ''}
@@ -1321,7 +1321,7 @@
 
   // ───────── 專員：我的測驗 ─────────
   async function viewMyQuizzes() {
-    const main = shell('', `<div class="row"><h1>${esc(t('myQuizzes'))}</h1></div><div id="qz"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
+    const main = shell('', `<div class="row"><h1>${esc(t('myQuizzes'))}</h1><span class="spacer"></span>${refreshBtn()}</div><div id="qz"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     let d;
     try { d = await api('s_list'); } catch (e) { showError(e, $('#qz')); return; }
     const xc = window.RRQP_EXAM ? await window.RRQP_EXAM.cards(caseCtx()) : { html: '', count: 0 };      // V3 DMS 考題測驗
@@ -1539,7 +1539,7 @@
   const isText = (t) => t === 'B' || t === 'C';
 
   async function viewGradingList() {
-    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1></div><h2 style="margin:6px 0 8px">變化題測驗</h2><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div><div id="xgl"></div>`);
+    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1><span class="spacer"></span>${refreshBtn()}</div><h2 style="margin:6px 0 8px">變化題測驗</h2><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div><div id="xgl"></div>`);
     if (window.RRQP_EXAM) window.RRQP_EXAM.gradingList($('#xgl'), caseCtx());     // V3 DMS 考題測驗
     let showArch = false;
     async function load() { try {
@@ -1572,15 +1572,17 @@
       const sub = d.attempts.filter((a) => a.submittedAt).length, missing = all.length - graded, unconf = all.length - conf;
       const rel = d.session.released;
       return `<div class="row"><a href="#/grading">← ${esc(t('grading'))}</a><h1>${esc(d.session.sessionId)} ${esc(L(d.session.title))}</h1>${sessChip(d.session.state)}<span class="spacer"></span>
-          <button class="btn" id="reload">${esc(t('refresh'))}</button>
+          ${refreshBtn('reload')}
           ${rel ? `<button class="btn" id="unrel">${esc(t('unrelease'))}</button>` : `<button class="btn ok" id="rel" ${missing ? 'disabled' : ''}>${esc(unconf ? t('releaseLeft', { n: unconf }) : t('releaseBtn'))}</button>`}</div>
         <div class="row small muted">${esc(t('gradeSummary', { n: sub, t: all.length, g: graded }))}<span class="spacer"></span>
           <span>${esc(t('confirmedN'))} <b style="font-size:18px;color:var(--ink)">${conf}</b> / ${all.length}</span><div class="bar ok" style="width:160px"><i style="width:${all.length ? Math.round((conf / all.length) * 100) : 0}%"></i></div></div>
         ${missing ? `<div class="banner info row"><span>${esc(t('needAi', { n: missing }))}</span><span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(d.command)}</code><button class="btn sm" id="cpg">${esc(t('copy'))}</button></span></div>` : ''}
         <div class="tabs" role="tablist">${textQs.map((q) => {
           const ans = d.answers.filter((a) => a.qid === q.qid), low = ans.filter(isLow).length;
-          return `<button class="tab ${tab === q.qid ? 'on' : ''}" data-tab="${esc(q.qid)}" role="tab">Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}${low ? ` <span class="chip warn" style="padding:0 6px">${esc(t('lowN', { n: low }))}</span>` : ''}</button>`;
-        }).join('')}<button class="tab ${tab === 'overview' ? 'on' : ''}" data-tab="overview" role="tab">${esc(t('overview'))}</button></div>`;
+          return `<button class="tab ${tab === q.qid ? 'on' : ''}" data-tab="${esc(q.qid)}" role="tab">Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}${(() => { const left = ans.filter((a) => a.teacherScore === null).length;      // 灰＝還沒確認、橘＝AI 低信心、綠勾＝都確認了
+            return !ans.length ? '' : !left ? ' <span class="dotok">✓</span>' : ` <span class="dot g" title="未確認 ${left}">${left}</span>` + (low ? `<span class="dot o" title="${esc(t('lowN', { n: low }))}">${low}</span>` : ''); })()}</button>`;
+        }).join('')}<button class="tab ${tab === 'overview' ? 'on' : ''}" data-tab="overview" role="tab">${esc(t('overview'))}</button></div>
+        <div class="dotlegend"><span><span class="dot g">n</span> 未確認</span><span><span class="dot o">n</span> AI 低信心</span><span><span class="dotok">✓</span> 都確認了</span></div>`;
     }
     function qPanel(q) {
       const opt = (q.options || []).find((o) => o.id === q.answer), p = q.points || {};
@@ -1738,6 +1740,15 @@
   });
   const rateColor = (r) => (r === null ? 'var(--line2)' : r < 0.6 ? 'var(--err)' : r < 0.8 ? '#D97706' : 'var(--ok)');
   const wrongText = (w) => w.map((x) => 'Q' + String(x.seq).padStart(2, '0') + (x.partial ? `（${t('partial')}）` : '')).join('、');
+  // 重新整理圖示按鈕（全站統一）：id="rfx" 的按鈕點了就重新載入目前這一頁；其他 id 由各頁自己處理
+  const REFRESH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
+  function refreshBtn(id) { return `<button class="btn icon" id="${id || 'rfx'}" type="button" title="${esc(t('refresh'))}" aria-label="${esc(t('refresh'))}">${REFRESH_SVG}</button>`; }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.btn.icon');
+    if (!b) return;
+    b.classList.add('busy'); setTimeout(() => b.classList.remove('busy'), 800);     // 載入中轉一下
+    if (b.id === 'rfx') route();
+  });
   function downloadCsv(name, rows) {
     const csv = '﻿' + rows.map((r) => r.map((v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -1746,7 +1757,7 @@
   async function viewResults() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const tab = params.get('tab') === 'agent' ? 'agent' : 'session';
-    const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1></div>
+    const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1><span class="spacer"></span>${refreshBtn()}</div>
       <div class="tabs"><a class="tab ${tab === 'session' ? 'on' : ''}" href="#/results">${esc(t('bySession'))}</a><a class="tab ${tab === 'agent' ? 'on' : ''}" href="#/results?tab=agent">${esc(t('byAgent'))}</a></div>
       ${tab === 'session' ? '<h2 style="margin:6px 0 8px">變化題測驗</h2>' : ''}<div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div><div id="xrl"></div>`);
     let d, x;
@@ -1757,7 +1768,7 @@
       $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th><th>${esc(t('belowLine', { n: d.coachLine }))}</th><th></th></tr></thead><tbody>${
         d.sessions.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}${s.parentSession ? `<div class="small soft">${esc(t('makeupOf', { id: s.parentSession }))}</div>` : ''}<div class="small soft">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</div></td>
           <td>${sessChip(s.state)}</td><td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td><b>${s.avg === null ? t('none') : r2(s.avg)}</b></td>
-          <td>${s.coaching ? `<span class="chip warn">${s.coaching}</span>` : '0'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
+          <td>${s.coaching ? `<span class="dot o">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
       $$('[data-open]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/results/' + r.dataset.open; }));
     } else {
       // 依專員：變化題＋DMS 考題（考試看百分比、練習看單選答對率）
@@ -1788,14 +1799,14 @@
   function v2CsvRow(r) {
     const sub = r.status === 'submitted';
     return [r.email, r.sessionId, L(r.title), '變化題', '考試', fmtDT(r.startAt), ATT_TXT[r.status === 'not_started' && r.state && r.state !== 'open' ? 'expired' : r.status] || r.status, sub ? r.score : '', sub ? r.total : '',
-      sub && r.total ? r2((r.score / r.total) * 100) : '', '', r.coaching ? 'Y' : '',
+      sub && r.total ? r2((r.score / r.total) * 100) : '', sub ? r.score : '', sub ? r.total : '', '', r.coaching ? 'Y' : '',
       r.wrong.map((w) => 'Q' + String(w.seq).padStart(2, '0') + (w.partial ? '（部分）' : '') + (w.point ? ' ' + L(w.point) : '')).join('、'), '', '', '', '', sub ? fmtDT(r.submittedAt) : ''];
   }
   function agentCsv(v2rows, xrows) {
     const E = window.RRQP_EXAM;
     const all = (v2rows || []).map((r) => ({ email: r.email, at: r.startAt, row: v2CsvRow(r) })).concat((E ? xrows || [] : []).map((r) => ({ email: r.email, at: r.startAt, row: E.csvRow(r) })));
     all.sort((a, b) => a.email.localeCompare(b.email) || a.at - b.at);
-    return [E ? E.CSV_HEAD : ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間']].concat(all.map((x) => x.row));
+    return [E ? E.CSV_HEAD : ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '原始得分', '原始總分', '單選答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間']].concat(all.map((x) => x.row));
   }
 
   async function viewSessionResults(id) {
@@ -1805,7 +1816,7 @@
     const s = d.session, st = d.stats;
     const rows = d.rows.slice().sort((a, b) => (a.score === null ? -1 : b.score === null ? 1 : a.score - b.score));
     main.innerHTML = `<div class="row"><a href="#/results">← ${esc(t('results'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}<span class="spacer"></span>
-        <button class="btn" id="csv">${esc(t('exportCsv'))}</button><button class="btn brand" id="mk">${esc(t('makeupForChecked'))}</button></div>
+        ${refreshBtn()}<button class="btn" id="csv">${esc(t('exportCsv'))}</button><button class="btn brand" id="mk">${esc(t('makeupForChecked'))}</button></div>
       ${s.released ? '' : `<div class="banner warn">${esc(t('notReleasedChip'))} · <a href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))} →</a></div>`}
       <div class="stats five">
         <div class="card pad"><div class="small soft">${esc(t('avgScore'))}</div><div class="big">${st.avg === null ? t('none') : r2(st.avg)}</div></div>
@@ -1853,7 +1864,7 @@
         ${sub && r.flags.length ? `<div class="small" style="margin-top:6px;color:#b45309">⚠ ${r.flags.map(esc).join('；')}</div>` : ''}
         ${sub ? `<div style="margin-top:8px"><a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(d.email)}">${esc(t('detail'))}</a> <a class="small" href="#/xresults/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
     };
-    main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1><span class="spacer"></span><button class="btn" id="hCsv">匯出 CSV</button></div>
+    main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1><span class="spacer"></span>${refreshBtn()}<button class="btn" id="hCsv">匯出 CSV</button></div>
       <div class="timeline">${all.map((it) => {
         if (it.x) return xCard(it);
         const r = it.row, s = it.session;
@@ -1979,10 +1990,10 @@
     const bankTab = window.RRQP_CASES && new URLSearchParams(location.hash.split('?')[1] || '').get('tab') === 'cases' ? 'cases' : 'q';
     const bankTabs = window.RRQP_CASES ? `<div class="tabs"><a class="tab ${bankTab === 'q' ? 'on' : ''}" href="#/bank">${esc(t('bankTabQ'))}</a><a class="tab ${bankTab === 'cases' ? 'on' : ''}" href="#/bank?tab=cases">${esc(t('bankTabCases'))} <span id="cqNA"></span></a></div>` : '';
     if (bankTab === 'cases') {
-      shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1></div>${bankTabs}<div id="cqBank"><div class="empty-state"><span class="spin"></span></div></div>`);
+      shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1><span class="spacer"></span>${refreshBtn()}</div>${bankTabs}<div id="cqBank"><div class="empty-state"><span class="spin"></span></div></div>`);
       return window.RRQP_CASES.list($('#cqBank'), 'approved', caseCtx());
     }
-    const main = shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1><span class="spacer"></span><span class="small muted" id="bt"></span>${me.can.bankQ ? `<button class="btn ghost danger" id="bdel" hidden></button>` : ''}</div>
+    const main = shell('bank', `<div class="row"><h1>${esc(t('bank'))}</h1><span class="spacer"></span><span class="small muted" id="bt"></span>${refreshBtn()}${me.can.bankQ ? `<button class="btn ghost danger" id="bdel" hidden></button>` : ''}</div>
       ${bankTabs}<div class="card pad filters" id="bf"></div><div class="card scroll-x" id="bl"><div class="empty-state"><span class="spin"></span></div></div>`);
     let d;
     try { d = await api('t_bankList', {}); } catch (e) { showError(e, $('#bl')); return; }
@@ -2329,7 +2340,7 @@
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const hasCases = !!window.RRQP_CASES;
     const tab = ['pending', 'active', 'requests'].concat(hasCases ? ['cases'] : []).includes(params.get('tab')) ? params.get('tab') : (hasCases ? 'cases' : 'pending');
-    const main = shell('library', `<div class="row"><h1>${esc(t('library'))}</h1><span class="spacer"></span><button class="btn" id="reload">${esc(t('refresh'))}</button></div>
+    const main = shell('library', `<div class="row"><h1>${esc(t('library'))}</h1><span class="spacer"></span>${refreshBtn('reload')}</div>
       <div class="tabs">${hasCases ? `<a class="tab ${tab === 'cases' ? 'on' : ''}" href="#/library?tab=cases">${esc(t('libCases'))} <span id="cqNP"></span></a>` : ''}<a class="tab ${tab === 'pending' ? 'on' : ''}" href="#/library?tab=pending">${esc(t('libPending'))} <span id="pn"></span></a><a class="tab ${tab === 'active' ? 'on' : ''}" href="#/library?tab=active">${esc(t('libActive'))}</a><a class="tab ${tab === 'requests' ? 'on' : ''}" href="#/library?tab=requests">${esc(t('libRequests'))}</a></div>
       <div id="lb"><div class="empty-state"><span class="spin"></span></div></div>`);
     $('#reload').onclick = () => viewLibrary();
@@ -2340,7 +2351,7 @@
     const tagName = (id) => L((meta.tags.concat(meta.inactiveTags || []).find((x) => x.tagId === id) || {}).name) || id;
     if (tab !== 'requests') {
       const pend = d.samples.filter((s) => s.status === 'pending');
-      $('#pn').textContent = pend.length ? `(${pend.length})` : '';
+      $('#pn').innerHTML = pend.length ? `<span class="dot g" title="待審 ${pend.length}">${pend.length}</span>` : '';
       const all = tab === 'pending' ? pend : d.samples.filter((s) => s.status !== 'pending');
       // 範例索引有變動（例如排程送來新的待審範例）就自動重新整理；正在搜尋輸入時不打斷
       const liveSamples = (cur) => {

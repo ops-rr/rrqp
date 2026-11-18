@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18k';
+const VERSION = 'V2-2026-11-18p';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2439,22 +2439,26 @@ async function xSessionDoc(id) {
 }
 /** 單選題自動計分＋講師給的簡答分數 */
 function xScore(key, att, grade) {
-  const detail = {};
-  let score = 0, total = 0, pending = 0;
+  // 成績換算成 100 分制：每個案件一樣重（100 ÷ 有作答題的案件數），案件裡的題目照講師配分的比例；raw／rawTotal 是原始配分加總
+  const detail = {}, cases = (key.cases || []).filter((kc) => kc.mods.some((m) => m.points > 0));
+  let raw = 0, rawTotal = 0, pending = 0, score = 0;
   (key.cases || []).forEach((kc, i) => {
     const a = ((att && att.answers) || {})[i] || {};
+    let got = 0, tot = 0;
     kc.mods.forEach((m) => {
       const k = i + ':' + m.id;
-      total += m.points;
+      tot += m.points;
       if (m.type === 'mc') detail[k] = (a.mc || {})[m.id] === m.answer ? m.points : 0;
       else {
         const g = ((grade && grade.scores) || {})[k];
         if (g === undefined || g === null || g === '') { pending++; detail[k] = null; } else detail[k] = Math.max(0, Math.min(m.points, Number(g) || 0));
       }
-      score += detail[k] || 0;
+      got += detail[k] || 0;
     });
+    raw += got; rawTotal += tot;
+    if (tot > 0) score += (got / tot) * (100 / cases.length);
   });
-  return { score: r2(score), total: r2(total), pending, detail };
+  return { score: Math.round(score * 10) / 10, total: 100, raw: r2(raw), rawTotal: r2(rawTotal), pending, detail };
 }
 const xAnswersIn = (v, n) => {
   const out = {};
@@ -2675,7 +2679,7 @@ const EXAM = {
     const [atts, key, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.list(`v3sessions/${sid}/grades`)]);
     const ops = atts.filter((a) => a.submittedAt).map((a) => {
       const r = xScore(key || {}, a, grades.find((g) => g.id === a.id));
-      return { op: 'set', path: `v3results/${sid}_${a.id}`, data: { email: a.id, sessionId: sid, title: s.title, score: r.score, total: r.total, detail: r.detail, releasedAt: t, releasedBy: m.email } };
+      return { op: 'set', path: `v3results/${sid}_${a.id}`, data: { email: a.id, sessionId: sid, title: s.title, score: r.score, total: r.total, raw: r.raw, rawTotal: r.rawTotal, detail: r.detail, releasedAt: t, releasedBy: m.email } };
     });
     ops.push({ op: 'update', path: 'v3sessions/' + sid, data: { released: true, releasedAt: t } },
       { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.released']: true } });
@@ -2824,6 +2828,7 @@ async function xResultsOf(sid, s) {
     }));
     const lv = track.lv || [], pct = r.total ? r2((r.score / r.total) * 100) : null;
     return { email, status: 'submitted', score: practice ? null : r.score, total: practice ? null : r.total, pct: practice ? null : pct, pending: practice ? 0 : r.pending,
+      raw: practice ? null : r.raw, rawTotal: practice ? null : r.rawTotal,
       coaching: !practice && pct !== null && pct < line, mcRate: mcN ? r2(mcOk / mcN) : null, wrong,
       flags: kc.flatMap((c, i) => xFlags(track, i, (a.answers || {})[i] || {}, c).map((f) => `案件${i + 1}：${f}`)),
       secs: Object.values(track.c || {}).reduce((n, c) => n + (c.t || 0), 0), leaves: lv.length, leaveSecs: lv.reduce((n, x) => n + x[1], 0),
