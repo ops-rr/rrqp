@@ -1132,8 +1132,8 @@
       tc.s[tab] = (tc.s[tab] || 0) + 1;
       EX.dirtyTrack = true;
     }
-    // 計時：到時間自動交卷
-    if (EX.deadline && Date.now() + EX.offset >= EX.deadline) { exSubmit(true); return; }
+    // 計時：到時間先問伺服器（講師可能延長了作答時間或幫你加時），真的到了才自動交卷
+    if (EX.deadline && Date.now() + EX.offset >= EX.deadline) { exDeadline(); return; }
     const tm = $('#cqTimer');
     if (tm) {
       const left = Math.max(0, EX.deadline - (Date.now() + EX.offset));
@@ -1141,7 +1141,27 @@
       tm.classList.toggle('warn', left < 300000);
     }
     if ((EX.dirtyAns || EX.dirtyTrack) && Date.now() - EX.lastSave >= SAVE_MS) exSave();
-    if (nowS % 60 === 0) X.api('x_status', { sessionId: EX.sid }).then((r) => { if (EX && !EX.readOnly && r.state !== 'open' && r.attempt.status === 'in_progress') exSubmit(true); }).catch(() => {});
+    if (nowS % 60 === 0) X.api('x_status', { sessionId: EX.sid }).then(exSync).catch(() => {});
+  }
+  /** 伺服器的最新狀態：截止時間可能被延長；講師提前結束就自動交卷 */
+  function exSync(r) {
+    if (!EX || EX.readOnly) return;
+    EX.offset = r.serverNow - Date.now();
+    if (r.attempt.status === 'in_progress' && r.attempt.deadline) {
+      if (r.attempt.deadline > EX.deadline + 1000) X.toast('作答時間已延長', 4000);
+      EX.deadline = r.attempt.deadline;
+    }
+    if (r.state === 'closed' && r.attempt.status === 'in_progress') exSubmit(true);     // 講師提前結束
+  }
+  async function exDeadline() {
+    if (EX.checking) return;
+    EX.checking = true;
+    try {
+      const r = await X.api('x_status', { sessionId: EX.sid });
+      EX.checking = false;
+      if (r.attempt.status === 'in_progress' && r.attempt.deadline > r.serverNow + 2000) { exSync(r); return; }
+    } catch (_) { EX.checking = false; }
+    exSubmit(true);
   }
   function exEdit(id) {
     if (!EX || EX.readOnly) return;

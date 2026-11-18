@@ -145,10 +145,12 @@
     main.innerHTML = `<div class="row"><a href="#/sessions?tab=cases">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
         ${s.answersOpen ? '<span class="chip ok">已公布解答</span>' : ''}<span class="spacer"></span>
         <button class="btn" id="xr">重新整理</button>
+        ${!s.released ? '<button class="btn" id="xAdd">加入專員</button><button class="btn" id="xMin">延長作答時間</button><button class="btn" id="xExt">延長結束時間</button>' : ''}
         ${s.state === 'open' || s.state === 'scheduled' ? '<button class="btn danger" id="xEnd">提前結束</button>' : ''}
         ${!exam && s.review === 'unified' ? `<button class="btn ${s.answersOpen ? '' : 'brand'}" id="xOpen">${s.answersOpen ? '收回解答' : '公布解答'}</button>` : ''}
         ${exam && s.state === 'closed' ? '<button class="btn brand" id="xRel">公布成績</button>' : ''}
         ${X.me.can && X.me.can.session ? '<button class="btn ghost danger" id="xDel">刪除</button>' : ''}</div>
+      <div id="xPanel"></div>
       <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
       <div class="stats">
         <div class="card pad"><div class="small soft">開放時間</div><div><b>${fmtDT(s.startAt)}</b><br>– <b>${fmtDT(s.endAt)}</b></div></div>
@@ -160,7 +162,8 @@
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
           <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-          <td style="text-align:right">${r.status !== 'not_started' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">查看作答</a>` : ''}</td></tr>`).join('')}</tbody></table></div>
+          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status !== 'not_started' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">查看作答</a>`
+            : !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
       <div id="xAgent" style="margin-top:14px"></div>`;
     $('#xr').onclick = () => session(id, ctx);
     $('#xCopy').onclick = () => navigator.clipboard.writeText(xLink(s.sessionId)).then(() => X.toast('已複製'));
@@ -179,6 +182,40 @@
     async function run(action, extra) {
       try { await X.api(action, Object.assign({ sessionId: s.sessionId }, extra || {})); X.toast('完成'); session(id, ctx); } catch (e) { X.toast(e.message, 6000); }
     }
+    // 加入專員、延長結束時間：在上方展開一個小表單
+    const panel = (html, onOk) => {
+      const p = $('#xPanel');
+      if (p.innerHTML) { p.innerHTML = ''; return; }
+      p.innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">${html}
+        <div class="row"><button class="btn brand" id="xpOk">確定</button><button class="btn" id="xpNo">取消</button></div></div>`;
+      $('#xpNo').onclick = () => { p.innerHTML = ''; };
+      $('#xpOk').onclick = async () => { $('#xpOk').disabled = true; try { await onOk(); } catch (e) { X.toast(e.message, 6000); $('#xpOk').disabled = false; } };
+    };
+    act('#xAdd', () => panel(`<b>加入專員</b><textarea id="xpEm" rows="3" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="一行一個 email，或用逗號分隔"></textarea>
+      <div class="small muted">新加的專員照原本的開放時間（到 ${fmtDT(s.endAt)}）與作答時間 ${s.minutes} 分鐘作答；需要更多時間請一起延長結束時間。</div>`, async () => {
+      const r = await X.api('x_addAssignees', { sessionId: s.sessionId, emails: $('#xpEm').value.split(/[\s,;，、]+/).filter(Boolean) });
+      X.toast(`已加入 ${r.added.length} 位`); session(id, ctx);
+    }));
+    act('#xExt', () => panel(`<b>延長結束時間</b><div class="row">目前：${fmtDT(s.endAt)}　新的結束時間 <input type="datetime-local" id="xpEnd" value="${toLocal(Math.max(s.endAt, Date.now()) + 86400000)}"></div>
+      <div class="small muted">${s.state === 'closed' ? '測驗已結束（或提前結束），延長後會重新開放，還沒交卷的人可以繼續作答。' : '還沒交卷的人可以作答到新的結束時間；每個人的作答時間仍是 ' + s.minutes + ' 分鐘。'}</div>`, async () => {
+      await X.api('x_extend', { sessionId: s.sessionId, endAt: new Date($('#xpEnd').value).getTime() });
+      X.toast('已延長'); session(id, ctx);
+    }));
+    const endHint = (over) => (over ? '。注意：有人的作答時間會超過整場結束時間，超過的部分不算，需要的話請再「延長結束時間」' : '');
+    act('#xMin', () => panel(`<b>延長作答時間（整場）</b><div class="row">目前 ${s.minutes} 分鐘，改成 <input type="number" id="xpMin" min="${s.minutes + 1}" max="600" value="${s.minutes + 10}"> 分鐘</div>
+      <div class="small muted">所有人一起適用：作答中的人畫面上的倒數會跟著變長（一分鐘內更新）；還沒開始的人用新的時間；已經交卷的人不會重新打開。</div>`, async () => {
+      const r = await X.api('x_setMinutes', { sessionId: s.sessionId, minutes: Number($('#xpMin').value) });
+      X.toast(`作答時間改成 ${r.minutes} 分鐘${endHint(r.overEnd)}`, r.overEnd ? 8000 : 3000); session(id, ctx);
+    }));
+    $$('[data-add]').forEach((b) => b.addEventListener('click', () => panel(`<b>個別加時：${esc(b.dataset.add)}</b><div class="row">多給 <input type="number" id="xpAdd" min="1" max="120" value="10"> 分鐘</div>
+      <div class="small muted">例如當機、斷線。只加在這位專員身上；他的畫面一分鐘內會更新倒數。已經被自動交卷的人沒辦法再加時。</div>`, async () => {
+      const r = await X.api('x_addTime', { sessionId: s.sessionId, email: b.dataset.add, minutes: Number($('#xpAdd').value) });
+      X.toast(`已加時，這位專員累計多 ${r.extraMin} 分鐘${endHint(r.overEnd)}`, r.overEnd ? 8000 : 3000); session(id, ctx);
+    })));
+    $$('[data-rm]').forEach((b) => b.addEventListener('click', async () => {
+      if (!(await X.confirmBox(`把 ${b.dataset.rm} 從這場測驗移除？`, '移除', undefined, true))) return;
+      try { await X.api('x_removeAssignee', { sessionId: s.sessionId, email: b.dataset.rm }); X.toast('已移除'); session(id, ctx); } catch (e) { X.toast(e.message, 5000); }
+    }));
     const r = d.roster.find((x) => x.email === want);
     if (r) agentPanel($('#xAgent'), d, r, exam && !s.released);
   }

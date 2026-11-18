@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-18g';
+const VERSION = 'V2-2026-11-18i';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1386,7 +1386,7 @@ function sessionOut(id, s, now) {
 }
 function attemptOut(s, a, now) {
   if (!a) return { status: 'not_started' };
-  const dl = Math.min(a.startedAt + s.minutes * 60000, s.endAt);
+  const dl = Math.min(a.startedAt + (s.minutes + (Number(a.extraMin) || 0)) * 60000, s.endAt);   // extraMin：DMS 考題測驗的個別加時
   const status = a.submittedAt ? 'submitted' : now > dl + (s.graceMin || GRACE_MIN) * 60000 ? 'expired' : 'in_progress';
   return { status, startedAt: a.startedAt, submittedAt: a.submittedAt || null, deadline: dl, autoSubmitted: !!a.autoSubmitted };
 }
@@ -2548,10 +2548,91 @@ const EXAM = {
     const [atts, key, pub, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`)]);
     const roster = (s.assignees || []).map((email) => {
       const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
-      return Object.assign({ email }, attemptOut(s, a, t), { answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {},
+      return Object.assign({ email }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {},
         result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
     });
     return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] } };
+  },
+
+  /** 加入專員：新加的人照原本的開放時間與作答時間作答；記錄他們做過這些案件 */
+  x_addAssignees: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    if (s.released) fail('成績已公布，不能再加人 / Results already released');
+    const add = validEmails(b.emails).filter((e) => !(s.assignees || []).includes(e));
+    if (!add.length) fail('這些專員都已經在名單裡 / Already assigned');
+    const all = (s.assignees || []).concat(add);
+    const ops = [{ op: 'update', path: 'v3sessions/' + sid, data: { assignees: all } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.assigned']: all.length } }];
+    for (const e of add) {
+      const d = await S.get('v3seen/' + e).catch(() => null);
+      ops.push({ op: 'set', path: 'v3seen/' + e, data: { caseIds: [...new Set([...((d && d.caseIds) || []), ...(s.caseIds || [])])], updatedAt: t } });
+    }
+    await S.batch(ops);
+    return { added: add };
+  },
+
+  /** 移除專員：只能移除還沒開始作答的人；「做過」的紀錄扣掉只在這場出現的案件 */
+  x_removeAssignee: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!(s.assignees || []).includes(email)) fail('這位專員不在名單裡 / Not assigned');
+    if (await S.get(`v3sessions/${sid}/attempts/${email}`)) fail('這位專員已經開始作答，不能移除 / Already started');
+    const all = (s.assignees || []).filter((e) => e !== email);
+    if (!all.length) fail('至少要保留一位專員；不需要這場測驗請直接刪除 / Keep at least one');
+    const others = (await S.query('v3sessions', 'assignees', 'array-contains', email)).filter((x) => x.id !== sid);
+    const keep = new Set(others.flatMap((x) => x.caseIds || []));
+    const seen = await S.get('v3seen/' + email).catch(() => null);
+    await S.batch([{ op: 'update', path: 'v3sessions/' + sid, data: { assignees: all } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.assigned']: all.length } },
+      { op: 'set', path: 'v3seen/' + email, data: { caseIds: ((seen && seen.caseIds) || []).filter((c) => keep.has(c) || !(s.caseIds || []).includes(c)), updatedAt: t } }]);
+    return { removed: email };
+  },
+
+  /** 延長結束時間（例如補考）：提前結束的也可以重新開放；成績公布後不能延長 */
+  x_extend: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    if (s.released) fail('成績已公布，不能延長 / Results already released');
+    const endAt = Number(b.endAt);
+    if (!(endAt > t)) fail('新的結束時間要晚於現在 / End must be in the future');
+    if (!(endAt > s.startAt)) fail('結束時間需晚於開始時間 / End must be after start');
+    await S.batch([{ op: 'update', path: 'v3sessions/' + sid, data: { endAt: S.ts(endAt), ended: false } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.endAt']: endAt, ['items.' + sid + '.ended']: false } }]);
+    return { endAt };
+  },
+
+  /** 延長整場作答時間（題目太難時）：作答中的人跟著延長；已交卷的不會重新打開 */
+  x_setMinutes: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), t = now();
+    if (s.released) fail('成績已公布，不能延長 / Results already released');
+    const minutes = Math.round(Number(b.minutes));
+    if (!(minutes >= 1 && minutes <= 600)) fail('作答時間需介於 1–600 分鐘 / Duration must be 1–600 minutes');
+    if (minutes <= s.minutes) fail('只能延長，新的作答時間要大於目前的 ' + s.minutes + ' 分鐘 / Can only extend');
+    await S.batch([{ op: 'update', path: 'v3sessions/' + sid, data: { minutes } },
+      { op: 'update', path: 'meta/v3SessionIndex', data: { ['items.' + sid + '.minutes']: minutes } }]);
+    // 有人開始作答的時間＋新作答時間超過結束時間：提醒講師一起延長結束時間
+    const atts = await S.list(`v3sessions/${sid}/attempts`);
+    const over = atts.filter((a) => !a.submittedAt && a.startedAt + minutes * 60000 > s.endAt).length;
+    return { minutes, overEnd: over || (t + minutes * 60000 > s.endAt ? 1 : 0) };
+  },
+
+  /** 個別加時（例如當機、斷線）：只給已開始、還沒交卷的人；累計最多 300 分鐘 */
+  x_addTime: async (b) => {
+    await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId);
+    if (s.released) fail('成績已公布，不能加時 / Results already released');
+    const email = String(b.email || '').trim().toLowerCase(), add = Math.round(Number(b.minutes));
+    if (!(add >= 1 && add <= 120)) fail('一次加 1–120 分鐘 / Add 1–120 minutes');
+    const path = `v3sessions/${sid}/attempts/${email}`;
+    const a = await S.get(path) || fail('這位專員還沒開始作答 / Not started yet');
+    if (a.submittedAt) fail('這位專員已經交卷，不能加時 / Already submitted');
+    const extraMin = (Number(a.extraMin) || 0) + add;
+    if (extraMin > 300) fail('個別加時累計最多 300 分鐘 / At most 300 extra minutes');
+    await S.update(path, { extraMin });
+    return { extraMin, overEnd: a.startedAt + (s.minutes + extraMin) * 60000 > s.endAt };
   },
 
   x_end: async (b) => {
