@@ -721,7 +721,7 @@
       }
       const masked = C.meta.mask.account && !isEdit();
       const who = m.from === 'buyer' ? 'Buyer' : 'Seller';
-      const name = m.from === 'shopee' ? 'Shopee Agent'
+      const name = m.from === 'shopee' ? (dmsLang() === 'zh' ? '蝦皮專員' : 'Shopee Agent')      // DMS 中文畫面寫「蝦皮專員」
         : (masked ? '***' : esc(C.meta.accounts[m.from])) + (isChat ? ` (${who})` : `(${who})`);
       const av = m.from === 'buyer' ? '🛒' : m.from === 'seller' ? '▤' : 'S';
       let content;
