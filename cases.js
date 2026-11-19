@@ -48,23 +48,13 @@
   // ═════════════════════════════ 案件清單 ═════════════════════════════
   const STATUS = { pending: '待審', approved: '已核准' };
 
-  // DMS 畫面的中文／英文：匯入時存了 i18n（英文 → 中文），切到中文時查表，查不到就顯示英文。
-  // 頁籤、篩選、角色這些 DMS 前端寫死的英文，DMS 切成中文也不變，所以不翻（2026-11-19 Chris 對過）。
-  // 預設：只限 TW 的案件用中文，其他跟網站語言；切換後記在這台電腦。編輯中的欄位一律顯示原文（避免把中文存回去）。
-  function dmsLang() {
-    try { const v = localStorage.getItem('rrqp2:dmsLang'); if (v === 'zh' || v === 'en') return v; } catch (e) { /* 無痕模式 */ }
-    return (MAIN && MAIN.meta && MAIN.meta.twOnly) || document.documentElement.lang !== 'en' ? 'zh' : 'en';
-  }
+  // DMS 畫面的中文／英文：跟網站右上角的「中文／EN」一起切換。匯入時存了 i18n（英文 → 中文），中文時查表，查不到就顯示英文。
+  // 頁籤、篩選、角色這些 DMS 前端寫死的英文，DMS 切成中文也不變，所以不翻（2026-11-19 Chris 對過）。編輯中的欄位一律顯示原文（避免把中文存回去）。
+  const dmsLang = () => (document.documentElement.lang === 'en' ? 'en' : 'zh');
   function T(s) {
     if (s == null || dmsLang() !== 'zh') return s;
     const m = (MAIN && MAIN.i18n) || {};
     return (m.zh && m.zh[s]) || (m.ui && m.ui[s]) || s;
-  }
-  function setDmsLang(l) { try { localStorage.setItem('rrqp2:dmsLang', l); } catch (e) { /* 無痕模式 */ } renderAll(); }
-  function langSeg() {
-    if (!MAIN || !MAIN.i18n || !MAIN.i18n.zh || !Object.keys(MAIN.i18n.zh).length) return '';
-    const l = dmsLang();
-    return `<span class="seg" title="DMS 畫面的語言"><button class="${l === 'zh' ? 'on' : ''}" onclick="CQ.dmsLang('zh')">中</button><button class="${l === 'en' ? 'on' : ''}" onclick="CQ.dmsLang('en')">EN</button></span>`;
   }
   const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
   const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
@@ -231,7 +221,7 @@
       ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
       ${CUR.canEdit ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
-      <span style="flex:1"></span>${langSeg()}
+      <span style="flex:1"></span>
       ${CUR.canEdit ? sv : ''}
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
@@ -1099,7 +1089,7 @@
     $('#cqBar').innerHTML = `<a class="cbtn" href="${X.me.isTeacher ? '#/mine' : '#/'}">← 我的測驗</a><span class="cid">${esc(s.sessionId)}</span><b>${esc(s.title)}</b>
       <span class="chipc ${EX.readOnly ? 'ok' : ''}">${s.mode === 'practice' ? '練習' : '考試'}${EX.readOnly ? '・已交卷' : ''}</span>
       <span class="exnav">${EX.cases.map((_, i) => `<button class="${i === EX.idx ? 'on' : ''}" onclick="CQ.exCase(${i})">案件 ${i + 1}${!EX.readOnly && answeredAll(i) ? ' ✓' : ''}</button>`).join('')}</span>
-      <span style="flex:1"></span>${langSeg()}
+      <span style="flex:1"></span>
       ${EX.readOnly ? (EX.result ? `<span class="exscore">成績 <b>${EX.result.score}</b> / ${EX.result.total}</span>` : '')
         : `${sv}<span class="extimer ${left < 300000 ? 'warn' : ''}" id="cqTimer">剩餘 ${mm}:${String(ss).padStart(2, '0')}</span>
            <button class="cbtn ok" onclick="CQ.exSubmit()">交卷</button>`}`;
@@ -1308,7 +1298,7 @@
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
     dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, del,
-    dmsLang: setDmsLang, jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
+    jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
@@ -1322,5 +1312,7 @@
     X = ctx;
     return viewCase(arg);
   }
-  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf };
+  // 網站切換語言時：作答中只重畫 DMS 畫面（app.js 的 setLang 會先問 examActive）
+  const examActive = () => !!(EX && !EX.readOnly && $('#cq'));
+  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf, examActive, relang: () => renderAll() };
 })();

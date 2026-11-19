@@ -75,7 +75,16 @@
   };
   const t = (k, vars) => String((I18N[lang][k] ?? I18N.zh[k] ?? k)).replace(/\{(\w+)\}/g, (_, v) => (vars && vars[v] !== undefined ? vars[v] : ''));
   const L = (v) => (v == null ? '' : typeof v === 'object' ? (v[lang] ?? v.zh ?? v.en ?? '') : String(v));
-  function setLang(l) { if (leaveGuard && !leaveGuard()) return; leaveGuard = null; lang = l; store.set('rrqp2:lang', l); document.documentElement.lang = l === 'zh' ? 'zh-Hant' : 'en'; route(); }
+  function setLang(l) {
+    // DMS 考題作答中：只重畫 DMS 畫面，不重新載入（避免最後幾秒的作答還沒存就被蓋掉）
+    if (window.RRQP_CASES && window.RRQP_CASES.examActive && window.RRQP_CASES.examActive()) {
+      lang = l; store.set('rrqp2:lang', l); document.documentElement.lang = l === 'zh' ? 'zh-Hant' : 'en';
+      $$('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === l));
+      window.RRQP_CASES.relang();
+      return;
+    }
+    if (leaveGuard && !leaveGuard()) return; leaveGuard = null; lang = l; store.set('rrqp2:lang', l); document.documentElement.lang = l === 'zh' ? 'zh-Hant' : 'en'; route();
+  }
 
   // ───────── toast & modal ─────────
   let toastTimer;
