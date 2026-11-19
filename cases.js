@@ -800,6 +800,11 @@
   const ICON_USER = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.3"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14.5c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/></svg>';
   const ICON_CLOCK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.3"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.5V8l2.5 1.5"/></svg>';
 
+  // Operation History 身分標籤的色條：照 DMS（__federation_expose_OperationHistory）——買家黃、賣家藍、AI 客服紅、其他（System、各種專員）灰
+  // 新匯入的有角色代碼 rc；舊案件沒有，就看英文角色名稱
+  const OP_ROLE_COLOR = { 3: 'rgb(255, 187, 56)', 4: 'rgb(72, 136, 238)', 14: 'rgb(238, 77, 45)' };
+  const OP_ROLE_BY_NAME = { Buyer: 3, Seller: 4, 'DMS AI': 14 };
+  const opRoleColor = (n) => OP_ROLE_COLOR[n.rc !== undefined ? n.rc : OP_ROLE_BY_NAME[n.role]] || 'rgb(138, 148, 166)';
   function opHtml(n, i) {
     // 操作者是同事的 email 時，專員看到 ***
     let op = n.op;
@@ -819,7 +824,7 @@
         <button onclick="CQ.cutOp(${i})" title="刪除這個節點之後的所有節點">✂ 之後全刪</button></div>
         ${n.leak ? '<span class="leak">可能洩漏結果</span>' : ''}${n.hidden ? '<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看不到</span>' : ''}` : '';
     return `<div class="op ${n.hidden ? 'hid' : ''}">
-      <div class="ol"><span class="role ${n.cat}">${esc(n.role)}</span>
+      <div class="ol"><span class="role ${n.cat}" style="border-left-color:${opRoleColor(n)}">${esc(n.role)}</span>
         ${op ? `<div class="ln">${ICON_USER}<span>${esc(op)}</span></div>` : ''}
         <div class="ln">${ICON_CLOCK}<span>${time}</span></div></div>
       <div class="or"><div class="act">${esc(T(n.action))}</div>${kv}${media}${ctl}</div></div>`;
