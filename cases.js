@@ -47,6 +47,25 @@
 
   // ═════════════════════════════ 案件清單 ═════════════════════════════
   const STATUS = { pending: '待審', approved: '已核准' };
+
+  // DMS 畫面的中文／英文：匯入時存了 i18n（英文 → 中文），切到中文時查表，查不到就顯示英文。
+  // 頁籤、篩選、角色這些 DMS 前端寫死的英文，DMS 切成中文也不變，所以不翻（2026-11-19 Chris 對過）。
+  // 預設：只限 TW 的案件用中文，其他跟網站語言；切換後記在這台電腦。編輯中的欄位一律顯示原文（避免把中文存回去）。
+  function dmsLang() {
+    try { const v = localStorage.getItem('rrqp2:dmsLang'); if (v === 'zh' || v === 'en') return v; } catch (e) { /* 無痕模式 */ }
+    return (MAIN && MAIN.meta && MAIN.meta.twOnly) || document.documentElement.lang !== 'en' ? 'zh' : 'en';
+  }
+  function T(s) {
+    if (s == null || dmsLang() !== 'zh') return s;
+    const m = (MAIN && MAIN.i18n) || {};
+    return (m.zh && m.zh[s]) || (m.ui && m.ui[s]) || s;
+  }
+  function setDmsLang(l) { try { localStorage.setItem('rrqp2:dmsLang', l); } catch (e) { /* 無痕模式 */ } renderAll(); }
+  function langSeg() {
+    if (!MAIN || !MAIN.i18n || !MAIN.i18n.zh || !Object.keys(MAIN.i18n.zh).length) return '';
+    const l = dmsLang();
+    return `<span class="seg" title="DMS 畫面的語言"><button class="${l === 'zh' ? 'on' : ''}" onclick="CQ.dmsLang('zh')">中</button><button class="${l === 'en' ? 'on' : ''}" onclick="CQ.dmsLang('en')">EN</button></span>`;
+  }
   const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
   const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
   const L = (n) => (n && typeof n === 'object' ? n.zh || n.en || '' : String(n || ''));
@@ -212,7 +231,7 @@
       ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
       ${CUR.canEdit ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
-      <span style="flex:1"></span>
+      <span style="flex:1"></span>${langSeg()}
       ${CUR.canEdit ? sv : ''}
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
@@ -440,7 +459,7 @@
     const nav = document.getElementById('cqNav');
     nav.classList.toggle('closed', navClosed);
     nav.innerHTML = `<button class="fold" onclick="CQ.toggleNav()" title="${navClosed ? '展開' : '收合'}">${navClosed ? '»' : '«'}</button>` +
-      C.blocks.map(b => `<a id="nav-${b.id}" href="#blk-${b.id}" onclick="event.preventDefault();CQ.jumpTo('blk-${b.id}')">${esc(b.title)}</a>`).join('');
+      C.blocks.map(b => `<a id="nav-${b.id}" href="#blk-${b.id}" onclick="event.preventDefault();CQ.jumpTo('blk-${b.id}')">${esc(T(b.title))}</a>`).join('');
     markNav();
   }
 
@@ -459,7 +478,7 @@
   function renderMain() {
     document.getElementById('cqMain').innerHTML = C.blocks.map((b, bi) => `
       <div class="blk" id="blk-${b.id}">
-        <h2>${esc(b.title)}${VIEW >= 0 ? ' <span class="prevtag">前一次申退</span>' : ''}</h2>
+        <h2>${esc(T(b.title))}${VIEW >= 0 ? ' <span class="prevtag">前一次申退</span>' : ''}</h2>
         ${b.fields ? `<div class="grid${b.id === 'general' ? ' g4' : ''}">${b.fields.map((fd, fi) => fieldHtml(bi, fi, fd)).join('')}</div>` : ''}
         ${isEdit() && b.fields ? `<button class="addfd" onclick="CQ.addField(${bi})">＋ 新增欄位</button>` : ''}
         ${b.timeline ? timelineHtml(bi, b.timeline) : ''}
@@ -472,7 +491,7 @@
   function timelineHtml(bi, nodes) {
     if (!nodes.length) return '<div class="hint">（沒有節點）</div>';
     const items = nodes.map((n, i) => {
-      if (!isEdit()) return `<div class="tln"><div>${esc(n.k)}</div><div class="t">${esc(n.t)}</div></div>`;
+      if (!isEdit()) return `<div class="tln"><div>${esc(T(n.k))}</div><div class="t">${esc(n.t)}</div></div>`;
       return `<div class="tln">
         <div><span contenteditable data-set="tl" data-b="${bi}" data-i="${i}" data-k="k">${esc(n.k)}</span></div>
         <div class="t"><span contenteditable data-set="tl" data-b="${bi}" data-i="${i}" data-k="t">${esc(n.t)}</span></div>
@@ -502,7 +521,7 @@
     // 對專員隱藏的欄位留一個空格，其他欄位維持 DMS 的位置
     if ((fd.hidden && !isEdit()) || fd.blank) return '<div class="fd"></div>';
     const cls = 'fd' + (fd.wide ? ' wide' : '') + (fd.hidden ? ' hid' : '');
-    const label = `<span class="k">${esc(fd.k)}${fd.help ? '<i class="help">?</i>' : ''} :</span>`;
+    const label = `<span class="k">${esc(T(fd.k))}${fd.help ? '<i class="help">?</i>' : ''} :</span>`;
     let val;
     if (fd.media) {
       val = mediaHtml(fd.media, isEdit() ? `CQ.delMedia(${bi},${fi},IDX)` : '');
@@ -513,7 +532,7 @@
     } else {
       const text = isEdit()
         ? `<span contenteditable data-set="field" data-b="${bi}" data-f="${fi}">${esc(fd.v)}</span>`
-        : esc(fd.v);
+        : esc(T(fd.v));
       val = `<span class="pw ${fd.link ? 'link' : ''}">${text}</span>`;
       if (fd.tags) val += ' ' + fd.tags.map((t, i) => tagHtml(t, fd.tagColor, i)).join('');
       if (fd.popup) val += `<span class="vd" onclick="CQ.showFieldPop(event,${bi},${fi})">View Detail</span>`;
@@ -535,7 +554,7 @@
     if (color === 'mix') c = i === 0 ? 'blue' : 'orange';
     if (color === 'teal') c = 'teal';
     if (t === 'Shopee Integrated') c = 'teal';
-    return `<span class="tag ${c}">${esc(t)}</span>`;
+    return `<span class="tag ${c}">${esc(T(t))}</span>`;
   }
 
   function mediaHtml(list, delTpl) {
@@ -548,17 +567,17 @@
   }
 
   function tableHtml(bi, ti, t) {
-    const head = t.cols.map(c => `<th>${esc(c)}</th>`).join('') + (isEdit() ? '<th></th>' : '');
+    const head = t.cols.map(c => `<th>${esc(T(c))}</th>`).join('') + (isEdit() ? '<th></th>' : '');
     const rows = t.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<td>${cellHtml(bi, ti, ri, ci, cell)}</td>`).join('')}
       ${isEdit() ? `<td><span class="ectl"><button class="del" onclick="CQ.delRow(${bi},${ti},${ri})">✕ 刪除列</button></span></td>` : ''}</tr>`).join('');
-    return `${t.title ? `<div class="tbltitle">${esc(t.title)}</div>` : ''}
+    return `${t.title ? `<div class="tbltitle">${esc(T(t.title))}</div>` : ''}
       <div class="tblwrap"><table><tr>${head}</tr>${rows}</table></div>`;
   }
 
   function cellHtml(bi, ti, ri, ci, cell) {
     const path = `data-set="cell" data-b="${bi}" data-t="${ti}" data-r="${ri}" data-c="${ci}"`;
     if (typeof cell === 'string') {
-      return isEdit() ? `<span contenteditable ${path}>${esc(cell)}</span>` : esc(cell);
+      return isEdit() ? `<span contenteditable ${path}>${esc(cell)}</span>` : esc(T(cell));
     }
     if (cell.product) {
       const p = cell.product;
@@ -566,7 +585,7 @@
         <div><div>${isEdit() ? `<span contenteditable data-set="prod" data-b="${bi}" data-t="${ti}" data-r="${ri}" data-c="${ci}" data-k="name">${esc(p.name)}</span>` : esc(p.name)}
         <b>X${p.qty}</b></div><div class="var">Variation: ${esc(p.variation)}</div>${(p.extra || []).map(x => `<div class="var">${esc(x)}</div>`).join('')}</div></div>`;
     }
-    let text = (isMasked(cell.mask) && !isEdit()) ? '***' : esc(cell.text);
+    let text = (isMasked(cell.mask) && !isEdit()) ? '***' : esc(T(cell.text));
     if (isEdit()) text = `<span contenteditable ${path}>${esc(cell.text)}</span>`;
     let html = text;
     if (cell.track) html += `<span class="vd" onclick="CQ.showTrack(event,${bi},${ti},${ri},${ci})">View Detail</span>`;
@@ -577,15 +596,15 @@
   function cardHtml(bi, ci, cd) {
     let inSub = false;
     const rows = cd.rows.map((r, ri) => {
-      if (r[2] === 'h') { inSub = true; return `<div class="r h"><span>${esc(r[0])}</span></div>`; }
+      if (r[2] === 'h') { inSub = true; return `<div class="r h"><span>${esc(T(r[0]))}</span></div>`; }
       const leak = isEdit() && r[2] === 'leak' ? '<span class="leak">可能洩漏結果</span>' : '';
       const val = isEdit()
         ? `<span contenteditable data-set="card" data-b="${bi}" data-c="${ci}" data-r="${ri}">${esc(r[1])}</span>
            <span class="ectl"><button class="del" onclick="CQ.delCardRow(${bi},${ci},${ri})">✕</button></span>`
-        : esc(r[1]);
-      return `<div class="r ${inSub ? 'sub' : ''}"><span>${esc(r[0])}:${leak}</span><span>${val}</span></div>`;
+        : esc(T(r[1]));
+      return `<div class="r ${inSub ? 'sub' : ''}"><span>${esc(T(r[0]))}:${leak}</span><span>${val}</span></div>`;
     }).join('');
-    return `<div class="pcard"><h4>${esc(cd.title)}</h4>${rows}</div>`;
+    return `<div class="pcard"><h4>${esc(T(cd.title))}</h4>${rows}</div>`;
   }
 
   // ===== 物流軌跡彈窗 =====
@@ -596,8 +615,8 @@
   function showFieldPop(ev, bi, fi) {
     const p = C.blocks[bi].fields[fi].popup;
     const rows = p.rows.map(r => r[1] == null
-      ? `<div style="font-weight:600;color:var(--ink);margin:10px 0 4px">${esc(r[0])}</div>`
-      : `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${esc(r[0])}:</span><span>${esc(r[1])}</span></div>`).join('');
+      ? `<div style="font-weight:600;color:var(--ink);margin:10px 0 4px">${esc(T(r[0]))}</div>`
+      : `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${esc(T(r[0]))}:</span><span>${esc(T(r[1]))}</span></div>`).join('');
     showPop(ev, p.title, rows);
   }
   function showPop(ev, title, html) {
@@ -680,7 +699,7 @@
 
   function msgsHtml(room) {
     const list = msgList(room);
-    if (!list.length) return '<div class="nomore">No Discuss History</div>';
+    if (!list.length) return `<div class="nomore">No Discuss History</div>`;
     const isChat = room === 'chat';
     return list.map((m, i) => {
       const ctl = isEdit() ? `<span class="ectl">
@@ -690,8 +709,9 @@
         return `<div class="sys pw">ⓘ System Info: ${esc(m.text)}<div class="mt">${esc(m.time)} ${ctl}</div></div>`;
       }
       const masked = C.meta.mask.account && !isEdit();
+      const who = m.from === 'buyer' ? 'Buyer' : 'Seller';
       const name = m.from === 'shopee' ? 'Shopee Agent'
-        : (masked ? '***' : esc(C.meta.accounts[m.from])) + (isChat ? ` (${m.from === 'buyer' ? 'Buyer' : 'Seller'})` : `(${m.from === 'buyer' ? 'Buyer' : 'Seller'})`);
+        : (masked ? '***' : esc(C.meta.accounts[m.from])) + (isChat ? ` (${who})` : `(${who})`);
       const av = m.from === 'buyer' ? '🛒' : m.from === 'seller' ? '▤' : 'S';
       let content;
       if (m.type === 'text') {
@@ -708,7 +728,7 @@
       return `<div class="cmsg"><div class="av ${m.from}">${av}</div><div class="mb">
         <div class="mname">${name}${leak}</div><div class="bub">${content}</div>
         <div class="mt">${esc(m.time)} ${ctl}</div></div></div>`;
-    }).join('') + (isChat ? '<div class="nomore">No more message</div>' : '');
+    }).join('') + (isChat ? `<div class="nomore">No more message</div>` : '');
   }
   function delMsg(room, i) { msgList(room).splice(i, 1); saveCase(); renderSide(); renderSettings(); }
   function cutAfter(room, i) {
@@ -728,7 +748,7 @@
     const list = C.ops.map((n, i) => ({ n, i }))
       .filter(x => isEdit() || !x.n.hidden)
       .filter(x => opFilter === 'all' || x.n.cat === opFilter);
-    const rows = list.map(x => opHtml(x.n, x.i)).join('') || '<div class="nomore" style="padding:20px">No Data</div>';
+    const rows = list.map(x => opHtml(x.n, x.i)).join('') || `<div class="nomore" style="padding:20px">No Data</div>`;
     return `<div class="opf">Node Filter ${chips}</div>
       <div class="pane"><div class="optable"><div class="oh"><div class="c1">Operation Time</div><div>Operation Details</div></div>${rows}</div></div>`;
   }
@@ -745,8 +765,8 @@
     const kv = n.kv.map((k, ki) => {
       let v = (k[2] === 'id' && isMasked('id') && !isEdit()) ? '***' : k[1];
       if (isEdit()) v = `<span contenteditable data-set="opkv" data-i="${i}" data-k="${ki}">${esc(k[1])}</span>`;
-      else v = esc(v);
-      return `<div class="ckv">${k[0] ? esc(k[0]) + ': ' : ''}${v}</div>`;
+      else v = esc(T(v));
+      return `<div class="ckv">${k[0] ? esc(T(k[0])) + ': ' : ''}${v}</div>`;
     }).join('');
     const media = n.media ? `<div style="margin-bottom:12px">${mediaHtml(n.media, isEdit() ? `CQ.delOpMedia(${i},IDX)` : '')}</div>` : '';
     const ctl = isEdit() ? `<div class="ectl" style="margin:0">
@@ -758,7 +778,7 @@
       <div class="ol"><span class="role ${n.cat}">${esc(n.role)}</span>
         ${op ? `<div class="ln">${ICON_USER}<span>${esc(op)}</span></div>` : ''}
         <div class="ln">${ICON_CLOCK}<span>${time}</span></div></div>
-      <div class="or"><div class="act">${esc(n.action)}</div>${kv}${media}${ctl}</div></div>`;
+      <div class="or"><div class="act">${esc(T(n.action))}</div>${kv}${media}${ctl}</div></div>`;
   }
   function toggleOp(i) { C.ops[i].hidden = !C.ops[i].hidden; saveCase(); renderSide(); renderSettings(); }
   function delOp(i) { C.ops.splice(i, 1); saveCase(); renderSide(); renderSettings(); }
@@ -1079,7 +1099,7 @@
     $('#cqBar').innerHTML = `<a class="cbtn" href="${X.me.isTeacher ? '#/mine' : '#/'}">← 我的測驗</a><span class="cid">${esc(s.sessionId)}</span><b>${esc(s.title)}</b>
       <span class="chipc ${EX.readOnly ? 'ok' : ''}">${s.mode === 'practice' ? '練習' : '考試'}${EX.readOnly ? '・已交卷' : ''}</span>
       <span class="exnav">${EX.cases.map((_, i) => `<button class="${i === EX.idx ? 'on' : ''}" onclick="CQ.exCase(${i})">案件 ${i + 1}${!EX.readOnly && answeredAll(i) ? ' ✓' : ''}</button>`).join('')}</span>
-      <span style="flex:1"></span>
+      <span style="flex:1"></span>${langSeg()}
       ${EX.readOnly ? (EX.result ? `<span class="exscore">成績 <b>${EX.result.score}</b> / ${EX.result.total}</span>` : '')
         : `${sv}<span class="extimer ${left < 300000 ? 'warn' : ''}" id="cqTimer">剩餘 ${mm}:${String(ss).padStart(2, '0')}</span>
            <button class="cbtn ok" onclick="CQ.exSubmit()">交卷</button>`}`;
@@ -1288,7 +1308,7 @@
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
     dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, del,
-    jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
+    dmsLang: setDmsLang, jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,

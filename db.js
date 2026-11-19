@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-19a';
+const VERSION = 'V2-2026-11-19b';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2417,6 +2417,11 @@ function caseAgentView(src) {
   delete c.meta.rid; delete c.meta.title; delete c.meta.groups; delete c.meta.topics; delete c.meta.tags;
   delete c.notes;
   c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; return o; });
+  // 中文對照只留專員畫面上真的有的文字（隱藏欄位的值不能從對照表看出來）
+  if (c.i18n && c.i18n.zh) {
+    const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));
+    c.i18n = { ui: c.i18n.ui || {}, zh: Object.fromEntries(Object.entries(c.i18n.zh).filter(([k]) => txt.includes(JSON.stringify(k)))) };
+  }
   return c;
 }
 const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short')
