@@ -111,12 +111,12 @@
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
-          <th>案件</th><th>標題</th><th>分類</th><th>用途</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
+          <th>案件</th><th>標題</th><th>分類</th><th style="white-space:nowrap">用途</th><th style="white-space:nowrap">作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}</td>
-          <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}${c.twOnly ? ' <span class="chip">只限 TW</span>' : ''}</td>
-          <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
+          <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
+          <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).concat(c.twOnly ? ['<span class="chip">只限 TW</span>'] : []).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
-          <td>${c.usage === 'exam' ? '考試' : '練習'}</td><td>${c.questions} 題／${c.points} 分</td>
+          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${c.questions} 題／${c.points} 分</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
           ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
           <td class="small">${esc(fmtTime(c.updatedAt))}<div class="soft">${esc(c.updatedBy || '')}</div></td>
