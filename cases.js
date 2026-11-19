@@ -543,7 +543,7 @@
         ? `<span contenteditable data-set="field" data-b="${bi}" data-f="${fi}">${esc(fd.v)}</span>`
         : esc(T(fd.v));
       val = `<span class="pw ${fd.link ? 'link' : ''}">${text}</span>`;
-      if (fd.tags) val += ' ' + fd.tags.map((t, i) => tagHtml(t, fd.tagColor, i)).join('');
+      if (fd.tags) val += ' ' + fd.tags.map((t, i) => tagHtml(t, fd.tagColor, i, fd, bi, fi)).join('');
       if (fd.popup) val += `<span class="vd" onclick="CQ.showFieldPop(event,${bi},${fi})">View Detail</span>`;
       if (isEdit() && isMasked(fd.mask)) val += `<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看到 ***</span>`;
     }
@@ -558,12 +558,39 @@
     return `<div class="${cls}">${label}<span class="v">${val}${ctl}</span></div>`;
   }
 
-  function tagHtml(t, color, i) {
+  // tag 顏色：講師選的（fd.tagColors）＞排程照 DMS 規則給的（fd.tagStyle）＞舊的 tagColor 名稱
+  // 講師編輯模式點 tag 換下一個顏色；換回「系統預設」就用 DMS 的顏色
+  const TAG_PALETTE = {
+    gray: { name: '灰', color: 'rgb(111, 120, 138)', background: 'rgb(229, 230, 233)', borderColor: 'rgb(203, 205, 212)' },
+    blue: { name: '藍', color: 'rgb(38, 115, 221)', background: 'rgb(229, 238, 251)', borderColor: 'rgb(185, 210, 244)' },
+    red: { name: '紅', color: '#ff2a00', background: '#ffe0e0', borderColor: '#f9c6bb' },
+    orange: { name: '橘', color: 'rgb(240, 115, 0)', background: 'rgb(253, 238, 224)', borderColor: 'rgb(250, 210, 173)' },
+    green: { name: '綠', color: '#13a08a', background: '#e6f7f4', borderColor: '#9bdccf' },
+    gold: { name: '金', color: '#cc8b23', background: '#fff2e0', borderColor: '#f4ddb9' },
+  };
+  const TAG_ORDER = ['', 'gray', 'blue', 'red', 'orange', 'green', 'gold'];
+  function tagHtml(t, color, i, fd, bi, fi) {
+    const pick = fd && (fd.tagColors || [])[i];
+    const st = pick && TAG_PALETTE[pick] ? TAG_PALETTE[pick] : fd && (fd.tagStyle || [])[i];
     let c = color === 'blue' ? 'blue' : '';
     if (color === 'mix') c = i === 0 ? 'blue' : 'orange';
     if (color === 'teal') c = 'teal';
     if (t === 'Shopee Integrated') c = 'teal';
-    return `<span class="tag ${c}">${esc(T(t))}</span>`;
+    const css = [];
+    if (st) css.push(`color:${st.color}`, `background:${st.background}`, `border-color:${st.borderColor}`);
+    const canPick = fd && bi !== undefined && isEdit();
+    if (canPick) css.push('cursor:pointer');
+    const attrs = (css.length ? ` style="${esc(css.join(';'))}"` : '')
+      + (canPick ? ` onclick="CQ.cycleTag(${bi},${fi},${i})" title="點一下換顏色（目前：${pick ? TAG_PALETTE[pick].name : '系統預設'}）"` : '');
+    return `<span class="tag ${st ? '' : c}"${attrs}>${esc(T(t))}</span>`;
+  }
+  function cycleTag(bi, fi, i) {
+    const fd = C.blocks[bi].fields[fi];
+    const cols = fd.tagColors = (fd.tagColors || []).slice();
+    while (cols.length <= i) cols.push('');
+    cols[i] = TAG_ORDER[(TAG_ORDER.indexOf(cols[i] || '') + 1) % TAG_ORDER.length];
+    if (cols.every((x) => !x)) delete fd.tagColors;
+    saveCase(); renderMain();
   }
 
   function mediaHtml(list, delTpl) {
@@ -716,8 +743,10 @@
         <button onclick="CQ.cutAfter('${room}',${i})" title="刪除這則之後的所有訊息">✂ 之後全刪</button></span>` : '';
       if (m.type === 'system') {
         // DMS：系統訊息下面可以有買家說明（note，粗體）和照片影片（已上傳證明）
-        return `<div class="sys pw">ⓘ System Info: ${esc(T(m.text))}${m.note ? `<div style="font-weight:600;margin-top:2px">${esc(m.note)}</div>` : ''}${
-          m.media && m.media.length ? `<div style="margin-top:6px">${mediaHtml(m.media, '')}</div>` : ''}<div class="mt">${esc(m.time)} ${ctl}</div></div>`;
+        // DMS 順序：系統文字 → 照片影片 → 說明（242584941223071 對過：提案下面先附件、再「未收到貨」）
+        return `<div class="sys pw">ⓘ System Info: ${esc(T(m.text))}${
+          m.media && m.media.length ? `<div style="margin-top:6px">${mediaHtml(m.media, '')}</div>` : ''}${
+          m.note ? `<div style="font-weight:600;margin-top:4px">${esc(m.note)}</div>` : ''}<div class="mt">${esc(m.time)} ${ctl}</div></div>`;
       }
       const masked = C.meta.mask.account && !isEdit();
       const who = m.from === 'buyer' ? 'Buyer' : 'Seller';
@@ -1352,7 +1381,7 @@
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
     pickMc, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
-    addMod, moveMod, delMod, setMod, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
+    addMod, moveMod, delMod, setMod, cycleTag, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };
 
   // ===== 入口（app.js 的 route 呼叫） =====
