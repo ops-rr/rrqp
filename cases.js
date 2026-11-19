@@ -50,10 +50,12 @@
 
   // DMS 畫面的中文／英文：跟網站右上角的「中文／EN」一起切換。匯入時存了 i18n（英文 → 中文），中文時查表，查不到就顯示英文。
   // 頁籤、篩選、角色這些 DMS 前端寫死的英文，DMS 切成中文也不變，所以不翻（2026-11-19 Chris 對過）。編輯中的欄位一律顯示原文（避免把中文存回去）。
+  // 三種 DMS 語言：中文＝zh-hant；EN＝DMS 給 TW BPO 的「en-tw bpo」用語（i18n.bpo 只存和一般英文不同的）；兩者都查不到＝一般英文（原文）
   const dmsLang = () => (document.documentElement.lang === 'en' ? 'en' : 'zh');
   function T(s) {
-    if (s == null || dmsLang() !== 'zh') return s;
+    if (s == null) return s;
     const m = (MAIN && MAIN.i18n) || {};
+    if (dmsLang() === 'en') return (m.bpo && m.bpo[s]) || s;
     return (m.zh && m.zh[s]) || (m.ui && m.ui[s]) || s;
   }
   const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
@@ -756,7 +758,7 @@
       let v = (k[2] === 'id' && isMasked('id') && !isEdit()) ? '***' : k[1];
       if (isEdit()) v = `<span contenteditable data-set="opkv" data-i="${i}" data-k="${ki}">${esc(k[1])}</span>`;
       else v = esc(T(v));
-      return `<div class="ckv">${k[0] ? esc(T(k[0])) + ': ' : ''}${v}</div>`;
+      return `<div class="ckv">${k[0] ? esc(k[0]) + ': ' : ''}${v}</div>`;     // 欄位名稱 DMS 切中文也是英文，只翻值
     }).join('');
     const media = n.media ? `<div style="margin-bottom:12px">${mediaHtml(n.media, isEdit() ? `CQ.delOpMedia(${i},IDX)` : '')}</div>` : '';
     const ctl = isEdit() ? `<div class="ectl" style="margin:0">
