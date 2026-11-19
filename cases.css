@@ -186,7 +186,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .leak{display:inline-block;font-size:11px;background:#fff7ed;color:var(--warn);border:1px solid #fed7aa;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap}
 .cq .hid{opacity:.45}
 .cq .addfd{margin-top:14px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;border-radius:4px;padding:4px 10px;font-size:12px}
-.cq #cqWm{position:fixed;inset:0;pointer-events:none;z-index:15;opacity:.07}
+.cq #cqWm{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:.07}   /* 2026-11-19：放在照片放大（#cqLb 50）、彈窗（#cqPop 40）上面，放大照片截圖也會有作答者 email */
 .cq #cqLb{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#fff}
 .cq #cqLb.on{display:flex}
 .cq #cqLb img{max-width:92vw;max-height:84vh;transition:transform .1s;cursor:zoom-in}
@@ -264,3 +264,5 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* 2026-11-19：欄位第二行（Proof Status 的時間、CS Case New Updates 的其他項目）、檔案類附件（ePOD 的 PDF 等） */
 .cq .dt-line{line-height:20px}
 .cq .thumb.dt-file{display:flex;align-items:center;justify-content:center;font-size:20px;text-decoration:none;cursor:pointer}
+/* 2026-11-19：講師名單的非公司帳號（紅） */
+.chip.danger{color:var(--err);background:var(--err-bg)}

@@ -113,8 +113,8 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-19p';
-let S = null, ME = null, currentEmail = null;
+const VERSION = 'V2-2026-11-19q';
+let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
 const slug = (s, max = 30) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, max);
@@ -1235,12 +1235,13 @@ const ACTIONS = {
   tw_listRoles: async () => {
     await needTW();
     const rows = await S.list('roles');
-    return { roles: rows.map((r) => ({ email: r.id, role: r.role, addedBy: r.addedBy || '', addedAt: r.addedAt || null })).sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email)), owner: String(CFG.OWNER || '').toLowerCase() };
+    return { roles: rows.map((r) => ({ email: r.id, role: r.role, addedBy: r.addedBy || '', addedAt: r.addedAt || null, company: isCompanyEmail(r.id) })).sort((a, b) => a.role.localeCompare(b.role) || a.email.localeCompare(b.email)), owner: String(CFG.OWNER || '').toLowerCase() };
   },
   tw_setRole: async (b) => {
     const m = await needAdmin();
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail('Email 格式不正確 / Invalid email');
+    if (!isCompanyEmail(email)) fail(COMPANY_ONLY + '：' + email);
     if (!['tw', 'bpo', 'admin'].includes(b.role)) fail('身分只能是 admin、tw 或 bpo / Role must be admin, tw or bpo');
     const cur = await S.get('roles/' + email).catch(() => null);
     if (!m.isAdmin && (b.role === 'admin' || (cur && cur.role === 'admin'))) fail('只有管理員可以設定管理員 / Only admins can manage admins');
@@ -1341,12 +1342,18 @@ const ACTIONS = {
 // ───────── 題庫（M4）：草稿 = 生產線、題庫 = 倉庫；發佈測驗一律從題庫組卷，試卷是發佈當下的快照 ─────────
 const AGENT_FIELDS = ['type', 'points', 'prompt', 'buyer', 'seller', 'order', 'payment', 'logistics', 'chat', 'drc', 'request', 'options', 'group', 'cutoff'];
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+// 只允許公司帳號（2026-11-19）；firestore.rules 的 companyEmail() 也要一起改
+const COMPANY_DOMAINS = ['shopee.com', 'shopeemobile-external.com'];
+const isCompanyEmail = (e) => COMPANY_DOMAINS.includes(String(e || '').trim().toLowerCase().split('@').pop());
+const COMPANY_ONLY = '只能用公司帳號（@' + COMPANY_DOMAINS.join('、@') + '）/ Company accounts only';
 const r2 = (n) => Math.round(n * 100) / 100;
 function shuffle(a) { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
 function validEmails(list) {
   const emails = [...new Set((list || []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
   const bad = emails.filter((e) => !EMAIL_RE.test(e));
   if (bad.length) fail('Email 格式錯誤 / Invalid email: ' + bad.join(', '));
+  const outside = emails.filter((e) => !isCompanyEmail(e));
+  if (outside.length) fail(COMPANY_ONLY + '：' + outside.join(', '));
   if (!emails.length) fail('請至少指派一位 / Assign at least one person');
   return emails;
 }
@@ -2966,9 +2973,22 @@ async function api(action, payload = {}) {
   window.RRQP_DB = {
     preview: PREVIEW,
     api,
-    signIn: async () => { try { await S.auth.signIn(); } catch (e) { throw new Error(friendly(e)); } },
+    signIn: async () => {
+      let r;
+      try { r = await S.auth.signIn(); } catch (e) { throw new Error(friendly(e)); }
+      const email = (r && r.user && r.user.email) || blockedEmail;
+      if (email && !isCompanyEmail(email)) {
+        blockedEmail = null;
+        await S.auth.signOut();
+        throw new Error('請使用公司帳號登入 / Please sign in with your company account（' + email + '）');
+      }
+    },
     signOut: () => { ME = null; currentEmail = null; return S.auth.signOut(); },
-    onAuth: (cb) => S.auth.onAuth((u) => { ME = null; currentEmail = u ? u.email : null; cb(u); }),
+    // 非公司帳號登入：當作沒登入（signIn 會顯示原因）
+    onAuth: (cb) => S.auth.onAuth((u) => {
+      if (u && !isCompanyEmail(u.email)) { blockedEmail = u.email; S.auth.signOut(); u = null; }
+      ME = null; currentEmail = u ? u.email : null; cb(u);
+    }),
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
     caseAgentView,
