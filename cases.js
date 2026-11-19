@@ -58,6 +58,12 @@
     if (dmsLang() === 'en') return (m.bpo && m.bpo[s]) || s;
     return (m.zh && m.zh[s]) || (m.ui && m.ui[s]) || s;
   }
+  // Operation History 的欄位名稱：DMS 有的翻、有的維持英文（Present pending reason、Remark…），所以另外一張表
+  function TL(s) {
+    const m = (MAIN && MAIN.i18n) || {};
+    if (dmsLang() === 'en') return (m.bpo && m.bpo[s]) || s;
+    return (m.opzh && m.opzh[s]) || s;
+  }
   const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
   const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
   const L = (n) => (n && typeof n === 'object' ? n.zh || n.en || '' : String(n || ''));
@@ -123,11 +129,11 @@
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
           <th>案件</th><th>標題</th><th>分類</th><th style="white-space:nowrap">用途</th><th style="white-space:nowrap">作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
-        ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}</td>
+        ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}${c.copyOf ? `<div class="soft small" style="white-space:nowrap">複製自 ${esc(c.copyOf)}</div>` : ''}</td>
           <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
           <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).concat(c.twOnly ? ['<span class="chip">只限 TW</span>'] : []).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
-          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${c.questions} 題／${c.points} 分</td>
+          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${c.questions} 題</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
           ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
           <td class="small">${esc(fmtTime(c.updatedAt))}<div class="soft">${esc(c.updatedBy || '')}</div></td>
@@ -148,7 +154,7 @@
     let d;
     try { d = await X.api('c_get', { caseId: id }); } catch (e) { X.showError(e, main); return; }
     if (d.status === 'approved' || X.me.role !== 'tw') main = X.shell('bank', '');      // 導覽列亮在案件所在的頁面
-    CUR = { caseId: d.caseId, status: d.status, title: d.title, rev: d.rev, notes: d.notes, priv: d.private || {}, canEdit: d.canEdit, canDelete: d.canDelete,
+    CUR = { caseId: d.caseId, copyOf: d.copyOf || '', status: d.status, title: d.title, rev: d.rev, notes: d.notes, priv: d.private || {}, canEdit: d.canEdit, canDelete: d.canDelete,
       updatedAt: d.updatedAt, updatedBy: d.updatedBy, approvedBy: d.approvedBy, groups: d.groups || [], topics: d.topics || [], tags: d.tags || [] };
     C = d.case;
     C.meta = Object.assign({ usage: 'practice', twOnly: true, mask: { id: true, account: true } }, C.meta || {});
@@ -160,6 +166,7 @@
     C.meta.accounts = CUR.priv.accounts || { buyer: '***', seller: '***' };
     (C.prev || []).forEach((p, i) => { p.rid = (CUR.priv.prevIds || [])[i] || ''; });
     C.modules = C.modules || [];
+    CUR.pctFixed = pctNormalize(C.modules);       // 舊案件的配分是分數：照原本比例換成百分比（有修改或核准時才寫回）
     C.ops = C.ops || []; C.chat = C.chat || []; C.drc = C.drc || { buyer: [], seller: [] };
     C.prev = (C.prev || []).map((p) => Object.assign({ blocks: [], ops: [], drc: { buyer: [], seller: [] } }, p));
     MAIN = C; VIEW = -1;
@@ -219,13 +226,14 @@
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
     $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '待審 DMS 考題'}</a>
-      <span class="cid">${esc(CUR.caseId)}</span><span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>
+      <span class="cid">${esc(CUR.caseId)}</span>${CUR.copyOf ? `<a class="soft small" href="#/case/${esc(CUR.copyOf)}">複製自 ${esc(CUR.copyOf)}</a>` : ''}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>
       ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
       ${CUR.canEdit ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
       <span style="flex:1"></span>
       ${CUR.canEdit ? sv : ''}
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
+      ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件待審）">複製</button>' : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
   }
 
@@ -335,7 +343,7 @@
     try {
       const r = await X.api('c_save', { caseId, rev: CUR.rev, title: CUR.title, case: MAIN });
       if (!CUR || CUR.caseId !== caseId) return true;
-      CUR.rev = r.rev; CUR.updatedAt = Date.now();
+      CUR.rev = r.rev; CUR.updatedAt = Date.now(); CUR.pctFixed = false;
       if (r.demoted) X.toast('案件內容不符合核准條件，已退回待審', 5000);
       CUR.status = r.status;
       if (!$('#cqSettings').contains(document.activeElement)) renderSettings();
@@ -349,7 +357,7 @@
   async function saveNow() { saveErr = ''; dirty = true; return doSave(); }
 
   async function approve() {
-    if (dirty || saving) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
+    if (dirty || saving || CUR.pctFixed) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
     const chk = X.DB().caseCheck(MAIN, CUR.title);
     if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能核准：' + chk.errors.join('；'), 6000); }
     const leaks = findLeaks();
@@ -362,6 +370,15 @@
   async function unapprove() {
     if (!(await X.confirmBox('退回待審？退回後不能用來組卷，直到再次核准。', '退回待審'))) return;
     try { const r = await X.api('c_unapprove', { caseId: CUR.caseId }); CUR.status = r.status; renderAll(); } catch (e) { X.toast(e.message, 6000); }
+  }
+  async function copy() {
+    if (dirty || saving) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
+    if (!(await X.confirmBox(`複製 ${CUR.caseId} 成新的案件？\n案件內容、考題、補充資訊圖片都會複製一份，新案件是「待審」，改好後要再核准。兩個案件之後各改各的，互不影響。`, '複製'))) return;
+    try {
+      const r = await X.api('c_copy', { caseId: CUR.caseId });
+      X.toast('已複製成 ' + r.caseId);
+      location.hash = '#/case/' + encodeURIComponent(r.caseId);
+    } catch (e) { X.toast(e.message, 6000); }
   }
   async function del() {
     if (!(await X.confirmBox(`刪除案件 ${CUR.caseId}？考題、補充資訊圖片、申請紀錄會一起刪除，不能復原。`, '刪除', undefined, true))) return;
@@ -698,7 +715,9 @@
         <button class="del" onclick="CQ.delMsg('${room}',${i})">✕</button>
         <button onclick="CQ.cutAfter('${room}',${i})" title="刪除這則之後的所有訊息">✂ 之後全刪</button></span>` : '';
       if (m.type === 'system') {
-        return `<div class="sys pw">ⓘ System Info: ${esc(m.text)}<div class="mt">${esc(m.time)} ${ctl}</div></div>`;
+        // DMS：系統訊息下面可以有買家說明（note，粗體）和照片影片（已上傳證明）
+        return `<div class="sys pw">ⓘ System Info: ${esc(T(m.text))}${m.note ? `<div style="font-weight:600;margin-top:2px">${esc(m.note)}</div>` : ''}${
+          m.media && m.media.length ? `<div style="margin-top:6px">${mediaHtml(m.media, '')}</div>` : ''}<div class="mt">${esc(m.time)} ${ctl}</div></div>`;
       }
       const masked = C.meta.mask.account && !isEdit();
       const who = m.from === 'buyer' ? 'Buyer' : 'Seller';
@@ -758,7 +777,7 @@
       let v = (k[2] === 'id' && isMasked('id') && !isEdit()) ? '***' : k[1];
       if (isEdit()) v = `<span contenteditable data-set="opkv" data-i="${i}" data-k="${ki}">${esc(k[1])}</span>`;
       else v = esc(T(v));
-      return `<div class="ckv">${k[0] ? esc(k[0]) + ': ' : ''}${v}</div>`;     // 欄位名稱 DMS 切中文也是英文，只翻值
+      return `<div class="ckv">${k[0] ? esc(TL(k[0])) + ': ' : ''}${v}</div>`;     // 欄位名稱只翻 DMS 會翻的（i18n.opzh）
     }).join('');
     const media = n.media ? `<div style="margin-bottom:12px">${mediaHtml(n.media, isEdit() ? `CQ.delOpMedia(${i},IDX)` : '')}</div>` : '';
     const ctl = isEdit() ? `<div class="ectl" style="margin:0">
@@ -804,7 +823,7 @@
       if (md.type === 'mc') html += mcAgentHtml(md, qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">說明第 ${qn[md.bindTo]} 題的選擇</div>` : '';
-        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${bind}
+        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
           <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)" onpaste="CQ.paste('${md.id}',event)">${esc(A.short[md.id] || '')}</textarea>
           ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>參考答案：</b>${esc(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
       }
@@ -822,7 +841,7 @@
       if (showAns && pick === i && i !== md.answer) cls += ' wrong';
       return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i})"><span class="l">${LETTERS[i]}</span><span>${esc(o)}</span></div>`;
     }).join('');
-    return `<div class="mod qmod"><div class="mh">${no}. ${esc(md.q)}<span class="sp"></span><span class="pts">${md.points} 分</span></div>${opts}
+    return `<div class="mod qmod"><div class="mh">${no}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${opts}
       ${showAns && md.explain ? `<div class="explain"><b>詳解：</b>${esc(md.explain)}</div>` : ''}</div>`;
   }
 
@@ -858,8 +877,8 @@
     const secs = Math.round(A.leaveMs / 1000);
     const isPractice = C.meta.usage === 'practice';
     return `<div class="cres">
-      <div>單選題得分 <b class="big">${got}</b> / ${mcTotal}</div>
-      ${shortTotal ? `<div>簡答題 ${shortTotal} 分：待 AI 預評分，再由講師確認</div>` : ''}
+      <div>單選題答對 <b class="big">${got}%</b> / ${mcTotal}%（佔本案件）</div>
+      ${shortTotal ? `<div>簡答題 ${shortTotal}%：待 AI 預評分，再由講師確認</div>` : ''}
       ${notes.map(n => `<div class="hint">${esc(n)}</div>`).join('')}
       <div class="hint">作答期間離開考試頁面 ${A.leaves} 次，共 ${secs} 秒（講師看得到）</div>
       <div class="hint">${isPractice ? '練習模式：下方顯示正解與詳解，成績不計入。' : '考試模式：成績公布前只顯示自己的分數。'}</div></div>`;
@@ -868,10 +887,19 @@
   // ===== 考題分頁：講師編輯 =====
   const TYPE_NAME = { note: '情境說明', image: '補充資訊', mc: '單選題', short: '簡答題' };
 
+  const pctInput = (md, i) => `<div class="lbl">配分（佔本案件）</div><div class="erow" style="align-items:center"><input type="number" min="0" max="100" step="1" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)"> %</div>`;
+
   function quizEditHtml() {
     const qn = qNumbers();
     const mcList = C.modules.filter(m => m.type === 'mc');
     let html = '<div class="hint" style="margin-bottom:10px">模組由上往下顯示給專員。可以插入多個、調整順序。</div>';
+    if (C.modules.some(isQ)) {
+      const sum = pctSum(C.modules), ok = Math.abs(sum - 100) < 0.01;
+      html += `<div class="hint" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>作答題配分合計 <b style="color:${ok ? 'var(--ok,#16a34a)' : 'var(--bad,#dc2626)'}">${sum}%</b>${ok ? '' : '（要剛好 100% 才能核准）'}</span>
+        <button class="mbtn" onclick="CQ.evenPct()">平均分配</button>
+        <span>配分是這題佔本案件的比例；案件在整份試卷佔幾分，組卷發佈時再設定。</span></div>`;
+    }
     C.modules.forEach((md, i) => {
       const head = `<div class="mh">${qn[md.id] ? qn[md.id] + '. ' : ''}${TYPE_NAME[md.type]}<span class="sp"></span>
         <button class="mbtn" onclick="CQ.moveMod(${i},-1)">↑</button><button class="mbtn" onclick="CQ.moveMod(${i},1)">↓</button>
@@ -894,7 +922,7 @@
             <b style="width:14px">${LETTERS[oi]}</b><input type="text" value="${esc(o)}" onchange="CQ.setOpt(${i},${oi},this.value)">
             <button class="mbtn del" onclick="CQ.delOpt(${i},${oi})">✕</button></div>`).join('')}
           ${md.options.length < 8 ? `<button class="mbtn" onclick="CQ.addOpt(${i})">＋ 新增選項</button>` : ''}
-          <div class="lbl">配分</div><input type="number" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)">
+          ${pctInput(md, i)}
           <div class="lbl">詳解（練習模式交卷後顯示）</div><textarea onchange="CQ.setMod(${i},'explain',this.value)">${esc(md.explain || '')}</textarea>`;
       }
       if (md.type === 'short') {
@@ -903,7 +931,7 @@
           <select onchange="CQ.setMod(${i},'bindTo',this.value)"><option value="">不綁定</option>
             ${mcList.map(m => `<option value="${m.id}" ${md.bindTo === m.id ? 'selected' : ''}>第 ${qn[m.id]} 題：${esc(m.q)}</option>`).join('')}</select>
           <div class="lbl">標準答案（AI 預評分依據）</div><textarea onchange="CQ.setMod(${i},'standard',this.value)">${esc(md.standard || '')}</textarea>
-          <div class="lbl">配分</div><input type="number" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)">`;
+          ${pctInput(md, i)}`;
       }
       html += `<div class="mod ${md.type === 'note' ? 'note' : md.type === 'mc' || md.type === 'short' ? 'qmod' : ''}">${head}${body}</div>`;
     });
@@ -912,17 +940,35 @@
     return html;
   }
 
+  // ───────── 配分：題目佔本案件的百分比（加起來 100）；案件在試卷佔幾分由組卷時設定 ─────────
+  const isQ = (m) => m.type === 'mc' || m.type === 'short';
+  const pctSum = (mods) => Math.round(mods.filter(isQ).reduce((t, m) => t + (Number(m.points) || 0), 0) * 100) / 100;
+  /** 加總不是 100 就照比例換算成整數百分比（最大餘數法，總和剛好 100）；全部 0 就平均分配 */
+  function pctNormalize(mods, force) {
+    const qs = mods.filter(isQ);
+    if (!qs.length || (!force && Math.abs(pctSum(mods) - 100) < 0.01)) return false;
+    const tot = qs.reduce((t, m) => t + Math.max(0, Number(m.points) || 0), 0);
+    const raw = qs.map((m) => (force || !tot ? 100 / qs.length : Math.max(0, Number(m.points) || 0) / tot * 100));
+    const fl = raw.map(Math.floor); let left = 100 - fl.reduce((t, x) => t + x, 0);
+    raw.map((x, i) => [x - fl[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left--; } });
+    qs.forEach((m, i) => { m.points = fl[i]; });
+    return true;
+  }
+  /** 題目分數的顯示：測驗中是實際分數（發佈時已換算），其他地方是百分比 */
+  const ptsLabel = (md) => (EX ? `${md.points} 分` : `${md.points}%`);
+  function evenPct() { pctNormalize(C.modules, true); saveCase(); renderSide(); }
+
   function newId() { return 'm' + Date.now().toString(36); }
   function addMod(type) {
     const md = { id: newId(), type };
     if (type === 'note') md.text = '';
     if (type === 'image') md.images = [];
-    if (type === 'mc') Object.assign(md, { q: '請選擇正確的', options: ['', '', '', ''], answer: 0, points: 5, explain: '' });
-    if (type === 'short') Object.assign(md, { q: '請說明你選擇這個答案的理由', standard: '', bindTo: '', points: 5 });
+    if (type === 'mc') Object.assign(md, { q: '請選擇正確的', options: ['', '', '', ''], answer: 0, points: Math.max(0, 100 - pctSum(C.modules)), explain: '' });
+    if (type === 'short') Object.assign(md, { q: '請說明你選擇這個答案的理由', standard: '', bindTo: '', points: Math.max(0, 100 - pctSum(C.modules)) });
     C.modules.push(md); saveCase(); renderSide();
     const pane = document.getElementById('cqQuizPane'); pane.scrollTop = pane.scrollHeight;
   }
-  function setMod(i, k, v) { C.modules[i][k] = v; saveCase(); if (k === 'answer' || k === 'bindTo' || k === 'q') renderSide(); }
+  function setMod(i, k, v) { C.modules[i][k] = v; saveCase(); if (k === 'answer' || k === 'bindTo' || k === 'q' || k === 'points') renderSide(); }
   function moveMod(i, d) {
     const j = i + d;
     if (j < 0 || j >= C.modules.length) return;
@@ -1299,7 +1345,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, del,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,

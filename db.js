@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-19g';
+const VERSION = 'V2-2026-11-19k';
 let S = null, ME = null, currentEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2187,7 +2187,7 @@ function caseCheck(c, title) {
     if (m.type !== 'mc' && m.type !== 'short') return;
     const p = `第 ${++no} 題`;
     if (!String(m.q || '').trim()) errors.push(p + '沒有題目');
-    if (!(Number(m.points) > 0)) errors.push(p + '配分要大於 0');
+    if (!(Number(m.points) > 0)) errors.push(p + '配分要大於 0%');
     if (m.type === 'mc') {
       const opts = m.options || [];
       if (opts.length < 2) errors.push(p + '至少要 2 個選項');
@@ -2196,6 +2196,9 @@ function caseCheck(c, title) {
     }
     if (m.type === 'short' && !String(m.standard || '').trim()) errors.push(p + '沒有標準答案（AI 預評分依據）');
   });
+  // 題目配分是「佔本案件的百分比」，加起來要 100（案件在整份試卷佔幾分，組卷發佈時再設定）
+  const pct = qs.reduce((t, m) => t + (Number(m.points) || 0), 0);
+  if (qs.length && Math.abs(pct - 100) > 0.01) errors.push(`作答題的配分加起來要 100%（目前 ${Math.round(pct * 100) / 100}%）`);
   return { errors, warns };
 }
 const caseStats = (c) => {
@@ -2211,6 +2214,10 @@ const CASES = {
     const items = (idx && idx.items) || {};
     const rid = {};
     if (m.role === 'tw') (await S.list('v3caseRequests').catch(() => [])).forEach((r) => { if (r.caseId) rid[r.caseId] = r.returnId; });
+    // 複製出來的案件沒有申請紀錄：Return ID 從原案件找；原案件已刪除就讀複本自己的原始資訊
+    if (m.role === 'tw') await Promise.all(Object.keys(items).filter((id) => items[id].copyOf && !rid[id]).map(async (id) => {
+      rid[id] = rid[items[id].copyOf] || ((await S.get('v3cases/' + id + '/private/raw').catch(() => null)) || {}).rid || '';
+    }));
     const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
       items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
     const [topics, tags, groups] = await Promise.all([S.list('topics'), S.list('tags'), loadGroups()]);
@@ -2273,7 +2280,7 @@ const CASES = {
     try { body = JSON.parse(d.body || '{}'); } catch (_) { fail('案件內容損壞，無法讀取 / Case data is corrupted'); }
     return { caseId: b.caseId, status: d.status || 'pending', title: d.title || '', rev: d.rev || 0, version: body.version || '',
       notes: d.importNotes || [], requestId: d.requestId || '', createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '',
-      approvedBy: d.approvedBy || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample,
+      approvedBy: d.approvedBy || '', copyOf: d.copyOf || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample,
       groups: await loadGroups(), topics: (await S.list('topics')).map(topicOut).filter((x) => x.usage.includes('case')), tags: (await S.list('tags')).map(tagOut) };
   },
 
@@ -2329,6 +2336,45 @@ const CASES = {
       { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'pending', ['items.' + b.caseId + '.approvedBy']: '', ['items.' + b.caseId + '.updatedAt']: t } },
     ]);
     return { status: 'pending' };
+  },
+
+  /**
+   * 複製案件：同一筆 DMS 案件做出另一份考題（例如換題目、改情境），新案件待審。
+   * 原始資訊（Return ID、帳號）一起複製；補充資訊圖片另存一份，刪掉其中一個案件不會影響另一個。
+   */
+  c_copy: async (b) => {
+    const m = await needTW();
+    const src = String(b.caseId || '');
+    const [d, priv] = await Promise.all([S.get('v3cases/' + src), S.get('v3cases/' + src + '/private/raw').catch(() => null)]);
+    if (!d) fail('找不到案件 / Case not found');
+    const body = JSON.parse(d.body || '{}');
+    const refs = new Set();
+    (body.modules || []).forEach((md) => (md.images || []).forEach((r) => { if (/^v3img:/.test(r)) refs.add(r.slice(6)); }));
+    const cid = 'C' + String(await S.nextIds('C', 1)).padStart(3, '0'), t = now();
+    // 補充資訊圖片：先另存一份（案件本體最後寫）
+    const map = {};
+    for (const id of refs) {
+      const im = await S.get('v3images/' + id);
+      if (!im) fail('補充資訊圖片不見了 / Image missing: ' + id);
+      const nid = 'I' + String(await S.nextIds('I', 1)).padStart(5, '0');
+      for (let i = 0; i < (im.n || 0); i++) await S.set(`v3images/${nid}/chunks/${i}`, (await S.get(`v3images/${id}/chunks/${i}`)) || { d: '' });
+      await S.set('v3images/' + nid, { caseId: cid, mime: im.mime || '', n: im.n || 0, size: im.size || 0, by: m.email, at: t });
+      map[id] = nid;
+    }
+    (body.modules || []).forEach((md) => { if (md.images) md.images = md.images.map((r) => (/^v3img:/.test(r) && map[r.slice(6)] ? 'v3img:' + map[r.slice(6)] : r)); });
+    const title = (String(b.title || '').trim() || ((d.title || '') + '（複本）')).slice(0, 120);
+    const doc = { status: 'pending', title, body: JSON.stringify(body), rev: 0, requestId: d.requestId || '', copyOf: src, importNotes: d.importNotes || [],
+      createdAt: t, updatedAt: t, updatedBy: m.email, approvedBy: '' };
+    const meta = body.meta || {}, st = caseStats(body);
+    const row = { title, status: 'pending', usage: meta.usage || 'practice', twOnly: meta.twOnly !== false, questions: st.questions, points: st.points,
+      notes: (d.importNotes || []).length, groups: meta.groups || [], topics: meta.topics || [], tags: meta.tags || [], copyOf: src,
+      requestId: d.requestId || '', createdAt: t, updatedAt: t, updatedBy: m.email, approvedBy: '' };
+    await S.batch([
+      { op: 'set', path: 'v3cases/' + cid + '/private/raw', data: priv || {} },
+      { op: 'set', path: 'v3cases/' + cid, data: doc },
+      { op: 'set', path: 'meta/v3CaseIndex', merge: true, data: { items: { [cid]: row } } },
+    ]);
+    return { caseId: cid };
   },
 
   /** 刪除案件：連同原始資訊、補充資訊圖片、申請紀錄 */
@@ -2421,7 +2467,7 @@ function caseAgentView(src) {
   if (c.i18n) {
     const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));
     const keep = (m) => Object.fromEntries(Object.entries(m || {}).filter(([k]) => txt.includes(JSON.stringify(k))));
-    c.i18n = { ui: c.i18n.ui || {}, zh: keep(c.i18n.zh), bpo: keep(c.i18n.bpo) };
+    c.i18n = { ui: c.i18n.ui || {}, zh: keep(c.i18n.zh), bpo: keep(c.i18n.bpo), opzh: keep(c.i18n.opzh) };
   }
   return c;
 }
@@ -2445,7 +2491,8 @@ async function xSessionDoc(id) {
 }
 /** 單選題自動計分＋講師給的簡答分數 */
 function xScore(key, att, grade) {
-  // 成績換算成 100 分制：每個案件一樣重（100 ÷ 有作答題的案件數），案件裡的題目照講師配分的比例；raw／rawTotal 是原始配分加總
+  // 成績 100 分制：案件分數（weight，組卷時講師設定）× 該案件得分比例；舊測驗沒有 weight＝每個案件一樣重（100 ÷ 有作答題的案件數）
+  // raw／rawTotal 是題目分數加總（新測驗的題目分數已是實際分數，raw 就等於成績）
   const detail = {}, cases = (key.cases || []).filter((kc) => kc.mods.some((m) => m.points > 0));
   let raw = 0, rawTotal = 0, pending = 0, score = 0;
   (key.cases || []).forEach((kc, i) => {
@@ -2462,7 +2509,7 @@ function xScore(key, att, grade) {
       got += detail[k] || 0;
     });
     raw += got; rawTotal += tot;
-    if (tot > 0) score += (got / tot) * (100 / cases.length);
+    if (tot > 0) score += (got / tot) * (kc.weight !== undefined ? kc.weight : 100 / cases.length);
   });
   return { score: Math.round(score * 10) / 10, total: 100, raw: r2(raw), rawTotal: r2(rawTotal), pending, detail };
 }
@@ -2506,20 +2553,30 @@ const EXAM = {
     if (!ids.length) fail('請選擇案件 / Pick at least one case');
     if (ids.length > X_MAX_CASES) fail('每場最多 ' + X_MAX_CASES + ' 個案件 / Too many cases');
     const docs = await Promise.all(ids.map((id) => S.get('v3cases/' + id)));
-    const pub = [], key = [], refs = new Set();
+    const pub = [], key = [], refs = new Set(), wIn = b.weights || {};
+    const nQ = docs.filter((x) => x && xKeyMods(JSON.parse(x.body || '{}').modules).some((y) => y.points > 0)).length;
     docs.forEach((d, i) => {
       if (!d) fail('找不到案件 / Case not found: ' + ids[i]);
       if (d.status !== 'approved') fail(ids[i] + ' 還沒核准 / is not approved');
       const body = JSON.parse(d.body || '{}');
       if (mode === 'exam' && (body.meta || {}).usage !== 'exam') fail(ids[i] + ' 是練習用案件，不能放進考試 / is for practice only');
       (body.modules || []).forEach((md) => (md.images || []).forEach((r) => { if (/^v3img:/.test(r)) refs.add(r.slice(6)); }));
-      pub.push({ caseId: ids[i], body: JSON.stringify(caseAgentView(body)) });
-      key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], mods: xKeyMods(body.modules) });   // topics：AI 批改用主題的批改原則
+      // 案件分數（講師在組卷時設定）× 題目百分比 ＝ 題目的實際分數；試卷、批改、AI 批改都用實際分數
+      const mods = xKeyMods(body.modules), pt = mods.reduce((t, x) => t + x.points, 0);
+      const w = pt > 0 ? (b.weights ? Number(wIn[ids[i]]) : 100 / nQ) : 0;      // 沒給分數（舊版畫面）＝平均分配
+      if (pt > 0 && !(w > 0)) fail(ids[i] + ' 的分數要大於 0 / Case score must be above 0');
+      mods.forEach((x) => { x.pct = pt > 0 ? r2(x.points / pt * 100) : 0; x.points = pt > 0 ? r2(w * x.points / pt) : 0; });
+      const av = caseAgentView(body), am = Object.fromEntries(mods.map((x) => [x.id, x.points]));
+      av.modules.forEach((x) => { if (am[x.id] !== undefined) x.points = am[x.id]; });
+      pub.push({ caseId: ids[i], body: JSON.stringify(av) });
+      key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods });   // topics：AI 批改用主題的批改原則
     });
     const size = pub.reduce((n, c) => n + c.body.length, 0);
     if (size > 900000) fail('案件內容太多，超過一份試卷的上限，請減少案件 / Too much content for one quiz');
-    const qn = key.reduce((n, c) => n + c.mods.length, 0), pts = key.reduce((n, c) => n + c.mods.reduce((s, x) => s + x.points, 0), 0);
+    const qn = key.reduce((n, c) => n + c.mods.length, 0), pts = 100;
     if (!qn) fail('選到的案件沒有作答題 / No questions in the selected cases');
+    const wSum = key.reduce((t, c) => t + c.weight, 0);
+    if (Math.abs(wSum - 100) > 0.05) fail(`案件分數加起來要 100 分（目前 ${r2(wSum)} 分） / Case scores must add up to 100`);
     const settings = ((await S.get('settings/app')) || {}).values || {};
     const sid = 'X' + String(await S.nextIds('X', 1)).padStart(3, '0'), t = now();
     // 補充資訊圖片：先複製（測驗本體最後寫，專員看得到考卷時圖片一定已經在）
