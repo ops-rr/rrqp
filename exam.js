@@ -48,7 +48,7 @@
     const all = d.cases.filter((c) => c.status === 'approved');
     const gName = (id) => (d.groups.find((x) => x.id === id) || {}).name || id;
     const tpName = (id) => L((d.topics.find((x) => x.topicId === id) || {}).name) || id;
-    const st = { picked: [], seen: {}, f: { g: '', tp: '', q: '' } };
+    const st = { picked: [], seen: {}, f: { g: '', tp: '', q: '' }, w: {}, manual: false };   // w：案件分數；manual＝講師改過（之後增減案件不再自動均分）
     const start = Date.now(), end = start + 2 * 3600e3;
     box.innerHTML = `<form class="card pad" id="xf" style="display:flex;flex-direction:column;gap:14px;margin-bottom:14px" autocomplete="off">
       <h2>新增 DMS 考題測驗</h2>
@@ -85,7 +85,7 @@
         const no = exam && c.usage !== 'exam', on = st.picked.includes(c.caseId);
         return `<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px;${no ? 'opacity:.5' : ''}">
           <input type="checkbox" data-c="${esc(c.caseId)}" ${on ? 'checked' : ''} ${no ? 'disabled' : ''}>
-          <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題／${c.points} 分・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
+          <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
           ${st.seen[c.caseId] ? `<span class="chip warn">${st.seen[c.caseId]} 人做過</span>` : ''}${no ? '<span class="small soft">練習用，不能放進考試</span>' : ''}</label>`;
       }).join('') : '<div class="empty-state">沒有符合的已核准案件</div>';
       $$('#x_pool [data-c]').forEach((cb) => cb.addEventListener('change', () => {
@@ -94,16 +94,32 @@
         drawSel();
       }));
     };
+    // 平均分配成整數，總和剛好 100（尾數給前面的案件）
+    const evenW = () => {
+      const ids = st.picked.filter((id) => ((all.find((c) => c.caseId === id) || {}).questions || 0) > 0), n = ids.length;
+      st.w = {}; ids.forEach((id, i) => { st.w[id] = Math.floor(100 / n) + (i < 100 % n ? 1 : 0); });
+    };
+    const wSum = () => Math.round(st.picked.reduce((t, id) => t + (Number(st.w[id]) || 0), 0) * 100) / 100;
+    const drawSum = () => {
+      const rows = st.picked.map((id) => all.find((c) => c.caseId === id)).filter(Boolean), sum = wSum(), ok = Math.abs(sum - 100) < 0.05;
+      $('#x_sum').innerHTML = `${rows.length} 個案件・${rows.reduce((n, c) => n + c.questions, 0)} 題・案件分數合計 <b style="color:${ok || !rows.length ? 'inherit' : 'var(--bad,#dc2626)'}">${sum}</b> / 100 分
+        ${rows.length ? '<button type="button" class="btn sm ghost" id="x_even">均分</button>' : ''}`;
+      const ev = $('#x_even'); if (ev) ev.onclick = () => { st.manual = false; evenW(); drawSel(); };
+    };
     const drawSel = () => {
       const rows = st.picked.map((id) => all.find((c) => c.caseId === id)).filter(Boolean);
-      $('#x_sum').textContent = `${rows.length} 個案件・${rows.reduce((n, c) => n + c.questions, 0)} 題・成績換算成 100 分（每個案件各佔 ${rows.length ? Math.round(1000 / rows.length) / 10 : 0} 分）`;
+      if (!st.manual) evenW();
+      st.picked.forEach((id) => { if (st.w[id] === undefined) st.w[id] = 0; });
+      drawSum();
       $('#x_sel').innerHTML = rows.length ? rows.map((c, i) => `<div class="it"><b>案件 ${i + 1}</b><span class="mono">${esc(c.caseId)}</span><span style="flex:1">${esc(c.title)}</span>
+        ${c.questions ? `<span class="row" style="gap:4px;white-space:nowrap"><input type="number" min="0" max="100" step="any" data-w="${esc(c.caseId)}" value="${st.w[c.caseId]}" style="width:64px;height:30px;border:1px solid var(--line2);border-radius:6px;padding:0 6px"> 分</span>` : '<span class="small soft">沒有作答題・0 分</span>'}
         <button type="button" class="btn sm ghost" data-u="${i}" ${i ? '' : 'disabled'}>↑</button><button type="button" class="btn sm ghost" data-d="${i}" ${i < rows.length - 1 ? '' : 'disabled'}>↓</button>
-        <button type="button" class="btn sm ghost danger" data-x="${i}">✕</button></div>`).join('') : '<div class="small muted">從左邊勾選案件；專員作答時依這裡的順序。</div>';
+        <button type="button" class="btn sm ghost danger" data-x="${i}">✕</button></div>`).join('') : '<div class="small muted">從左邊勾選案件；專員作答時依這裡的順序。每個案件的分數預設平均分配，可以手動改，合計要 100 分；案件裡各題再依案件設定的百分比分配。</div>';
       const mv = (i, dd) => { const a = st.picked.splice(i, 1)[0]; st.picked.splice(i + dd, 0, a); drawSel(); };
       $$('#x_sel [data-u]').forEach((b) => b.addEventListener('click', () => mv(+b.dataset.u, -1)));
       $$('#x_sel [data-d]').forEach((b) => b.addEventListener('click', () => mv(+b.dataset.d, 1)));
       $$('#x_sel [data-x]').forEach((b) => b.addEventListener('click', () => { st.picked.splice(+b.dataset.x, 1); drawSel(); drawPool(); }));
+      $$('#x_sel [data-w]').forEach((inp) => inp.addEventListener('input', () => { st.manual = true; $('#x_err').hidden = true; $('#x_err').hidden = true; st.w[inp.dataset.w] = Number(inp.value) || 0; drawSum(); }));
     };
     const emails = () => $('#x_em').value.split(/[\s,;，、]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
     // 指派名單改了就查一次「做過幾人」（只提醒，不擋）
@@ -127,7 +143,8 @@
       const m = modeOf();
       try {
         const r = await X.api('x_create', { title: $('#x_title').value, mode: m === 'exam' ? 'exam' : 'practice', review: m === 'exam' ? '' : m,
-          startAt: new Date($('#x_s').value).getTime(), endAt: new Date($('#x_e').value).getTime(), minutes: Number($('#x_min').value), assignees: emails(), caseIds: st.picked });
+          startAt: new Date($('#x_s').value).getTime(), endAt: new Date($('#x_e').value).getTime(), minutes: Number($('#x_min').value), assignees: emails(), caseIds: st.picked,
+          weights: Object.fromEntries(st.picked.map((id) => [id, Number(st.w[id]) || 0])) });
         X.toast('已發佈 ' + r.sessionId);
         location.hash = '#/xsession/' + r.sessionId;
       } catch (err) { $('#x_err').textContent = err.message; $('#x_err').hidden = false; btn.disabled = false; }
@@ -156,7 +173,7 @@
       <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
       <div class="stats">
         <div class="card pad"><div class="small soft">開放時間</div><div><b>${fmtDT(s.startAt)}</b><br>– <b>${fmtDT(s.endAt)}</b></div></div>
-        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・原始配分 ${s.points}，成績換算成 100 分</div></div>
+        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・滿分 100 分</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div></div>
       </div>
       <div class="tabs"><a class="tab ${byQ ? '' : 'on'}" href="#/xsession/${esc(s.sessionId)}">依專員</a><a class="tab ${byQ ? 'on' : ''}" href="#/xsession/${esc(s.sessionId)}?view=q">依題目${exam ? '批改' : '檢視'}</a>
@@ -237,7 +254,7 @@
         ${canGrade ? '<button class="btn brand" id="xSave">儲存給分</button>' : ''}</div>
       ${(d.key.cases || []).map((kc, i) => {
         const a = r.answers[i] || {}, paper = JSON.parse((d.paper.cases[i] || {}).body || '{}');
-        return `<div style="margin-top:16px"><h3>案件 ${i + 1}・<span class="mono">${esc(kc.caseId)}</span> ${esc(kc.title)}</h3>
+        return `<div style="margin-top:16px"><h3>案件 ${i + 1}・<span class="mono">${esc(kc.caseId)}</span> ${esc(kc.title)}${kc.weight !== undefined ? ` <span class="small soft">（本案件 ${kc.weight} 分）</span>` : ''}</h3>
           <div class="lib-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:8px">
             <div>${kc.mods.map((m, qi) => {
               if (m.type === 'mc') {
@@ -249,7 +266,7 @@
               return `<div class="xq"><b>${qi + 1}. ${esc(m.q)}</b>（${m.points} 分）
                 <div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin:6px 0">${esc((a.short || {})[m.id] || '（沒作答）')}</div>
                 <div class="small soft">標準答案：${esc(m.standard)}</div>
-                ${canGrade ? `<div class="row" style="margin-top:6px">給分 <input class="sc" type="number" min="0" max="${m.points}" step="0.5" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}</div>`
+                ${canGrade ? `<div class="row" style="margin-top:6px">給分 <input class="sc" type="number" min="0" max="${m.points}" step="any" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}"> / ${m.points}</div>`
                   : (v !== undefined && v !== null ? `<div class="small">得分 ${v} / ${m.points}</div>` : '')}
                 ${aiTip((r.ai || {})[i + ':' + m.id], m.points, canGrade)}</div>`;
             }).join('')}</div>
@@ -390,7 +407,7 @@
           ${bound ? `<td class="small" data-l="${q.i + 1}-${bound.qi + 1} 選了">${pickTxt(bound, pickOf(r, q.i, bound.m.id))}</td>` : ''}
           <td style="white-space:pre-wrap;word-break:break-word">${ansOf(r, q) ? esc(ansOf(r, q)) : '<span class="soft">（沒作答）</span>'}</td>
           <td>${aiTip((r.ai || {})[q.k], q.m.points, canGrade) || '<span class="small soft">—</span>'}</td>
-          <td style="white-space:nowrap" data-l="給分">${canGrade ? `<input class="sc" type="number" min="0" max="${q.m.points}" step="0.5" style="width:56px" data-e="${esc(r.email)}" data-k="${q.k}" value="${v === null || v === undefined ? '' : v}"> / ${q.m.points}`
+          <td style="white-space:nowrap" data-l="給分">${canGrade ? `<input class="sc" type="number" min="0" max="${q.m.points}" step="any" style="width:56px" data-e="${esc(r.email)}" data-k="${q.k}" value="${v === null || v === undefined ? '' : v}"> / ${q.m.points}`
             : (v !== null && v !== undefined ? `${v} / ${q.m.points}` : '<span class="soft">-</span>')}</td></tr>`; }).join('')}</tbody></table></div>`;
     }
     function render() {
