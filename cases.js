@@ -34,14 +34,16 @@
 
   // 黏在上方的高度：V2 頂部列＋案件工具列（左側導覽、右側面板從這裡開始）
   function cqTop() {
-    const h = $('header.top'), bar = $('#cqBar');
-    return (h ? h.offsetHeight : 0) + (bar ? bar.offsetHeight : 0);
+    const h = $('header.top'), bar = $('#cqBar'), st = $('#cqSettings');
+    return (h ? h.offsetHeight : 0) + (bar ? bar.offsetHeight : 0) + (st ? st.offsetHeight : 0);
   }
   function layout() {
     const root = $('#cq');
     if (!root) return;
     const h = $('header.top');
     root.style.setProperty('--cqH', (h ? h.offsetHeight : 0) + 'px');
+    const bar = $('#cqBar');
+    root.style.setProperty('--cqBarH', (bar ? bar.offsetHeight : 0) + 'px');   // 黃底設定列凍結在工具列下方
     root.style.setProperty('--cqTop', (cqTop() + 12) + 'px');
   }
 
@@ -300,6 +302,7 @@
         <label>標籤</label>${msBox('tags', tags, m.topics.length ? (tags.length ? '請選擇' : '這個主題還沒有標籤') : '先選主題')}
       </div>
       <div class="als">${alertBoxes()}</div>`;
+    layout();
   }
 
   // 分類下拉（可複選，參考 DMS 的 Request Type）：選到的變成小標籤，× 可以拿掉；點開後勾選不會關，點外面才關
@@ -307,8 +310,8 @@
   function msBox(key, opts, ph) {
     const on = C.meta[key] || [];
     const name = (id) => (opts.find((o) => o[0] === id) || [id, id])[1];
-    const chips = on.length ? on.map((id) => `<span class="chip">${esc(name(id))}<b onclick="event.stopPropagation();CQ.toggleCls('${key}','${esc(id)}')">×</b></span>`).join('')
-      : `<span class="ph">${esc(ph)}</span>`;
+    const chips = on.length ? on.map((id) => `<span class="mschip">${esc(name(id))}<b onclick="event.stopPropagation();CQ.toggleCls('${key}','${esc(id)}')">×</b></span>`).join('')
+      : `<span class="msph">${esc(ph)}</span>`;
     const list = opts.map(([id, nm]) => `<div class="${on.includes(id) ? 'sel' : ''}" onclick="event.stopPropagation();CQ.toggleCls('${key}','${esc(id)}')">${esc(nm)}</div>`).join('');
     return `<div class="ms ${MS_OPEN === key ? 'open' : ''}" onclick="event.stopPropagation();CQ.msOpen('${key}')">${chips}${opts.length ? `<div class="dd">${list}</div>` : ''}</div>`;
   }

@@ -21,7 +21,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq-bar .cbtn:disabled{opacity:.5;cursor:not-allowed}
 .cq .chipc{display:inline-block;font-size:12px;line-height:20px;padding:0 8px;border-radius:10px;background:#fff7ed;color:var(--warn);border:1px solid #fed7aa}
 .cq .chipc.ok{background:#ecfdf3;color:var(--ok);border-color:#b7e4c7}
-.cq #cqSettings{position:relative;z-index:1}
+.cq #cqSettings{position:sticky;top:calc(var(--cqH,56px) + var(--cqBarH,0px));z-index:17}
 .cq .dts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
 .cq .dt{position:relative}
 .cq .dt summary{list-style:none;cursor:pointer;border:1px solid #e0d6c8;background:#fff;border-radius:12px;padding:1px 10px;font-size:12px;color:#555;white-space:nowrap}
@@ -280,13 +280,14 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq #cqSettings.ed .cond>label{color:#666;white-space:nowrap}
 .cq #cqSettings.ed .r1{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px}
 .cq #cqSettings.ed .r1 label{white-space:nowrap}
-.cq .ms{position:relative;min-height:30px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;padding:3px 26px 3px 6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:pointer;min-width:0}
+.cq #cqSettings.ed select{height:30px;box-sizing:border-box}
+.cq .ms{position:relative;box-sizing:border-box;min-height:30px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;padding:2px 26px 2px 6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:pointer;min-width:0}
 .cq .ms:after{content:"▾";position:absolute;right:9px;top:5px;color:#999}
 .cq .ms.open{border-color:var(--brand)}
-.cq .ms .ph{color:#bbb;padding-left:4px;font-size:13px;font-style:normal}
-.cq .ms .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f0f0f0;border-radius:4px;padding:1px 6px;font-size:13px}
-.cq .ms .chip b{font-weight:400;color:#999;margin-left:4px;cursor:pointer}
-.cq .ms .chip b:hover{color:var(--bad)}
+.cq .ms .msph{color:#bbb;padding-left:4px;font-size:13px;line-height:20px}
+.cq .ms .mschip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f0f0f0;color:#333;border-radius:4px;padding:0 6px;font-size:13px;line-height:22px}
+.cq .ms .mschip b{font-weight:400;color:#999;margin-left:4px;cursor:pointer}
+.cq .ms .mschip b:hover{color:var(--bad)}
 .cq .ms .dd{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:40;padding:4px 0;max-height:50vh;overflow:auto;cursor:default}
 .cq .ms.open .dd{display:block}
 .cq .ms .dd div{padding:7px 12px;display:flex;justify-content:space-between;cursor:pointer}
