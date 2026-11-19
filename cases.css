@@ -22,14 +22,14 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .chipc{display:inline-block;font-size:12px;line-height:20px;padding:0 8px;border-radius:10px;background:#fff7ed;color:var(--warn);border:1px solid #fed7aa}
 .cq .chipc.ok{background:#ecfdf3;color:var(--ok);border-color:#b7e4c7}
 .cq #cqSettings{position:relative;z-index:1}
-.cq .dts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.cq .dts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
 .cq .dt{position:relative}
 .cq .dt summary{list-style:none;cursor:pointer;border:1px solid #e0d6c8;background:#fff;border-radius:12px;padding:1px 10px;font-size:12px;color:#555;white-space:nowrap}
 .cq .dt summary::-webkit-details-marker{display:none}
-.cq .dt.err summary{color:var(--bad);border-color:#fecaca;background:#fef2f2}
-.cq .dt.warn summary,.cq .dt.leak summary{color:var(--warn);border-color:#fed7aa}
+.cq .dt.dt-err summary{color:var(--bad);border-color:#fecaca;background:#fef2f2}
+.cq .dt.dt-warn summary,.cq .dt.dt-leak summary{color:var(--warn);border-color:#fed7aa}
 .cq .dt ul{position:absolute;right:0;top:26px;z-index:30;width:min(560px,80vw);max-height:50vh;overflow:auto;margin:0;padding:10px 12px 10px 28px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.15);color:var(--text)}
-.cq .dt.err ul{color:var(--bad)}
+.cq .dt.dt-err ul{color:var(--bad)}
 .cq .dt li{margin:2px 0}
 .cq .dt a{color:var(--warn);text-decoration:underline;cursor:pointer}
 .cq .pv{background:#eef4ff;border-bottom:1px solid #c7d7fb;padding:8px 18px;display:flex;gap:12px;align-items:center;font-size:13px;color:#1f3b73;flex-wrap:wrap}

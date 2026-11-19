@@ -308,7 +308,7 @@
   // 設定列的下拉清單（點開才看內容，平常只顯示數量）
   function dt(kind, label, items, raw) {
     if (!items.length) return '';
-    return `<details class="dt ${kind}" ${OPEN[kind] ? 'open' : ''} ontoggle="CQ.dtToggle('${kind}',this.open)"><summary>${label} ${items.length}</summary>
+    return `<details class="dt dt-${kind}" ${OPEN[kind] ? 'open' : ''} ontoggle="CQ.dtToggle('${kind}',this.open)"><summary>${label} ${items.length}</summary>
       <ul>${items.map((x) => `<li>${raw ? x : esc(x)}</li>`).join('')}</ul></details>`;
   }
   const OPEN = {};
