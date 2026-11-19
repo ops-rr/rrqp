@@ -149,7 +149,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .bub video{display:block;border-radius:3px;background:#000}
 .cq .bub img{max-width:180px;max-height:180px;display:block;border-radius:3px;cursor:zoom-in}
 .cq .mt{color:#999;font-size:12px;margin-top:4px}
-.cq .sys{background:#e8f1ff;border-radius:4px;padding:8px 12px;margin:0 0 16px;color:#1f3b73}
+.cq .sys{background:#e8f1ff;border-radius:4px;padding:8px 12px;margin:0 0 16px;color:#1f3b73;white-space:pre-wrap}
 .cq .ph{color:var(--muted);font-style:italic}
 .cq .nomore{text-align:center;color:var(--muted);font-size:12px}
 .cq .mod{border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:12px;background:#fff}
@@ -261,3 +261,6 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .mod.qmod>:not(.mh){margin-left:14px;margin-right:14px}
 .cq .mod.qmod>textarea,.cq .mod.qmod>input[type=text],.cq .mod.qmod>select{width:calc(100% - 28px)}
 .cq .mod.qmod .copt{font-weight:500;color:#222}
+/* 2026-11-19：欄位第二行（Proof Status 的時間、CS Case New Updates 的其他項目）、檔案類附件（ePOD 的 PDF 等） */
+.cq .dt-line{line-height:20px}
+.cq .thumb.dt-file{display:flex;align-items:center;justify-content:center;font-size:20px;text-decoration:none;cursor:pointer}

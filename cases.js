@@ -487,7 +487,7 @@
   function renderMain() {
     document.getElementById('cqMain').innerHTML = C.blocks.map((b, bi) => `
       <div class="blk" id="blk-${b.id}">
-        <h2>${esc(T(b.title))}${VIEW >= 0 ? ' <span class="prevtag">前一次申退</span>' : ''}</h2>
+        <h2>${esc(T(b.title))}${(b.titleTags || []).map((tg) => ` <span class="tag" style="font-size:13px;font-weight:400;vertical-align:middle;${tg.style ? esc(`color:${tg.style.color};background:${tg.style.background};border-color:${tg.style.borderColor}`) : ''}">${esc(T(tg.text))}</span>`).join('')}${VIEW >= 0 ? ' <span class="prevtag">前一次申退</span>' : ''}</h2>
         ${b.fields ? `<div class="grid${b.id === 'general' ? ' g4' : ''}">${b.fields.map((fd, fi) => fieldHtml(bi, fi, fd)).join('')}</div>` : ''}
         ${isEdit() && b.fields ? `<button class="addfd" onclick="CQ.addField(${bi})">＋ 新增欄位</button>` : ''}
         ${b.timeline ? timelineHtml(bi, b.timeline) : ''}
@@ -544,7 +544,9 @@
         : esc(T(fd.v));
       val = `<span class="pw ${fd.link ? 'link' : ''}">${text}</span>`;
       if (fd.tags) val += ' ' + fd.tags.map((t, i) => tagHtml(t, fd.tagColor, i, fd, bi, fi)).join('');
-      if (fd.popup) val += `<span class="vd" onclick="CQ.showFieldPop(event,${bi},${fi})">View Detail</span>`;
+      if (fd.popup) val += `<span class="vd" onclick="CQ.showFieldPop(event,${bi},${fi})">${esc(T('View Detail'))}</span>`;
+      // 第二行起（例如 Proof Status 的 Due time、CS Case New Updates 的其他項目）：文字，或 [名稱, 時間]
+      (fd.lines || []).forEach((ln) => { val += `<div class="dt-line">${Array.isArray(ln) ? esc(T(ln[0])) + ' ' + esc(ln[1]) : esc(T(ln))}</div>`; });
       if (isEdit() && isMasked(fd.mask)) val += `<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看到 ***</span>`;
     }
     let ctl = '';
@@ -595,9 +597,10 @@
 
   function mediaHtml(list, delTpl) {
     if (!list.length) return '<span class="ph">（沒有附件）</span>';
-    return `<div class="thumbs">${list.map((m, i) => `
+    return `<div class="thumbs">${list.map((m, i) => m.type === 'file' ? `
+      <a class="thumb dt-file" href="${src(m.url)}" target="_blank" rel="noreferrer" title="另開分頁（需要公司內網／VPN）">📄</a>` : `
       <div class="thumb ${m.type === 'video' ? 'video' : ''}" onclick="CQ.openLightbox('${src(m.src)}','${m.type}','${m.url ? src(m.url) : ''}','${mediaKey(m)}')">
-        <img src="${src(m.src)}" alt="">
+        ${m.src ? `<img src="${src(m.src)}" alt="">` : ''}
         ${delTpl ? `<button class="x" onclick="event.stopPropagation();${delTpl.replace('IDX', i)}">✕</button>` : ''}
       </div>`).join('')}</div>`;
   }
@@ -621,6 +624,7 @@
         <div><div>${isEdit() ? `<span contenteditable data-set="prod" data-b="${bi}" data-t="${ti}" data-r="${ri}" data-c="${ci}" data-k="name">${esc(p.name)}</span>` : esc(p.name)}
         <b>X${p.qty}</b></div><div class="var">Variation: ${esc(p.variation)}</div>${(p.extra || []).map(x => `<div class="var">${esc(x)}</div>`).join('')}</div></div>`;
     }
+    if (cell.media) return mediaHtml(cell.media, '');
     let text = (isMasked(cell.mask) && !isEdit()) ? '***' : esc(T(cell.text));
     if (isEdit()) text = `<span contenteditable ${path}>${esc(cell.text)}</span>`;
     let html = text;
@@ -653,7 +657,7 @@
     const rows = p.rows.map(r => r[1] == null
       ? `<div style="font-weight:600;color:var(--ink);margin:10px 0 4px">${esc(T(r[0]))}</div>`
       : `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${esc(T(r[0]))}:</span><span>${esc(T(r[1]))}</span></div>`).join('');
-    showPop(ev, p.title, rows);
+    showPop(ev, T(p.title), rows);
   }
   function showPop(ev, title, html) {
     ev.stopPropagation();
