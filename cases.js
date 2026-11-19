@@ -173,6 +173,7 @@
     A = newAnswer();
     mode = CUR.canEdit ? 'edit' : 'agent';
     sideTab = 'quiz'; dirty = false; saving = false; saveErr = '';
+    PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false;
     main.classList.add('cq-full');
     main.innerHTML = `<div class="cq ${isEdit() ? 'edit' : ''}" id="cq">
       <div class="cq-bar" id="cqBar"></div>
@@ -268,7 +269,7 @@
     renderAll();
   }
 
-  // ───────── 講師設定列：用途、時間、遮蔽、Return ID、匯入提醒、核准前檢查 ─────────
+  // ───────── 講師設定列（2026-11-19 改版）：左邊條件（用途、遮蔽、分類下拉），右邊三個提醒框（寬度＝右側面板，上下切齊） ─────────
   function renderSettings() {
     const box = $('#cqSettings');
     if (EX) return exNotice(box);
@@ -278,35 +279,41 @@
         <span style="flex:1"></span>${A.submitted ? '<button onclick="CQ.retry()">重新作答</button>' : '<button class="solid" onclick="CQ.submitAnswer()">交卷看結果</button>'}`;
       return;
     }
-    box.className = '';
+    box.className = 'ed';
     const m = C.meta;
-    const chk = (X.DB().caseCheck || (() => ({ errors: [], warns: [] })))(MAIN, CUR.title);
-    const leaks = findLeaks();
     const prev = (CUR.priv.prevIds || []).join(', ');
-    box.innerHTML = `
-      <span class="rid">Return ID：${esc(m.rid || '-')}${prev ? `（前幾次申退：${esc(prev)}）` : ''}</span>
-      <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
-        <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
-        <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
-      <label><input type="checkbox" ${m.twOnly ? 'checked' : ''} onchange="CQ.setMeta('twOnly',this.checked)"> 只限 TW（不送翻譯）</label>
-      <label><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號（User ID、Shop ID、物流單號、Transaction ID）</label>
-      <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
-      <div class="cls">${clsRow('組別', 'groups', CUR.groups.filter((g) => g.active || m.groups.includes(g.id)).map((g) => [g.id, g.name]))}
-        ${clsRow('主題', 'topics', CUR.topics.filter((x) => x.active || m.topics.includes(x.topicId)).map((x) => [x.topicId, L(x.name)]))}
-        ${m.topics.length ? clsRow('標籤', 'tags', CUR.tags.filter((x) => m.topics.includes(x.topicId) && (x.active || m.tags.includes(x.tagId))).map((x) => [x.tagId, L(x.name)]), '這個主題還沒有標籤，可到「主題設定 → 標籤」新增') : ''}</div>
-      <span class="dts">
-        ${dt('note', '匯入提醒', (CUR.notes || []).map((n) => n.text || n))}
-        ${dt('err', '核准前要完成', chk.errors)}
-        ${dt('warn', '提醒', chk.warns)}
-        ${dt('leak', '專員看得到、可能洩漏結果', leaks.map((x) => `<a onclick="CQ.jumpTo('${x.go}')">${esc(x.label)}</a>`), true)}
-      </span>`;
+    const groups = CUR.groups.filter((g) => g.active || m.groups.includes(g.id)).map((g) => [g.id, g.name]);
+    const topics = CUR.topics.filter((x) => x.active || m.topics.includes(x.topicId)).map((x) => [x.topicId, L(x.name)]);
+    const tags = CUR.tags.filter((x) => m.topics.includes(x.topicId) && (x.active || m.tags.includes(x.tagId))).map((x) => [x.tagId, L(x.name)]);
+    box.innerHTML = `<div class="cond">
+        <div class="r1">
+          <span class="rid">Return ID：${esc(m.rid || '-')}${prev ? `（前幾次申退：${esc(prev)}）` : ''}</span>
+          <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
+            <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
+            <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
+          <label><input type="checkbox" ${m.twOnly ? 'checked' : ''} onchange="CQ.setMeta('twOnly',this.checked)"> 只限 TW（不送翻譯）</label>
+          <label title="User ID、Shop ID、物流單號、Transaction ID"><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號</label>
+          <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
+        </div>
+        <label>組別</label>${msBox('groups', groups, '請選擇')}
+        <label>主題</label>${msBox('topics', topics, '請選擇')}
+        <label>標籤</label>${msBox('tags', tags, m.topics.length ? (tags.length ? '請選擇' : '這個主題還沒有標籤') : '先選主題')}
+      </div>
+      <div class="als">${alertBoxes()}</div>`;
   }
-  // 分類：組別、主題、標籤（可複選；點一下切換）
-  function clsRow(label, key, opts, empty) {
+
+  // 分類下拉（可複選，參考 DMS 的 Request Type）：選到的變成小標籤，× 可以拿掉；點開後勾選不會關，點外面才關
+  let MS_OPEN = '';
+  function msBox(key, opts, ph) {
     const on = C.meta[key] || [];
-    return `<span class="clsr"><b>${label}</b>${opts.length ? opts.map(([id, name]) => `<button type="button" class="${on.includes(id) ? 'on' : ''}" onclick="CQ.toggleCls('${key}','${esc(id)}')">${esc(name)}</button>`).join('')
-      : `<span class="hint">${esc(empty || '（沒有可選的項目）')}</span>`}</span>`;
+    const name = (id) => (opts.find((o) => o[0] === id) || [id, id])[1];
+    const chips = on.length ? on.map((id) => `<span class="chip">${esc(name(id))}<b onclick="event.stopPropagation();CQ.toggleCls('${key}','${esc(id)}')">×</b></span>`).join('')
+      : `<span class="ph">${esc(ph)}</span>`;
+    const list = opts.map(([id, nm]) => `<div class="${on.includes(id) ? 'sel' : ''}" onclick="event.stopPropagation();CQ.toggleCls('${key}','${esc(id)}')">${esc(nm)}</div>`).join('');
+    return `<div class="ms ${MS_OPEN === key ? 'open' : ''}" onclick="event.stopPropagation();CQ.msOpen('${key}')">${chips}${opts.length ? `<div class="dd">${list}</div>` : ''}</div>`;
   }
+  function msOpen(key) { MS_OPEN = MS_OPEN === key ? '' : key; renderSettings(); }
+  document.addEventListener('click', () => { if (MS_OPEN) { MS_OPEN = ''; if ($('#cqSettings')) renderSettings(); } });
   function toggleCls(key, id) {
     const a = C.meta[key] || (C.meta[key] = []);
     const i = a.indexOf(id);
@@ -315,11 +322,78 @@
     if (key === 'topics' && i >= 0) C.meta.tags = C.meta.tags.filter((tg) => { const x = CUR.tags.find((y) => y.tagId === tg); return !x || C.meta.topics.includes(x.topicId); });
     saveCase(); renderSettings(); layout();
   }
-  // 設定列的下拉清單（點開才看內容，平常只顯示數量）
-  function dt(kind, label, items, raw) {
-    if (!items.length) return '';
-    return `<details class="dt dt-${kind}" ${OPEN[kind] ? 'open' : ''} ontoggle="CQ.dtToggle('${kind}',this.open)"><summary>${label} ${items.length}</summary>
-      <ul>${items.map((x) => `<li>${raw ? x : esc(x)}</li>`).join('')}</ul></details>`;
+
+  // ───────── 三個提醒框：個資檢查、可能洩漏結果、匯入提醒（點整個框逐處跳轉） ─────────
+  const PII_NOTE = /^已自動遮蔽自由文字裡的個資/;
+  let PII_SEEN = new Set(), PII_I = -1, LEAK_I = -1;
+  function piiInfo() {
+    const spots = MAIN.pii || [];
+    const note = (CUR.notes || []).map((n) => n.text || n).find((n) => PII_NOTE.test(n)) || '';
+    // 各類處數：新匯入的看位置清單，舊案件從匯入提醒那句話讀
+    const cnt = {};
+    if (spots.length) spots.forEach((p) => { cnt[p.k] = (cnt[p.k] || 0) + 1; });
+    else (note.match(/（(.*?)）/) || ['', ''])[1].split('、').forEach((x) => { const r = x.match(/^(.+) (\d+) 處$/); if (r) cnt[r[1]] = +r[2]; });
+    const total = Object.values(cnt).reduce((a, b) => a + b, 0);
+    return { spots, cnt, total, old: total > 0 && !spots.length };
+  }
+  const piiDone = () => { const p = piiInfo(); return !p.total || (p.old ? PII_SEEN.has(0) : PII_SEEN.size >= p.spots.length); };
+  function alertBoxes() {
+    const p = piiInfo(), done = piiDone();
+    const kinds = Object.entries(p.cnt).map(([k, v]) => `${k} ${v}`).join('、');
+    const piiS = !p.total ? '沒有自動遮蔽的內容，仍請留意姓名等個資'
+      : PII_I >= 0 && !p.old ? `第 ${PII_I + 1} / ${p.spots.length} 處：${esc(p.spots[PII_I].k)}${done ? '（都看過了）' : ''}`
+      : done ? `已遮蔽${esc(kinds)}，都看過了` : `已遮蔽${esc(kinds)}，請確認有無遺漏`;
+    const leaks = findLeaks();
+    const leakS = !leaks.length ? '沒有標記為可能洩漏的內容'
+      : LEAK_I >= 0 ? `第 ${LEAK_I + 1} / ${leaks.length} 處：${esc(leaks[LEAK_I].label)}` : '專員看得到，請確認不會透露答案';
+    const chk = (X.DB().caseCheck || (() => ({ errors: [], warns: [] })))(MAIN, CUR.title);
+    const notes = (CUR.notes || []).map((n) => n.text || n).filter((n) => !PII_NOTE.test(n));
+    const items = [...chk.errors.map((x) => ['err', '核准前要完成：' + x]), ...chk.warns.map((x) => ['warn', x]), ...notes.map((x) => ['note', x])];
+    const impS = chk.errors.length ? `<span class="bad">核准前要完成：${esc(chk.errors[0])}</span>` : items.length ? esc(items[0][1]) : '沒有提醒';
+    return `<div class="al pii ${done ? 'done' : ''}" onclick="CQ.piiNext()">
+        <div class="t">個資檢查<span>${p.total}</span></div><div class="s">${piiS}</div>
+        <div class="h">${!p.total ? '' : p.old ? '舊版匯入沒有位置資料，重新匯入後可以逐處跳轉' : '點選框框逐處查看'}</div></div>
+      <div class="al lk ${leaks.length ? '' : 'none'}" onclick="CQ.leakNext()">
+        <div class="t">可能洩漏結果<span>${leaks.length}</span></div><div class="s">${leakS}</div>
+        <div class="h">${leaks.length ? '點選框框逐處跳轉' : ''}</div></div>
+      <div class="al imp ${chk.errors.length ? 'err' : ''} ${OPEN.imp ? 'open' : ''}" onclick="CQ.impToggle(event)">
+        <div class="t">匯入提醒<span>${items.length}</span></div><div class="s">${impS}</div>
+        <div class="h">${items.length ? '點選框框展開全部' : ''}</div>
+        ${items.length ? `<ul>${items.map(([k, x]) => `<li class="${k}">${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
+  }
+  function refreshAlerts() { const b = $('#cqSettings .als'); if (b) b.innerHTML = alertBoxes(); }
+  function piiNext() {
+    const p = piiInfo();
+    if (!p.total) return;
+    if (p.old) { PII_SEEN.add(0); refreshAlerts(); return X.toast('這題是舊版匯入，畫面上 *** 的地方就是遮蔽處；重新匯入後可以逐處跳轉', 6000); }
+    PII_I = (PII_I + 1) % p.spots.length;
+    PII_SEEN.add(PII_I);
+    refreshAlerts();
+    const sp = p.spots[PII_I];
+    jumpTo(sp.go);
+    setTimeout(() => flashMask(sp.go, sp.ctx), 350);
+  }
+  // 在跳轉到的區塊裡找到這一處 ***（用前面幾個字比對），閃一下標紅
+  function flashMask(go, ctx) {
+    const root = go.startsWith('blk-') ? document.getElementById(go) : $('#cqSide');
+    if (!root) return;
+    const els = [...root.querySelectorAll('*')].filter((e) => ![...e.children].some((c) => c.textContent.includes('***')) && e.textContent.includes('***'));
+    const key = String(ctx || '').replace(/\s+/g, '');
+    const hit = els.find((e) => e.textContent.replace(/\s+/g, '').includes(key + '***')) || els[0];
+    if (!hit) return;
+    hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    hit.classList.remove('pii-flash'); void hit.offsetWidth; hit.classList.add('pii-flash');
+  }
+  function leakNext() {
+    const leaks = findLeaks();
+    if (!leaks.length) return;
+    LEAK_I = (LEAK_I + 1) % leaks.length;
+    refreshAlerts();
+    jumpTo(leaks[LEAK_I].go);
+  }
+  function impToggle(e) {
+    if (e.target.closest('ul')) return;
+    OPEN.imp = !OPEN.imp; refreshAlerts();
   }
   const OPEN = {};
   function setMeta(k, v) { C.meta[k] = v; saveCase(); renderAll(); }
@@ -360,6 +434,7 @@
     if (dirty || saving || CUR.pctFixed) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
     const chk = X.DB().caseCheck(MAIN, CUR.title);
     if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能核准：' + chk.errors.join('；'), 6000); }
+    if (!piiDone()) { refreshAlerts(); return X.toast('還不能核准：個資檢查還沒逐處看完，請點右上角「個資檢查」框', 6000); }
     const leaks = findLeaks();
     // 明細在案件頁上方的「可能洩漏結果」按鈕裡，這裡只提醒處數
     if (leaks.length && !(await X.confirmBox(`專員看得到、可能洩漏結果的內容共 ${leaks.length} 處，若沒問題請點選核准`, '核准'))) return;
@@ -457,7 +532,7 @@
     return out;
   }
   function jumpTo(go) {
-    if (go === 'ops') { sideTab = 'ops'; renderSide(); return; }
+    if (go === 'ops' || go === 'chat') { sideTab = go; renderSide(); return; }
     if (go.startsWith('drc-')) { sideTab = 'drc'; drcRoom = go.slice(4); renderSide(); return; }
     const el = document.getElementById(go);
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - cqTop() - 10, behavior: 'smooth' });
@@ -1414,7 +1489,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,

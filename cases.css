@@ -48,7 +48,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 @media (max-width:900px){.cql-req{grid-template-columns:1fr}}
 
 /* ───────── 原型（DMS 版面） ───────── */
-.cq{--brand:#ee4d2d;--bg:#f5f5f9;--ink:#0a1f44;--text:#333;--muted:#8a8f99;--line:#e8e8ee;--card:#fff;--blue:#2673dd;--ok:#1aa260;--bad:#e5484d;--warn:#d97706}
+.cq{--sideW:460px;--brand:#ee4d2d;--bg:#f5f5f9;--ink:#0a1f44;--text:#333;--muted:#8a8f99;--line:#e8e8ee;--card:#fff;--blue:#2673dd;--ok:#1aa260;--bad:#e5484d;--warn:#d97706}
 .cq #cqSettings{background:#fff7ed;border-bottom:1px solid #fed7aa;padding:8px 18px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
 .cq #cqSettings label{display:flex;align-items:center;gap:4px}
 .cq #cqSettings .rid{color:var(--muted)}
@@ -64,7 +64,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .cq-nav a:hover{color:#ef4444}
 .cq .cq-nav a.on{color:#ef4444;border-left-color:#ef4444;background:#fff5f5}
 .cq .main{flex:1;min-width:0;background:#fff;border-radius:6px;padding:8px 24px 30px}
-.cq .side{width:460px;flex:none;background:#fff;border-radius:6px;position:sticky;top:var(--cqTop,120px);height:calc(100vh - var(--cqTop,120px) - 12px);display:flex;flex-direction:column}
+.cq .side{width:var(--sideW);flex:none;background:#fff;border-radius:6px;position:sticky;top:var(--cqTop,120px);height:calc(100vh - var(--cqTop,120px) - 12px);display:flex;flex-direction:column}
 .cq .blk{padding:18px 0 22px;border-bottom:1px solid var(--line)}
 .cq .blk:last-child{border-bottom:0}
 .cq .blk h2{font-size:20px;font-weight:500;color:var(--ink);margin:0 0 16px;display:flex;align-items:center;gap:10px}
@@ -273,3 +273,44 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* 2026-11-19：商品名稱（前台商品頁）、Product ID（DMS 商品資訊頁）連結 */
 .cq a.dt-prod{color:var(--blue);text-decoration:none}
 .cq a.dt-prod:hover{text-decoration:underline}
+
+/* ───── 講師設定列改版（2026-11-19）：左邊條件、右邊三個提醒框；右欄寬度＝右側面板（共用 --sideW），上下切齊 ───── */
+.cq #cqSettings.ed{display:grid;grid-template-columns:minmax(0,1fr) var(--sideW);gap:12px;padding:6px 12px;align-items:stretch}
+.cq #cqSettings.ed .cond{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:6px 10px;align-items:center;align-content:center;min-width:0;padding-left:6px}
+.cq #cqSettings.ed .cond>label{color:#666;white-space:nowrap}
+.cq #cqSettings.ed .r1{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px}
+.cq #cqSettings.ed .r1 label{white-space:nowrap}
+.cq .ms{position:relative;min-height:30px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;padding:3px 26px 3px 6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:pointer;min-width:0}
+.cq .ms:after{content:"▾";position:absolute;right:9px;top:5px;color:#999}
+.cq .ms.open{border-color:var(--brand)}
+.cq .ms .ph{color:#bbb;padding-left:4px;font-size:13px;font-style:normal}
+.cq .ms .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f0f0f0;border-radius:4px;padding:1px 6px;font-size:13px}
+.cq .ms .chip b{font-weight:400;color:#999;margin-left:4px;cursor:pointer}
+.cq .ms .chip b:hover{color:var(--bad)}
+.cq .ms .dd{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:40;padding:4px 0;max-height:50vh;overflow:auto;cursor:default}
+.cq .ms.open .dd{display:block}
+.cq .ms .dd div{padding:7px 12px;display:flex;justify-content:space-between;cursor:pointer}
+.cq .ms .dd div:hover{background:#fafafa}
+.cq .ms .dd div.sel{background:#fff1ec;font-weight:700}
+.cq .ms .dd div.sel:after{content:"✓";color:var(--brand)}
+.cq #cqSettings .als{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cq .al{position:relative;border-radius:8px;padding:6px 10px;cursor:pointer;display:flex;flex-direction:column;min-width:0;user-select:none}
+.cq .al:hover{filter:brightness(.97)}
+.cq .al .t{font-weight:700;font-size:15px;line-height:1.3;display:flex;justify-content:space-between;align-items:baseline}
+.cq .al .t span{font-size:18px;line-height:1}
+.cq .al .s{font-size:12px;margin-top:2px;line-height:1.4;flex:1 0 auto;height:2.8em;overflow:hidden}
+.cq .al .h{font-size:11px;color:#999;margin-top:1px;line-height:1.3;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cq .al.pii{background:#fdecea;border:1.5px solid #e53935;color:#b71c1c}
+.cq .al.pii.done{background:#e8f5e9;border-color:#81c784;color:#2e7d32}
+.cq .al.lk{background:#fff8e1;border:1.5px solid #ffb300;color:#8d6e00}
+.cq .al.lk.none{background:#fff;border-color:#e0e0e0;color:#999;cursor:default}
+.cq .al.imp{background:#fff;border:1.5px solid #ccc;color:#555}
+.cq .al.imp.err{border-color:#fecaca}
+.cq .al .bad{color:var(--bad)}
+.cq .al ul{display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:40;width:min(560px,80vw);max-height:50vh;overflow:auto;margin:0;padding:10px 12px 10px 28px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.15);color:var(--text);font-size:13px;cursor:default;user-select:text}
+.cq .al.imp.open ul{display:block}
+.cq .al ul li{margin:2px 0}
+.cq .al ul li.err{color:var(--bad)}
+.cq .al ul li.warn{color:var(--warn)}
+.cq .pii-flash{animation:piiFlash 2.4s ease-out}
+@keyframes piiFlash{0%,40%{background:#fecaca;box-shadow:0 0 0 3px #f87171}100%{background:transparent;box-shadow:none}}
