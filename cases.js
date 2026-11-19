@@ -361,7 +361,8 @@
     const chk = X.DB().caseCheck(MAIN, CUR.title);
     if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能核准：' + chk.errors.join('；'), 6000); }
     const leaks = findLeaks();
-    if (leaks.length && !(await X.confirmBox('專員看得到這些可能洩漏結果的內容：\n' + leaks.map((x) => '・' + x.label).join('\n') + '\n\n確定都是要給專員看的？', '核准'))) return;
+    // 明細在案件頁上方的「可能洩漏結果」按鈕裡，這裡只提醒處數
+    if (leaks.length && !(await X.confirmBox(`專員看得到、可能洩漏結果的內容共 ${leaks.length} 處，若沒問題請點選核准`, '核准'))) return;
     try {
       const r = await X.api('c_approve', { caseId: CUR.caseId, rev: CUR.rev });
       CUR.status = r.status; X.toast('已核准'); renderAll();

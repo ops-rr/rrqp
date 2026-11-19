@@ -153,7 +153,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .ph{color:var(--muted);font-style:italic}
 .cq .nomore{text-align:center;color:var(--muted);font-size:12px}
 .cq .mod{border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:12px;background:#fff}
-.cq .mod .mh{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:500;color:var(--ink)}
+.cq .mod .mh{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:700;color:var(--ink)}   /* 2026-11-19：情境說明、補充資訊標題改粗體 */
 .cq .mod .mh .sp{flex:1}
 .cq .mod .mh .pts{font-weight:400;color:var(--muted);font-size:12px}
 .cq .mod.note{background:#fffbeb;border-color:#fde68a}
