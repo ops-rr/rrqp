@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-20g';
+const VERSION = 'V2-2026-11-20i';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2498,7 +2498,8 @@ function caseAgentView(src) {
   if (mask.account) c.meta.accounts = { buyer: X_MASK, seller: X_MASK };
   delete c.meta.rid; delete c.meta.title; delete c.meta.groups; delete c.meta.topics; delete c.meta.tags;
   delete c.notes;
-  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; return o; });
+  // SOP 路徑：answer（標準路線）、acts（講師示範的操作）、snap（路線節點快照）、cur 都是解答，不能給專員
+  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; delete o.acts; delete o.snap; delete o.cur; return o; });
   // 中文對照只留專員畫面上真的有的文字（隱藏欄位的值不能從對照表看出來）
   if (c.i18n) {
     const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));

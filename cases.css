@@ -377,3 +377,43 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .sopi-btn:disabled{opacity:.5;cursor:default}
 .cq .sopi-bottom{display:flex;align-items:center;margin-top:14px;color:#999;font-size:12px}
 .cq .sopic-copy{margin-left:4px;cursor:pointer;vertical-align:-1px}
+/* SOP 動作按鈕點過、操作紀錄、底部仿 DMS 操作列與視窗（2026-11-20 第 1b 步） */
+.cq .sopi-btn.clicked{background:#fbd3c9;color:#a33a1f;opacity:1}
+.cq .sopi-btn+.sopi-btn{margin-top:8px}
+.cq .sop-acts{margin-top:10px;padding:8px 10px;border-radius:4px;background:#f1f8f1;border:1px solid #c8e6c9;font-size:12px;color:#2e5130}
+.cq .sop-acts.none{background:#fff8e1;border-color:#ffe08a;color:#8d6e00}
+.cq .sop-act-line{display:flex;gap:6px;align-items:flex-start;padding:3px 0}
+.cq .sop-act-txt{flex:1;min-width:0;word-break:break-all}
+.cq .sop-outside{margin:8px 0;padding:8px 10px;border-radius:4px;background:#fff1f0;border:1px solid #ffccc7;font-size:12px;color:#a8071a}
+.cq .sop-hintset{display:flex;gap:6px;align-items:flex-start;margin:6px 0 10px;font-size:12px;color:#555;cursor:pointer}
+.cq.has-acts .wrap{padding-bottom:64px}
+.cq .cq-actbar{position:fixed;left:0;right:calc(var(--sideW) + 24px);bottom:0;z-index:25;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:8px 12px;background:#fff;border-top:1px solid #e5e5e5;box-shadow:0 -2px 8px rgba(0,0,0,.05)}
+.cq .actb{flex:none;height:32px;padding:0 10px;border:1px solid #d9d9d9;border-radius:2px;background:#fff;color:#0a1f44;font-size:13px;cursor:pointer;white-space:nowrap}
+.cq .actb:hover{border-color:#ee4d2d;color:#ee4d2d}
+.cq .actb.on{background:#e8eaef}
+.cq .actb.soon{color:#b0b6c0;cursor:default;border-color:#eee}
+.cq .actb.soon:hover{color:#b0b6c0;border-color:#eee}
+.cq .actb.hint{border-color:#ee4d2d;color:#ee4d2d;box-shadow:0 0 0 2px rgba(238,77,45,.25);animation:actHint 1.2s ease-in-out infinite}
+@keyframes actHint{50%{box-shadow:0 0 0 5px rgba(238,77,45,.12)}}
+.cq #cqActModal.am-side{position:fixed;right:calc(var(--sideW) + 36px);bottom:62px;z-index:26;width:min(760px,calc(100vw - var(--sideW) - 60px))}
+.cq #cqActModal.am-center{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
+.cq #cqActModal.am-center .am{width:480px}
+.cq .am{background:#fff;border:1px solid #e5e5e5;border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:calc(100vh - 140px)}
+.cq .am-h{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 10px;font-size:18px;color:#0a1f44}
+.cq .am-x{cursor:pointer;color:#999;font-size:22px;line-height:1}
+.cq .am-b{padding:4px 24px 16px;overflow:auto;font-size:14px;color:#333;font-family:"Times New Roman","PMingLiU",serif}
+.cq .am-l{margin:14px 0 8px;color:#0a1f44}
+.cq .am-l i{color:#ee4d2d;font-style:normal;margin-right:2px}
+.cq .am-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.cq .am-row{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:center}
+.cq .am-r{display:flex;align-items:flex-start;gap:8px;cursor:pointer;line-height:18px}
+.cq .am-r input{margin-top:2px;accent-color:#ee4d2d}
+.cq .am-b input[type=text],.cq .am-b select{width:100%;height:32px;border:1px solid #d9d9d9;border-radius:2px;padding:0 10px;box-sizing:border-box;font-size:14px}
+.cq .am-b select{width:240px;margin-top:10px}
+.cq .am-b textarea{width:100%;min-height:110px;border:1px solid #d9d9d9;border-radius:2px;padding:8px 10px;box-sizing:border-box;font-size:14px;resize:vertical}
+.cq .am-c{text-align:right;color:#999;font-size:12px}
+.cq .am-hint{margin-top:4px;color:#999;font-size:12px}
+.cq .am-f{display:flex;justify-content:flex-end;gap:12px;padding:12px 24px;border-top:1px solid #eee}
+.cq .am-btn{min-width:72px;height:34px;padding:0 16px;border:1px solid #d9d9d9;border-radius:2px;background:#fff;color:#333;font-size:14px;cursor:pointer}
+.cq .am-btn.pri{background:#ee4d2d;border-color:#ee4d2d;color:#fff}
+.cq .cq-actbar .actb:first-child{margin-left:auto}

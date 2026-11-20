@@ -175,7 +175,7 @@
     A = newAnswer();
     mode = CUR.canEdit ? 'edit' : 'agent';
     sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
-    PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false;
+    PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false; ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
     main.classList.add('cq-full');
     main.innerHTML = `<div class="cq ${isEdit() ? 'edit' : ''}" id="cq">
       <div class="cq-bar" id="cqBar"></div>
@@ -186,6 +186,8 @@
         <div class="main" id="cqMain"></div>
         <div class="side"><div class="ctabs" id="cqTabs"></div><div id="cqSide"></div></div>
       </div>
+      <div class="cq-actbar" id="cqActs" style="display:none"></div>
+      <div id="cqActModal"></div>
       <div id="cqWm"></div>
       <div id="cqLb" onclick="CQ.closeLightbox(event)"><img id="cqLbImg" alt=""><div class="tip" id="cqLbTip"></div></div>
       <div id="cqPop"></div></div>`;
@@ -834,6 +836,7 @@
     sideDrawn = key;
     const newPane = body.querySelector('.pane');
     if (keep !== null && newPane) newPane.scrollTop = keep;
+    renderActbar();
   }
   function drawSide(body) {
     if (sideTab === 'ops') body.innerHTML = opsHtml();
@@ -1126,7 +1129,7 @@
     if (type === 'image') md.images = [];
     if (type === 'mc') Object.assign(md, { q: '請選擇正確的', options: ['', '', '', ''], answer: 0, points: Math.max(0, 100 - pctSum(C.modules)), explain: '' });
     if (type === 'short') Object.assign(md, { q: '請說明你選擇這個答案的理由', standard: '', bindTo: '', points: Math.max(0, 100 - pctSum(C.modules)) });
-    if (type === 'sop') Object.assign(md, { taskbot: '', sopName: '', flowId: '', version: '', start: '', answer: [], snap: {}, points: Math.max(0, 100 - pctSum(C.modules)) });
+    if (type === 'sop') Object.assign(md, { taskbot: '', sopName: '', flowId: '', version: '', start: '', answer: [], snap: {}, acts: [], cur: null, hint: C.meta.usage === 'practice', points: Math.max(0, 100 - pctSum(C.modules)) });
     C.modules.push(md); saveCase(); renderSide();
     const pane = document.getElementById('cqQuizPane'); pane.scrollTop = pane.scrollHeight;
   }
@@ -1190,9 +1193,31 @@
   function sopLoadList() {
     if (SOP_LIST || SOP_LOADING.list) return;
     SOP_LOADING.list = true;
-    X.api('c_sopList').then((r) => { SOP_LIST = r.items || []; renderSide(); })
+    X.api('c_sopList').then((r) => { SOP_LIST = r.items || []; renderSide(); sopLoadAll(); })
       .catch((e) => { SOP_LIST = []; X.toast('讀取 SOP 清單失敗：' + e.message, 6000); })
       .finally(() => { SOP_LOADING.list = false; });
+  }
+  /** 搜尋起點要用：所有上線中的 SOP 都載入（每個講師一次，約 47 份） */
+  function sopLoadAll() {
+    if (!SOP_LIST) { sopLoadList(); return; }
+    if (SOP_LOADING.all) return;
+    const todo = SOP_LIST.map((x) => x.taskbot).filter((tb) => !SOPS[tb]);
+    if (!todo.length) return;
+    SOP_LOADING.all = true;
+    let k = 0;
+    const next = () => {
+      if (k >= todo.length) return Promise.resolve();
+      const tb = todo[k++];
+      return X.api('c_sopGet', { taskbot: tb }).then((r) => { SOPS[tb] = r.sop; }).catch(() => {}).then(next);
+    };
+    Promise.all([next(), next(), next(), next()]).then(() => {
+      SOP_LOADING.all = false;
+      // 載完重畫：保留講師已經輸入的關鍵字
+      const q = document.querySelector('[id^="sopq-"]'), val = q ? q.value : '', id = q ? q.id : '';
+      renderSide();
+      const q2 = id && document.getElementById(id);
+      if (q2 && val) { q2.value = val; q2.focus(); const i = C.modules.findIndex((m) => 'sopq-' + m.id === id); if (i >= 0) sopSearch(i, val); }
+    });
   }
   function sopLoad(tb) {
     if (!tb || SOPS[tb] || SOP_LOADING[tb]) return;
@@ -1218,7 +1243,7 @@
       if (st.n !== nid) break;                         // 路線和 SOP 對不上（改版）→ 停在這
       const node = sop.nodes[nid];
       if (!node) break;
-      steps.push({ n: nid, pick: st.pick, node });
+      steps.push({ n: nid, pick: st.pick, node, clicked: st.clicked || [] });
       nid = sopNext(node, st.pick);
     }
     const node = nid ? sop.nodes[nid] : null;
@@ -1241,37 +1266,32 @@
   }
 
   function sopEditHtml(md, i) {
-    if (!md.taskbot) {
-      sopLoadList();
-      if (!SOP_LIST) return '<div class="hint">載入 SOP 清單…</div>';
-      if (!SOP_LIST.length) return '<div class="hint">還沒有 SOP（排程 rrqp_sop.py 還沒同步）</div>';
-      return `<div class="lbl">選擇 SOP（每天從 DMS SOP Tool 同步上線版）</div>
-        <select onchange="CQ.sopSet(${i},this.value)"><option value="">請選擇</option>
-          ${SOP_LIST.map((x) => `<option value="${esc(x.taskbot)}">${esc(x.taskbot)}｜${esc(x.name)}（${esc(x.version)}）</option>`).join('')}</select>`;
+    // 2026-11-20（Chris）：不用先選 SOP，講師直接搜尋節點（所有上線 SOP）指定起點
+    if (!md.start || !md.taskbot || SOP_PICKSTART[md.id]) {
+      sopLoadAll();
+      const n = Object.keys(SOPS).length, tot = SOP_LIST ? SOP_LIST.length : 0;
+      return `<div class="lbl">指定起點（搜尋所有上線中的 SOP）</div>
+        <div class="erow"><div class="sop-sbox"><input type="search" id="sopq-${md.id}" placeholder="例如：是否已逾鑑賞期、215、SOP1_F140_Node215" oninput="CQ.sopSearch(${i},this.value)">
+          <div class="sop-res" id="sopres-${md.id}"></div></div>
+          ${md.start ? `<button class="mbtn" onclick="CQ.sopCancelStart(${i})">取消</button>` : ''}</div>
+        <div class="hint">輸入節點名稱、問題，或節點編號（215、Node215、SOP1_F140_Node215）；輸入 SOP1 可以從那個 SOP 的開頭開始。${
+          !SOP_LIST ? '　載入 SOP 清單…' : n < tot ? `　已載入 ${n} / ${tot} 個 SOP…` : ''}</div>`;
     }
     const sop = SOPS[md.taskbot];
     if (!sop) { sopLoad(md.taskbot); return `<div class="hint">載入 ${esc(md.taskbot)}…</div>`; }
-    const changed = md.flowId && md.flowId !== sop.flowId;
-    let h = `<div class="sop-head"><b>${esc(md.taskbot)}｜${esc(sop.taskbotName || md.sopName)}</b>
-        <span class="hint" style="margin:0">${esc(md.flowId || sop.flowId)}</span>
-        <button class="mbtn" onclick="CQ.sopReset(${i},'taskbot')">更換 SOP</button></div>`;
-    if (changed) h += `<div class="sop-warn">這題用的是 ${esc(md.flowId)}，目前上線版是 ${esc(sop.flowId)}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
-
-    // 起點
-    if (!md.start || SOP_PICKSTART[md.id]) {
-      return h + `<div class="lbl">選擇起點（搜尋節點名稱或問題）</div>
-        <div class="erow"><div class="sop-sbox"><input type="search" placeholder="例如：是否有寄回、Node206" oninput="CQ.sopSearch(${i},this.value)">
-          <div class="sop-res" id="sopres-${md.id}"></div></div>
-          <button class="mbtn" onclick="CQ.sopStart(${i},'${esc(sop.root)}')">從 SOP 開頭開始</button>
-          ${md.start ? `<button class="mbtn" onclick="CQ.sopCancelStart(${i})">取消</button>` : ''}</div>
-        <div class="hint">輸入節點名稱、問題，或節點編號（例如 Node206、SOP1_F140_Node206）</div>`;
-    }
+    let h = '';
+    if (md.flowId && md.flowId !== sop.flowId) h += `<div class="sop-warn">這題用的是 ${esc(md.flowId)}，目前上線版是 ${esc(sop.flowId)}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
     const w = sopWalk(md, sop);
     const st = sop.nodes[md.start];
-    h += `<div class="sop-start">起點：<b>${esc(st ? (st.name || sopNodeTitle(st)) : md.start)}</b> <span class="sop-id">${esc(md.start)}</span>
+    h += `<div class="sop-start"><span>起點：<b>${esc(st ? (st.name || sopNodeTitle(st)) : md.start)}</b>
+      <span class="sop-id">${esc(md.taskbot)}｜${esc(sop.taskbotName || md.sopName)}｜${esc(sopPointId(sop, md.start))}</span></span>
       <button class="mbtn" onclick="CQ.sopPickStart(${i})">更換起點</button></div>`;
     if (w.broken) h += `<div class="sop-warn">標準答案第 ${w.steps.length + 1} 步之後和目前的 SOP 對不上（節點被改或刪除），請從最上面的節點重新選。</div>`;
     if (w.end) h += `<div class="sop-okbar">✔ 標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? '：跳到其他 SOP，先當成終點' : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : ''}</div>`;
+    h += `<label class="sop-hintset"><input type="checkbox" ${md.hint ? 'checked' : ''} onchange="CQ.setMod(${i},'hint',this.checked)">
+      專員點 SOP 動作按鈕後，底部對應的功能亮起提示（練習用建議開、考試用建議關）</label>`;
+    const outside = (md.acts || []).filter((a) => !a.link);
+    if (outside.length) h += `<div class="sop-outside"><b>SOP 以外的操作</b>（沒有先點 SOP 卡片上的按鈕）${outside.map((a) => actLine(md, a, i)).join('')}</div>`;
     return h + sopCardsHtml(md, i, sop, w);
   }
 
@@ -1290,7 +1310,7 @@
 
   function sopCardsHtml(md, i, sop, w) {
     // 卡片由新到舊：目前節點（還沒選）→ 走過的每一步
-    const items = w.steps.map((x, k) => ({ k, n: x.n, node: x.node, pick: x.pick, done: true }));
+    const items = w.steps.map((x, k) => ({ k, n: x.n, node: x.node, pick: x.pick, clicked: x.clicked, done: true }));
     if (w.cur && w.node) items.push({ k: w.steps.length, n: w.cur, node: w.node, pick: null, done: !!w.end });
     items.reverse();
     const open = SOP_OPEN[md.id] || {};
@@ -1306,14 +1326,13 @@
           const opts = isSys ? (node.branches || []).map((b) => b.label || (b.default ? 'Default' : '')) : (node.options || []).map((o) => o.label);
           body += `<div class="sopi-opts">${opts.map((lab, oi) => `<label class="sopr ${it.pick === oi ? 'on' : ''} ${isSys ? 'sopr-sys' : ''}">
               <input type="radio" name="sop${md.id}_${it.k}" ${it.pick === oi ? 'checked' : ''} onclick="CQ.sopPickAt(${i},${it.k},${oi})"><span>${esc(lab)}</span></label>`).join('')}</div>`;
-          if (isSys) body += `<div class="sopi-note">系統判讀：DMS 依案件資料自動選；請依這個案件的事實選（專員作答時自動帶過、不計分）${
-            (node.branches || []).some((b) => (b.rules || []).length) ? '<br>' + (node.branches || []).filter((b) => (b.rules || []).length).map((b) => esc(`${b.label}：${b.rules.map((r) => (r.varName || r.var) + ' ' + (r.value || []).join('、')).join('；')}`)).join('<br>') : ''}</div>`;
+          // 系統判讀的條件不顯示（2026-11-20 Chris：不需要）
         } else {
           if (node.text) body += `<div class="sopi-text">${esc(node.text)}</div>`;
           const act = sopActionHtml(node);
           if (act) body += `<div class="sopi-note">${act}</div>`;
           if (node.type === 'judge' && node.judge && node.judge.judging_reason) body += `<div class="sopi-note">判決理由：${esc(node.judge.judging_reason)}</div>`;
-          if (SOP_BTN[node.type]) body += `<button class="sopi-btn" ${it.done ? 'disabled' : ''} onclick="CQ.sopPick(${i},0)">${SOP_BTN[node.type]}</button>`;
+          body += sopBtnsHtml(md, i, node, it);
         }
         body += `<div class="sopi-bottom"><span class="sopi-pid" title="Node Point ID">${esc(sopPointId(sop, it.n))}</span><span onclick="CQ.sopCopy('${esc(sopPointId(sop, it.n))}')">${SOP_ICON_COPY}</span></div>`;
       }
@@ -1324,6 +1343,187 @@
           ${exp ? SOP_ICON_UP : SOP_ICON_RIGHT}</div>${body}</div>`;
     }).join('') + (w.end === 'jump' ? `<div class="sopi"><div class="sopi-title">跳到其他 SOP：${esc(w.cur)}</div></div>` : '') + '</div>';
   }
+  // ═════════════════════════════════════════════════════════════
+  // SOP 動作按鈕＋底部仿 DMS 操作列（2026-11-20 第 1b 步）
+  //   SOP 卡片的動作按鈕：點了變色打勾＝點過；節點的按鈕都點過就往下一步（Chris 的做法）
+  //   實際操作在畫面底部的仿 DMS 操作列做，送出後記在 md.acts：
+  //     { seq, kind, fields, link:{n 節點, b 第幾顆按鈕, k 第幾步} 或 null（SOP 以外的操作）, at: 當時走到第幾步 }
+  //   講師示範＝標準答案；專員作答、批改在第 2、3 步
+  // ═════════════════════════════════════════════════════════════
+  const ACT_KINDS = { note: 'Note and Reminder', proofBuyer: 'Request Proof from Buyer', proofSeller: 'Request Proof from Seller', pending: 'Pending Reason', caseDone: 'Case Done' };
+  let ACTIVE_SOP = '';               // 最近操作的 SOP 題組（底部操作記到這一題）
+  let ACT_HINT = '';                 // 底部要亮起提示的功能
+  let ACT_MODAL = null;              // { kind, f: 欄位 }
+  function btnKind(t) {
+    const x = String(t || '').toLowerCase();
+    if (x.includes('pending')) return 'pending';
+    if (x.includes('proof') && x.includes('buyer')) return 'proofBuyer';
+    if (x.includes('proof') && x.includes('seller')) return 'proofSeller';
+    if (x.includes('note')) return 'note';
+    if (x.includes('judge')) return 'judge';
+    return 'other';
+  }
+  /** 節點綁定的動作按鈕（SOP 資料裡的按鈕；按鈕文字決定是哪個功能，SOP 設定的類型有時候是錯的） */
+  function sopButtons(node) {
+    const raw = node.pending || node.note || node.buttons || [];
+    let out = raw.map((b) => ({ kind: btnKind(b.button_text), text: b.button_text || '',
+      bind: { pendingBy: b.pending_by || null, remark: String(b.remark || '').trim(), realReason: b.real_return_reason || '' } }));
+    if (!out.length && node.type === 'pending') out = [{ kind: 'pending', text: 'Pending Reason', bind: {} }];
+    if (!out.length && node.type === 'note') out = [{ kind: 'note', text: 'Note And Reminder', bind: {} }];
+    return out;
+  }
+  const reqButtons = (node) => sopButtons(node).filter((b) => ACT_KINDS[b.kind]);
+  function sopBtnsHtml(md, i, node, it) {
+    const all = sopButtons(node), req = reqButtons(node);
+    const clicked = it.done ? (it.clicked && it.clicked.length ? it.clicked : req.map((_, k) => k)) : (md.cur && md.cur.n === it.n ? md.cur.clicked : []);
+    let h = '';
+    let r = -1;
+    all.forEach((b) => {
+      if (!ACT_KINDS[b.kind]) { h += `<button class="sopi-btn" disabled title="判決不用操作，走到這裡就結束">${esc(b.text)}</button>`; return; }
+      r++;
+      const on = clicked.includes(r);
+      h += `<button class="sopi-btn ${on ? 'clicked' : ''}" ${it.done || on ? 'disabled' : ''} onclick="CQ.sopBtn(${i},${r})">${on ? '✓ ' : ''}${esc(b.text)}</button>`;
+    });
+    if (!req.length && !it.done && node.type !== 'judge' && node.type !== 'end') h += `<button class="sopi-btn" onclick="CQ.sopPick(${i},0)">${esc(SOP_BTN[node.type] || 'Done')}</button>`;
+    const acts = (md.acts || []).filter((a) => a.link && a.link.n === it.n);
+    if (acts.length) h += `<div class="sop-acts">${acts.map((a) => actLine(md, a, i)).join('')}</div>`;
+    else if (req.length && clicked.length) h += `<div class="sop-acts none">還沒有在底部操作列做對應的操作</div>`;
+    return h;
+  }
+  function actSummary(a) {
+    const f = a.fields || {};
+    if (a.kind === 'pending') return `Pending by：${PENDING_BY[f.pendingBy] || '-'}`;
+    if (a.kind === 'proofBuyer' || a.kind === 'proofSeller') return `模板：${f.template || '-'}｜${f.deadline === 'flexible' ? 'Flexible' : 'Fixed'} ${f.days || 1} day｜${f.timeType === 'working' ? 'Working Days' : 'Calendar Days'}${f.excludeHolidays ? '（Exclude Holidays）' : ''}｜Email：${f.email ? 'Yes' : 'No'}`;
+    if (a.kind === 'note') return `Real Return Reason：${f.realReason || '-'}｜Remind me：${f.remindMe ? 'Yes' : 'No'}`;
+    return '';
+  }
+  function actLine(md, a, i) {
+    const f = a.fields || {};
+    return `<div class="sop-act-line"><div class="sop-act-txt"><b>✔ ${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
+      <button class="mbtn del" title="刪除這筆操作紀錄" onclick="CQ.actDel(${i},${a.seq})">✕</button></div>`;
+  }
+  function sopBtn(i, r) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    const w = sopWalk(md, sop);
+    if (!w.node || w.end) return;
+    const req = reqButtons(w.node);
+    if (!md.cur || md.cur.n !== w.cur) md.cur = { n: w.cur, clicked: [] };
+    if (!md.cur.clicked.includes(r)) md.cur.clicked.push(r);
+    ACTIVE_SOP = md.id;
+    ACT_HINT = md.hint ? req[r].kind : '';
+    if (req.every((_, k) => md.cur.clicked.includes(k))) {     // 按鈕都點過 → 這一步完成，接下一個節點
+      md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: 0, clicked: md.cur.clicked.slice() }]);
+      md.cur = null;
+    }
+    sopSnap(md, sop); saveCase(); renderSide();
+  }
+  function actDel(i, seq) {
+    const md = C.modules[i];
+    md.acts = (md.acts || []).filter((a) => a.seq !== seq);
+    saveCase(); renderSide();
+  }
+
+  // ───────── 底部仿 DMS 操作列（DMS-SOP-UI 截圖：More、Agreement、Case Done、Potential Fraud、Note and Reminder、Request Proof…、Validate Proof、Pending Reason） ─────────
+  const sopMods = () => ((C && C.modules) || []).filter((m) => m.type === 'sop');
+  function renderActbar() {
+    const bar = document.getElementById('cqActs');
+    if (!bar) return;
+    const show = !EX && isEdit() && sopMods().length > 0 && VIEW < 0;
+    bar.style.display = show ? '' : 'none';
+    document.getElementById('cq').classList.toggle('has-acts', show);
+    if (!show) { ACT_MODAL = null; renderActModal(); return; }
+    const soon = (t) => `<button class="actb soon" title="第二期才做">${t}</button>`;
+    const b = (k, t) => `<button class="actb ${ACT_HINT === k ? 'hint' : ''} ${ACT_MODAL && ACT_MODAL.kind === k ? 'on' : ''}" onclick="CQ.actOpen('${k}')">${t}</button>`;
+    bar.innerHTML = soon('More ⌄') + soon('Agreement') + b('caseDone', 'Case Done') + soon('Potential Fraud') + b('note', 'Note and Reminder')
+      + b('proofBuyer', 'Request Proof from Buyer') + b('proofSeller', 'Request Proof from Seller') + soon('Validate Proof ⌄') + b('pending', 'Pending Reason');
+    renderActModal();
+  }
+  /** 這次操作要記到哪一題：最近操作的 SOP 題組，沒有就第一個還沒走完的 */
+  function actTarget() {
+    const mods = sopMods();
+    return mods.find((m) => m.id === ACTIVE_SOP) || mods.find((m) => { const sop = SOPS[m.taskbot]; return sop && m.start && !sopWalk(m, sop).end; }) || mods[0];
+  }
+  /** 這個功能對應到 SOP 上哪一顆「點過、還沒做」的按鈕（最新的優先） */
+  function actLinkFor(md, kind) {
+    const sop = SOPS[md.taskbot];
+    if (!sop || !md.start) return null;
+    const w = sopWalk(md, sop);
+    const cands = [];
+    w.steps.forEach((x, k) => reqButtons(x.node).forEach((bt, b) => { if (bt.kind === kind && (x.clicked || []).includes(b)) cands.push({ n: x.n, b, k, bind: bt.bind }); }));
+    if (md.cur && md.cur.n === w.cur && w.node) reqButtons(w.node).forEach((bt, b) => { if (bt.kind === kind && md.cur.clicked.includes(b)) cands.push({ n: w.cur, b, k: w.steps.length, bind: bt.bind }); });
+    const used = (md.acts || []).filter((a) => a.link).map((a) => a.link.n + '#' + a.link.b);
+    return cands.reverse().find((c) => !used.includes(c.n + '#' + c.b)) || null;
+  }
+  function actOpen(kind) {
+    const md = actTarget();
+    const link = md ? actLinkFor(md, kind) : null;
+    const bind = (link && link.bind) || {};     // SOP 有綁定的欄位先帶好（可以改）
+    const f = { pendingBy: bind.pendingBy || null, remark: bind.remark || '', template: '', deadline: 'fixed', days: 1, timeType: 'calendar', excludeHolidays: false, email: false,
+      realReason: bind.realReason || '', remindMe: false };
+    ACT_MODAL = { kind, f };
+    renderActbar();
+  }
+  function actSet(k, v) { if (ACT_MODAL) ACT_MODAL.f[k] = v; }
+  function actClose() { ACT_MODAL = null; renderActbar(); }
+  function actConfirm() {
+    const m = ACT_MODAL;
+    if (!m) return;
+    const f = m.f;
+    if (m.kind === 'pending' && !f.pendingBy) return X.toast('請選擇 Pending by');
+    if ((m.kind === 'proofBuyer' || m.kind === 'proofSeller') && !String(f.template).trim()) return X.toast('請填寫 Evidence checklist template（模板名稱）');
+    if (m.kind === 'note' && !String(f.realReason).trim()) return X.toast('請填寫 Real Return Reason');
+    const md = actTarget();
+    if (!md) { ACT_MODAL = null; renderActbar(); return; }
+    const sop = SOPS[md.taskbot];
+    const link = actLinkFor(md, m.kind);
+    const fields = m.kind === 'pending' ? { pendingBy: Number(f.pendingBy), remark: String(f.remark).trim() }
+      : m.kind === 'note' ? { realReason: String(f.realReason).trim(), remindMe: !!f.remindMe, remark: String(f.remark).trim() }
+      : m.kind === 'caseDone' ? {}
+      : { template: String(f.template).trim(), deadline: f.deadline, days: Number(f.days) || 1, timeType: f.timeType, excludeHolidays: !!f.excludeHolidays, email: !!f.email, remark: String(f.remark).trim() };
+    md.acts = md.acts || [];
+    md.actSeq = (md.actSeq || 0) + 1;
+    md.acts.push({ seq: md.actSeq, kind: m.kind, fields, link: link ? { n: link.n, b: link.b, k: link.k } : null, at: sop && md.start ? sopWalk(md, sop).steps.length : 0 });
+    if (ACT_HINT === m.kind) ACT_HINT = '';
+    ACT_MODAL = null;
+    saveCase(); renderSide();
+    X.toast(link ? `已記錄：${ACT_KINDS[m.kind]}（SOP 第 ${link.k + 1} 步）` : `已記錄：${ACT_KINDS[m.kind]}（SOP 以外的操作）`);
+  }
+  function renderActModal() {
+    const box = document.getElementById('cqActModal');
+    if (!box) return;
+    const m = ACT_MODAL;
+    if (!m) { box.innerHTML = ''; box.className = ''; return; }
+    const f = m.f, title = ACT_KINDS[m.kind];
+    const radio = (name, val, cur, label, set) => `<label class="am-r"><input type="radio" name="am_${name}" ${cur === val ? 'checked' : ''} onchange="CQ.actSet('${set}',${typeof val === 'string' ? `'${val}'` : val})"> ${label}</label>`;
+    const remark = (max) => `<div class="am-l">Remark</div><textarea maxlength="${max}" placeholder="Enter keywords to search templates" oninput="CQ.actSet('remark',this.value)">${esc(f.remark)}</textarea>
+      <div class="am-c">上限 ${max} 字</div>`;
+    if (m.kind === 'caseDone') {
+      box.className = 'am-center';
+      box.innerHTML = `<div class="am"><div class="am-h">Case Done<span class="am-x" onclick="CQ.actClose()">×</span></div>
+        <div class="am-b">Are you ready to move on to the next case? This case will be removed from your task list.</div>
+        <div class="am-f"><button class="am-btn" onclick="CQ.actClose()">Back</button><button class="am-btn pri" onclick="CQ.actConfirm()">Confirm</button></div></div>`;
+      return;
+    }
+    let body;
+    if (m.kind === 'pending') {
+      body = `<div class="am-l"><i>*</i> Pending by</div><div class="am-grid">${Object.entries(PENDING_BY).map(([v, t]) => radio('pb', Number(v), Number(f.pendingBy), esc(t), 'pendingBy')).join('')}</div>` + remark(500);
+    } else if (m.kind === 'note') {
+      body = `<div class="am-l"><i>*</i> Real Return Reason</div><input type="text" value="${esc(f.realReason)}" placeholder="例如 I want to return item in original/ sealed condition" oninput="CQ.actSet('realReason',this.value)">
+        <div class="am-l"><i>*</i> Remind me</div><div class="am-row">${radio('rm', true, f.remindMe, 'Yes', 'remindMe')}${radio('rm', false, f.remindMe, 'No', 'remindMe')}</div>` + remark(1000);
+    } else {
+      body = `<div class="am-l"><i>*</i> Evidence checklist template</div><input type="text" value="${esc(f.template)}" placeholder="輸入模板名稱，例如 8.1_退貨_商品缺件_低風險賣家_出貨證明" oninput="CQ.actSet('template',this.value)">
+        <div class="am-hint">DMS 選了模板會帶出 Checklist contents 與 Evidence Module，這裡不用填</div>
+        <div class="am-l"><i>*</i> Set evidence deadline</div><div class="am-row">${radio('dl', 'fixed', f.deadline, 'Fixed time', 'deadline')}${radio('dl', 'flexible', f.deadline, 'Flexible time', 'deadline')}</div>
+        <select onchange="CQ.actSet('days',+this.value)">${[1, 2, 3, 4, 5, 6, 7].map((d) => `<option value="${d}" ${Number(f.days) === d ? 'selected' : ''}>${d} day${d > 1 ? 's' : ''}</option>`).join('')}</select>
+        <div class="am-l"><i>*</i> Proof Time Type</div><div class="am-row">${radio('tt', 'calendar', f.timeType, 'Calendar Days', 'timeType')}${radio('tt', 'working', f.timeType, 'Working Days', 'timeType')}
+          <label class="am-r"><input type="checkbox" ${f.excludeHolidays ? 'checked' : ''} onchange="CQ.actSet('excludeHolidays',this.checked)"> Exclude Holidays</label></div>
+        <div class="am-l"><i>*</i> Email Notification</div><div class="am-row">${radio('em', true, f.email, 'Yes', 'email')}${radio('em', false, f.email, 'No', 'email')}</div>` + remark(1500);
+    }
+    box.className = 'am-side';
+    box.innerHTML = `<div class="am"><div class="am-h">${title}<span class="am-x" onclick="CQ.actClose()">×</span></div><div class="am-b">${body}</div>
+      <div class="am-f"><button class="am-btn" onclick="CQ.actClose()">Close</button><button class="am-btn pri" onclick="CQ.actConfirm()">Confirm</button></div></div>`;
+  }
+
   function sopToggle(i, nid, v) { const id = C.modules[i].id; (SOP_OPEN[id] = SOP_OPEN[id] || {})[nid] = !!v; renderSide(); }
   function sopCopy(t) { try { navigator.clipboard.writeText(t); X.toast('已複製 ' + t); } catch (_) { /* 複製失敗不影響 */ } }
   /** 在第 k 步選 opt：k 是已走過的步驟就像 DMS「重新選擇這個節點」，之後的節點一起更新 */
@@ -1333,10 +1533,12 @@
     if (k < w.steps.length) {
       if (w.steps[k].pick === opt) return;
       if (k < w.steps.length - 1 || w.end) { if (!confirm('確定要重新選擇這個節點？之後的節點會一起更新。')) { renderSide(); return; } }
-      md.answer = w.steps.slice(0, k).map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.steps[k].n, pick: opt }]);
+      md.answer = w.steps.slice(0, k).map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.steps[k].n, pick: opt }]);
+      md.acts = (md.acts || []).filter((a) => !a.link || a.link.k < k);      // 被重選掉的節點，它的操作紀錄一起拿掉
     } else {
-      md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.cur, pick: opt }]);
+      md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: opt }]);
     }
+    md.cur = null; ACTIVE_SOP = md.id;
     sopSnap(md, sop); saveCase(); renderSide();
   }
 
@@ -1349,7 +1551,7 @@
   }
   function sopSet(i, tb) {
     const md = C.modules[i];
-    Object.assign(md, { taskbot: tb, sopName: '', flowId: '', version: '', start: '', answer: [], snap: {} });
+    Object.assign(md, { taskbot: tb, sopName: '', flowId: '', version: '', start: '', answer: [], snap: {}, acts: [], cur: null });
     SOP_PICKSTART[md.id] = true; saveCase(); renderSide();
   }
   function sopReset(i) {
@@ -1357,27 +1559,41 @@
     sopSet(i, '');
   }
   function sopSearch(i, q) {
-    const md = C.modules[i], sop = SOPS[md.taskbot], box = document.getElementById('sopres-' + md.id);
-    if (!sop || !box) return;
+    const md = C.modules[i], box = document.getElementById('sopres-' + md.id);
+    if (!box) return;
     const k = String(q || '').trim().toLowerCase();
     if (!k) { box.innerHTML = ''; box.classList.remove('on'); return; }
     box.classList.add('on');
-    // 2026-11-20：也可以用節點編號找（Node206、SOP1_Node206、DMS 卡片上的 SOP1_F140_Node206 都可以）；判決、結束節點不能當起點
-    const idKey = k.replace(/^sop\d+_f\d+_/, '').replace(/^sop\d+_/, '');
-    const hits = Object.entries(sop.nodes).filter(([id, n]) => n.type !== 'judge' && n.type !== 'end'
-      && (((n.name || '') + ' ' + (n.question || '')).toLowerCase().includes(k)
-        || id.toLowerCase().replace(/^sop\d+_/, '') === idKey || (idKey.length >= 4 && id.toLowerCase().includes(idKey))))
-      .sort(([a], [b]) => (a.toLowerCase().endsWith('_' + idKey) ? 0 : 1) - (b.toLowerCase().endsWith('_' + idKey) ? 0 : 1)).slice(0, 40);
+    // 節點編號：215、node215、sop1_node215、sop1_f140_node215（DMS 卡片上的 ID）都可以；SOP1＝那個 SOP 的開頭
+    const m = k.match(/^(?:(sop\d+)_(?:f\d+_)?)?(?:node)?(\d+)$/);
+    const tbOnly = (k.match(/^(sop\d+)$/) || [])[1];
+    const hits = [];
+    Object.values(SOPS).forEach((sop) => {
+      const tb = sop.taskbot.toLowerCase();
+      if (tbOnly && tb === tbOnly && sop.nodes[sop.root]) hits.push({ sop, id: sop.root, score: 0, root: true });
+      Object.entries(sop.nodes).forEach(([id, n]) => {
+        if (n.type === 'judge' || n.type === 'end') return;            // 判決、結束節點不能當起點
+        const num = (id.match(/_Node(\d+)$/i) || [])[1];
+        if (m && num === m[2] && (!m[1] || m[1] === tb)) { hits.push({ sop, id, score: 1 }); return; }
+        // 純數字也比對文字（例如 15天），但編號完全相同的排在最前面
+        if ((!m || /^\d+$/.test(k)) && !tbOnly && ((n.name || '') + ' ' + (n.question || '')).toLowerCase().includes(k)) hits.push({ sop, id, score: 2 });
+      });
+    });
+    hits.sort((a, b) => a.score - b.score);
     // 呈現方式照 DMS SOP Tool 的節點搜尋：上面是節點文字、下面「ID: SOPx_Fy_NodeZ」
-    box.innerHTML = hits.length ? hits.map(([id, n]) => `<div class="sop-hit" onclick="CQ.sopStart(${i},'${esc(id)}')">
-        <div class="sop-hit-t">${esc(sopNodeTitle(n))}</div><div class="sop-hit-id">ID: <span>${esc(sopPointId(sop, id))}</span></div></div>`).join('')
-      : '<div class="sop-hit-none">找不到符合的節點</div>';
+    box.innerHTML = hits.length ? hits.slice(0, 40).map((x) => { const n = x.sop.nodes[x.id]; return `<div class="sop-hit" onclick="CQ.sopStart(${i},'${esc(x.id)}','${esc(x.sop.taskbot)}')">
+        <div class="sop-hit-t">${x.root ? '（SOP 開頭）' : ''}${esc(sopNodeTitle(n))}</div>
+        <div class="sop-hit-id">ID: <span>${esc(sopPointId(x.sop, x.id))}</span>　${esc(x.sop.taskbotName || '')}</div></div>`; }).join('')
+      : `<div class="sop-hit-none">找不到符合的節點${SOP_LIST && Object.keys(SOPS).length < SOP_LIST.length ? '（SOP 還在載入，等一下再試）' : ''}</div>`;
   }
-  function sopStart(i, nid) {
-    const md = C.modules[i], sop = SOPS[md.taskbot];
-    if (md.start && md.start !== nid && (md.answer || []).length && !confirm('更換起點會清掉目前設定的路線，確定？')) return;
-    if (md.start !== nid) md.answer = [];
-    md.start = nid; delete SOP_PICKSTART[md.id];
+  function sopStart(i, nid, tb) {
+    const md = C.modules[i];
+    tb = tb || md.taskbot;
+    const sop = SOPS[tb];
+    if (!sop) return;
+    if (md.start && (md.start !== nid || md.taskbot !== tb) && (md.answer || []).length && !confirm('更換起點會清掉目前設定的路線，確定？')) return;
+    if (md.start !== nid || md.taskbot !== tb) { md.answer = []; md.acts = []; md.cur = null; }
+    md.taskbot = tb; md.start = nid; delete SOP_PICKSTART[md.id];
     sopSnap(md, sop); saveCase(); renderSide();
   }
   function sopPickStart(i) { SOP_PICKSTART[C.modules[i].id] = true; renderSide(); }
@@ -1385,7 +1601,8 @@
   function sopPick(i, k) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
     const w = sopWalk(md, sop);
-    md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.cur, pick: k }]);   // 對不上的舊路線一併丟掉
+    md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: k }]);   // 對不上的舊路線一併丟掉
+    md.cur = null; ACTIVE_SOP = md.id;
     sopSnap(md, sop); saveCase(); renderSide();
   }
   function sopBack(i, k) {
@@ -1733,7 +1950,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, actDel, actOpen, actSet, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
