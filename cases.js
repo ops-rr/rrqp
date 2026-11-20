@@ -1234,20 +1234,26 @@
     if (node.type === 'system') return ((node.branches || [])[pick] || {}).to || null;
     return node.to || null;
   }
-  const sopOtherFlow = (sop, nid) => nid && !String(nid).startsWith(sop.taskbot + '_');
+  // 2026-11-20：路線可以跨 SOP（例如 SOP1 跳到 SOP60_Node380）：節點編號開頭就是它屬於哪個 SOP
+  const sopTbOf = (nid) => (String(nid || '').match(/^(SOP\d+)_/) || [])[1] || '';
+  const sopNode = (nid) => { const sp = SOPS[sopTbOf(nid)]; return sp ? sp.nodes[nid] : null; };
   /** 照標準答案從起點走一次：回傳每一步（含節點），以及目前停在哪個節點、是不是終點 */
-  function sopWalk(md, sop) {
+  function sopWalk(md) {
     const steps = [];
     let nid = md.start;
     for (const st of md.answer || []) {
       if (st.n !== nid) break;                         // 路線和 SOP 對不上（改版）→ 停在這
-      const node = sop.nodes[nid];
+      const node = sopNode(nid);
       if (!node) break;
       steps.push({ n: nid, pick: st.pick, node, clicked: st.clicked || [] });
       nid = sopNext(node, st.pick);
     }
-    const node = nid ? sop.nodes[nid] : null;
-    const end = !nid ? 'dead' : sopOtherFlow(sop, nid) ? 'jump' : !node ? 'missing' : node.type === 'judge' || node.type === 'end' ? 'final' : '';
+    const node = nid ? sopNode(nid) : null;
+    const tb = sopTbOf(nid);
+    // 跳到還沒載入的 SOP：先載入（loading）；不在上線清單裡的 SOP 才當成終點（jump）
+    const loading = nid && !node && tb && !SOPS[tb] && (!SOP_LIST || SOP_LIST.some((x) => x.taskbot === tb));
+    if (loading) sopLoad(tb);
+    const end = !nid ? 'dead' : loading ? 'loading' : !node && tb && !SOPS[tb] ? 'jump' : !node ? 'missing' : node.type === 'judge' || node.type === 'end' ? 'final' : '';
     return { steps, cur: nid, node, end, broken: steps.length < (md.answer || []).length };
   }
   const sopPickLabel = (node, pick) => node.type === 'manual' ? ((node.options || [])[pick] || {}).label || '' : node.type === 'system' ? ((node.branches || [])[pick] || {}).label || '' : '';
@@ -1280,14 +1286,18 @@
     const sop = SOPS[md.taskbot];
     if (!sop) { sopLoad(md.taskbot); return `<div class="hint">載入 ${esc(md.taskbot)}…</div>`; }
     let h = '';
-    if (md.flowId && md.flowId !== sop.flowId) h += `<div class="sop-warn">這題用的是 ${esc(md.flowId)}，目前上線版是 ${esc(sop.flowId)}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
+    // 用到的每個 SOP 都比對版本（路線可能跨 SOP）
+    const flows = md.flows || (md.flowId ? { [md.taskbot]: md.flowId } : {});
+    const diff = Object.entries(flows).filter(([tb, f]) => SOPS[tb] && SOPS[tb].flowId !== f);
+    if (diff.length) h += `<div class="sop-warn">${diff.map(([tb, f]) => `這題用的是 ${esc(f)}，目前上線版是 ${esc(SOPS[tb].flowId)}`).join('；')}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
     const w = sopWalk(md, sop);
     const st = sop.nodes[md.start];
     h += `<div class="sop-start"><span>起點：<b>${esc(st ? (st.name || sopNodeTitle(st)) : md.start)}</b>
       <span class="sop-id">${esc(md.taskbot)}｜${esc(sop.taskbotName || md.sopName)}｜${esc(sopPointId(sop, md.start))}</span></span>
       <button class="mbtn" onclick="CQ.sopPickStart(${i})">更換起點</button></div>`;
     if (w.broken) h += `<div class="sop-warn">標準答案第 ${w.steps.length + 1} 步之後和目前的 SOP 對不上（節點被改或刪除），請從最上面的節點重新選。</div>`;
-    if (w.end) h += `<div class="sop-okbar">✔ 標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? '：跳到其他 SOP，先當成終點' : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : ''}</div>`;
+    if (w.end === 'loading') h += `<div class="hint">載入 ${esc(sopTbOf(w.cur))}…</div>`;
+    else if (w.end) h += `<div class="sop-okbar">✔ 標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? `：跳到的 ${esc(sopTbOf(w.cur))} 不在上線中的 SOP，當成終點` : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : ''}</div>`;
     h += `<label class="sop-hintset"><input type="checkbox" ${md.hint ? 'checked' : ''} onchange="CQ.setMod(${i},'hint',this.checked)">
       專員點 SOP 動作按鈕後，底部對應的功能亮起提示（練習用建議開、考試用建議關）</label>`;
     const outside = (md.acts || []).filter((a) => !a.link);
@@ -1306,7 +1316,7 @@
   const SOP_BTN = { pending: 'Pending Reason', note: 'Note And Reminder', validate: 'Validate Proof', message: 'Done' };
   const SOP_OPEN = {};             // 模組 id → { 節點: true/false }（講師自己展開、收合的）
   /** DMS 的 Node Point ID：SOP71_F17_Node556 */
-  const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(sop.flowId || '').split('_')[1] || ''}_`);
+  const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(((SOPS[tb] || sop) || {}).flowId || '').split('_')[1] || ''}_`);
 
   function sopCardsHtml(md, i, sop, w) {
     // 卡片照順序由上往下（跟 DMS 一樣：最上面是起點，最新的在最下面；2026-11-20 Chris）
@@ -1340,7 +1350,7 @@
           <div class="sopi-left">${it.done ? '' : SOP_ICON_TODO}${isSys ? SOP_ICON_SYS : SOP_ICON_AGENT}
             ${exp ? '' : `<span class="sopi-ell w200">${esc(node.name || title)}</span>${SOP_ICON_TO}<span class="sopi-ell w120">${esc(ans)}</span>`}</div>
           ${exp ? SOP_ICON_UP : SOP_ICON_RIGHT}</div>${body}</div>`;
-    }).join('') + (w.end === 'jump' ? `<div class="sopi"><div class="sopi-title">跳到其他 SOP：${esc(w.cur)}</div></div>` : '') + '</div>';
+    }).join('') + (w.end === 'jump' ? `<div class="sopi"><div class="sopi-title">跳到 ${esc(w.cur)}（這個 SOP 沒有上線，當成終點）</div></div>` : '') + '</div>';
   }
   // ═════════════════════════════════════════════════════════════
   // SOP 動作按鈕＋底部仿 DMS 操作列（2026-11-20 第 1b 步）
@@ -1549,6 +1559,10 @@
     w.steps.forEach((x) => { snap[x.n] = x.node; });
     if (w.cur && w.node) snap[w.cur] = w.node;
     md.snap = snap; md.flowId = sop.flowId; md.version = sop.version || ''; md.sopName = sop.taskbotName || '';
+    // 路線用到的每個 SOP 與版本（改版比對用）
+    const flows = { [sop.taskbot]: sop.flowId };
+    Object.keys(snap).forEach((nid) => { const tb = sopTbOf(nid); if (SOPS[tb]) flows[tb] = SOPS[tb].flowId; });
+    md.flows = flows;
   }
   function sopSet(i, tb) {
     const md = C.modules[i];
