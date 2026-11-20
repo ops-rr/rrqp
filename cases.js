@@ -1309,13 +1309,12 @@
   const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(sop.flowId || '').split('_')[1] || ''}_`);
 
   function sopCardsHtml(md, i, sop, w) {
-    // 卡片由新到舊：目前節點（還沒選）→ 走過的每一步
+    // 卡片照順序由上往下（跟 DMS 一樣：最上面是起點，最新的在最下面；2026-11-20 Chris）
     const items = w.steps.map((x, k) => ({ k, n: x.n, node: x.node, pick: x.pick, clicked: x.clicked, done: true }));
     if (w.cur && w.node) items.push({ k: w.steps.length, n: w.cur, node: w.node, pick: null, done: !!w.end });
-    items.reverse();
     const open = SOP_OPEN[md.id] || {};
     return '<div class="sop-panel">' + items.map((it, idx) => {
-      const node = it.node, exp = it.n in open ? open[it.n] : idx < 3;
+      const node = it.node, exp = it.n in open ? open[it.n] : idx >= items.length - 3;
       const isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
       const ans = it.pick === null ? '-' : isPick ? sopPickLabel(node, it.pick) : node.type === 'judge' || node.type === 'end' ? node.name : (SOP_BTN[node.type] || '');
       const title = node.type === 'manual' ? (node.question || node.name) : node.name;
@@ -1336,7 +1335,7 @@
         }
         body += `<div class="sopi-bottom"><span class="sopi-pid" title="Node Point ID">${esc(sopPointId(sop, it.n))}</span><span onclick="CQ.sopCopy('${esc(sopPointId(sop, it.n))}')">${SOP_ICON_COPY}</span></div>`;
       }
-      return `<div class="sopi ${exp ? 'shadow' : ''}">
+      return `<div class="sopi ${exp ? 'shadow' : ''} ${idx === items.length - 1 ? 'sopi-last' : ''}">
         <div class="sopi-head" onclick="CQ.sopToggle(${i},'${esc(it.n)}',${exp ? 0 : 1})">
           <div class="sopi-left">${it.done ? '' : SOP_ICON_TODO}${isSys ? SOP_ICON_SYS : SOP_ICON_AGENT}
             ${exp ? '' : `<span class="sopi-ell w200">${esc(node.name || title)}</span>${SOP_ICON_TO}<span class="sopi-ell w120">${esc(ans)}</span>`}</div>
@@ -1415,7 +1414,7 @@
       md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: 0, clicked: md.cur.clicked.slice() }]);
       md.cur = null;
     }
-    sopSnap(md, sop); saveCase(); renderSide();
+    sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function actDel(i, seq) {
     const md = C.modules[i];
@@ -1524,6 +1523,8 @@
       <div class="am-f"><button class="am-btn" onclick="CQ.actClose()">Close</button><button class="am-btn pri" onclick="CQ.actConfirm()">Confirm</button></div></div>`;
   }
 
+  /** 選完一步後，把最新的卡片捲到看得到的地方 */
+  function sopScrollLast() { setTimeout(() => { const el = document.querySelector('#cqQuizPane .sopi-last'); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30); }
   function sopToggle(i, nid, v) { const id = C.modules[i].id; (SOP_OPEN[id] = SOP_OPEN[id] || {})[nid] = !!v; renderSide(); }
   function sopCopy(t) { try { navigator.clipboard.writeText(t); X.toast('已複製 ' + t); } catch (_) { /* 複製失敗不影響 */ } }
   /** 在第 k 步選 opt：k 是已走過的步驟就像 DMS「重新選擇這個節點」，之後的節點一起更新 */
@@ -1539,7 +1540,7 @@
       md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: opt }]);
     }
     md.cur = null; ACTIVE_SOP = md.id;
-    sopSnap(md, sop); saveCase(); renderSide();
+    sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
 
   /** 路線上每個節點出題當時的內容（之後 SOP 改版時逐一比對） */
@@ -1594,7 +1595,7 @@
     if (md.start && (md.start !== nid || md.taskbot !== tb) && (md.answer || []).length && !confirm('更換起點會清掉目前設定的路線，確定？')) return;
     if (md.start !== nid || md.taskbot !== tb) { md.answer = []; md.acts = []; md.cur = null; }
     md.taskbot = tb; md.start = nid; delete SOP_PICKSTART[md.id];
-    sopSnap(md, sop); saveCase(); renderSide();
+    sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function sopPickStart(i) { SOP_PICKSTART[C.modules[i].id] = true; renderSide(); }
   function sopCancelStart(i) { delete SOP_PICKSTART[C.modules[i].id]; renderSide(); }
@@ -1603,7 +1604,7 @@
     const w = sopWalk(md, sop);
     md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick, clicked: x.clicked })).concat([{ n: w.cur, pick: k }]);   // 對不上的舊路線一併丟掉
     md.cur = null; ACTIVE_SOP = md.id;
-    sopSnap(md, sop); saveCase(); renderSide();
+    sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function sopBack(i, k) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
