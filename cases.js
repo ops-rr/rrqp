@@ -1260,10 +1260,11 @@
     // 起點
     if (!md.start || SOP_PICKSTART[md.id]) {
       return h + `<div class="lbl">選擇起點（搜尋節點名稱或問題）</div>
-        <div class="erow"><input type="search" placeholder="例如：是否有寄回、買家證據" oninput="CQ.sopSearch(${i},this.value)">
+        <div class="erow"><div class="sop-sbox"><input type="search" placeholder="例如：是否有寄回、Node206" oninput="CQ.sopSearch(${i},this.value)">
+          <div class="sop-res" id="sopres-${md.id}"></div></div>
           <button class="mbtn" onclick="CQ.sopStart(${i},'${esc(sop.root)}')">從 SOP 開頭開始</button>
           ${md.start ? `<button class="mbtn" onclick="CQ.sopCancelStart(${i})">取消</button>` : ''}</div>
-        <div class="sop-res" id="sopres-${md.id}"><div class="hint">輸入關鍵字後列出符合的節點（專員選、系統判讀的節點）</div></div>`;
+        <div class="hint">輸入節點名稱、問題，或節點編號（例如 Node206、SOP1_F140_Node206）</div>`;
     }
     const w = sopWalk(md, sop);
     const st = sop.nodes[md.start];
@@ -1359,12 +1360,18 @@
     const md = C.modules[i], sop = SOPS[md.taskbot], box = document.getElementById('sopres-' + md.id);
     if (!sop || !box) return;
     const k = String(q || '').trim().toLowerCase();
-    if (!k) { box.innerHTML = '<div class="hint">輸入關鍵字後列出符合的節點</div>'; return; }
-    const hits = Object.entries(sop.nodes).filter(([, n]) => (n.type === 'manual' || n.type === 'system')
-      && ((n.name || '') + ' ' + (n.question || '')).toLowerCase().includes(k)).slice(0, 40);
+    if (!k) { box.innerHTML = ''; box.classList.remove('on'); return; }
+    box.classList.add('on');
+    // 2026-11-20：也可以用節點編號找（Node206、SOP1_Node206、DMS 卡片上的 SOP1_F140_Node206 都可以）；判決、結束節點不能當起點
+    const idKey = k.replace(/^sop\d+_f\d+_/, '').replace(/^sop\d+_/, '');
+    const hits = Object.entries(sop.nodes).filter(([id, n]) => n.type !== 'judge' && n.type !== 'end'
+      && (((n.name || '') + ' ' + (n.question || '')).toLowerCase().includes(k)
+        || id.toLowerCase().replace(/^sop\d+_/, '') === idKey || (idKey.length >= 4 && id.toLowerCase().includes(idKey))))
+      .sort(([a], [b]) => (a.toLowerCase().endsWith('_' + idKey) ? 0 : 1) - (b.toLowerCase().endsWith('_' + idKey) ? 0 : 1)).slice(0, 40);
+    // 呈現方式照 DMS SOP Tool 的節點搜尋：上面是節點文字、下面「ID: SOPx_Fy_NodeZ」
     box.innerHTML = hits.length ? hits.map(([id, n]) => `<div class="sop-hit" onclick="CQ.sopStart(${i},'${esc(id)}')">
-        <span class="sop-tag">${SOP_TYPE[n.type]}</span>${esc(sopNodeTitle(n))} <span class="sop-id">${esc(id)}</span></div>`).join('')
-      : '<div class="hint">找不到符合的節點</div>';
+        <div class="sop-hit-t">${esc(sopNodeTitle(n))}</div><div class="sop-hit-id">ID: <span>${esc(sopPointId(sop, id))}</span></div></div>`).join('')
+      : '<div class="sop-hit-none">找不到符合的節點</div>';
   }
   function sopStart(i, nid) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
