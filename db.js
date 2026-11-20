@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-19w';
+const VERSION = 'V2-2026-11-20e';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1292,6 +1292,8 @@ const ACTIONS = {
   // 保留：主題、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單
   ad_resetData: async (b) => {
     const m = await needAdmin();
+    // 2026-11-20 停用：會把 DMS 案件／圖片共用的編號（C、I）歸零、刪掉 CR 匯入申請；要清資料請另寫一次性程式
+    fail('重置資料已停用 / Reset is disabled');
     const [drafts, bank, sessions, results, samples, reqs, seen, trq] = await Promise.all(['drafts', 'bank', 'sessions', 'results', 'samples', 'sampleRequests', 'seen', 'translateQueue'].map((c) => S.list(c).catch(() => [])));
     const counts = { drafts: drafts.length, bank: bank.length, sessions: sessions.length, results: results.length, samples: samples.length, requests: reqs.length };
     if (b.dryRun) return { counts };
@@ -2185,14 +2187,22 @@ function caseCheck(c, title) {
   if (!(meta.groups || []).length) errors.push('請選擇組別');
   if (!(meta.topics || []).length) errors.push('請選擇主題');
   const mods = (c && c.modules) || [];
-  const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short');
-  if (!qs.length) errors.push('還沒有作答題（單選題或簡答題）');
+  const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop');
+  if (!qs.length) errors.push('還沒有作答題（單選題、簡答題或 SOP 路徑）');
+  // 2026-11-20：SOP 路徑題組只做到講師設定標準答案（第 1a 步），專員作答與批改還沒做 → 先不能核准
+  if (mods.some((m) => m.type === 'sop')) errors.push('SOP 路徑題的作答與批改還在開發中，暫時不能核准有 SOP 路徑的案件');
   let no = 0;
   mods.forEach((m) => {
     if (m.type === 'note' && !String(m.text || '').trim()) warns.push('有一個空白的情境說明');
     if (m.type === 'image' && !(m.images || []).length) warns.push('有一個沒有圖片的補充資訊');
-    if (m.type !== 'mc' && m.type !== 'short') return;
+    if (m.type !== 'mc' && m.type !== 'short' && m.type !== 'sop') return;
     const p = `第 ${++no} 題`;
+    if (m.type === 'sop') {
+      if (!m.taskbot || !m.start) errors.push(p + '（SOP 路徑）還沒選 SOP 或起點');
+      else if (!(m.answer || []).length) errors.push(p + '（SOP 路徑）還沒走標準答案');
+      if (!(Number(m.points) > 0)) errors.push(p + '配分要大於 0%');
+      return;
+    }
     if (!String(m.q || '').trim()) errors.push(p + '沒有題目');
     if (!(Number(m.points) > 0)) errors.push(p + '配分要大於 0%');
     if (m.type === 'mc') {
@@ -2209,7 +2219,7 @@ function caseCheck(c, title) {
   return { errors, warns };
 }
 const caseStats = (c) => {
-  const qs = ((c && c.modules) || []).filter((m) => m.type === 'mc' || m.type === 'short');
+  const qs = ((c && c.modules) || []).filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop');
   return { questions: qs.length, points: qs.reduce((s, m) => s + (Number(m.points) || 0), 0) };
 };
 
@@ -2416,6 +2426,25 @@ const CASES = {
     for (let i = 0; i < parts.length; i++) await S.set(`v3images/${id}/chunks/${i}`, { d: parts[i] });
     await S.set('v3images/' + id, { caseId: String(b.caseId || ''), mime: mt[1], n: parts.length, size: url.length, by: m.email, at: now() });
     return { ref: 'v3img:' + id };
+  },
+  /** SOP 清單（排程 rrqp_sop.py 從 DMS SOP Tool 同步的上線版） */
+  c_sopList: async () => {
+    await needTeacher();
+    const idx = await S.get('meta/v3SopIndex');
+    const items = Object.entries((idx && idx.items) || {}).filter(([, x]) => x.live !== false)
+      .map(([tb, x]) => ({ taskbot: tb, name: x.name || '', flowId: x.flowId || '', version: x.version || '', nodes: x.nodes || 0, fetchedAt: x.fetchedAt || '' }))
+      .sort((a, b) => (parseInt(a.taskbot.replace(/\D/g, ''), 10) || 0) - (parseInt(b.taskbot.replace(/\D/g, ''), 10) || 0));
+    return { items, updatedAt: (idx && idx.updatedAt) || '' };
+  },
+  /** 一個 SOP 的完整節點（只有講師讀得到；專員作答用題目裡的快照） */
+  c_sopGet: async (b) => {
+    await needTeacher();
+    const tb = String(b.taskbot || '');
+    if (!/^SOP\d+$/.test(tb)) fail('SOP 代號不正確 / Invalid SOP id');
+    const d = await S.get('sopFlows/' + tb) || fail('找不到 SOP / SOP not found: ' + tb);
+    let sop;
+    try { sop = JSON.parse(d.json || '{}'); } catch (_) { fail('SOP 資料損壞 / SOP data is corrupted: ' + tb); }
+    return { sop };
   },
   c_imgGet: async (b) => {
     await needTeacher();

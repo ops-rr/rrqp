@@ -174,7 +174,7 @@
     MAIN = C; VIEW = -1;
     A = newAnswer();
     mode = CUR.canEdit ? 'edit' : 'agent';
-    sideTab = 'quiz'; dirty = false; saving = false; saveErr = '';
+    sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
     PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false;
     main.classList.add('cq-full');
     main.innerHTML = `<div class="cq ${isEdit() ? 'edit' : ''}" id="cq">
@@ -820,11 +820,22 @@
     C.blocks[bi].cards[ci].rows.splice(ri, 1); saveCase(); renderAll();
   }
   // ===== 右側面板 =====
+  // 2026-11-20：同一個分頁重畫時保留捲動位置（講師改正解、配分等會重畫考題分頁，以前會跳回最上面）
+  let sideDrawn = '';
   function renderSide() {
     const tabs = [['quiz', '考題'], ['ops', 'Operation History'], ['chat', 'Chat History'], ['drc', 'Discuss']];
     document.getElementById('cqTabs').innerHTML = tabs.map(t =>
       `<button class="${sideTab === t[0] ? 'on' : ''}" onclick="CQ.tab('${t[0]}')">${t[1]}</button>`).join('');
     const body = document.getElementById('cqSide');
+    const key = sideTab + (sideTab === 'drc' ? drcRoom : '');
+    const oldPane = body.querySelector('.pane');
+    const keep = key === sideDrawn && oldPane ? oldPane.scrollTop : null;
+    drawSide(body);
+    sideDrawn = key;
+    const newPane = body.querySelector('.pane');
+    if (keep !== null && newPane) newPane.scrollTop = keep;
+  }
+  function drawSide(body) {
     if (sideTab === 'ops') body.innerHTML = opsHtml();
     if (sideTab === 'chat') body.innerHTML = `<div class="pane">${msgsHtml('chat')}</div>`;
     if (sideTab === 'drc') {
@@ -952,7 +963,7 @@
   function qNumbers() {
     // 只有作答類模組（單選、簡答）有題號
     const map = {}; let n = 0;
-    C.modules.forEach(md => { if (md.type === 'mc' || md.type === 'short') map[md.id] = ++n; });
+    C.modules.forEach(md => { if (isQ(md)) map[md.id] = ++n; });
     return map;
   }
 
@@ -968,6 +979,8 @@
           <div class="hint">點圖片可放大</div></div>`;
       }
       if (md.type === 'mc') html += mcAgentHtml(md, qn[md.id]);
+      if (md.type === 'sop') html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. SOP 路徑<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>
+        <div class="hint">SOP 路徑題的作答畫面還在開發中（2026-11 第 2 步）。</div></div>`;
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">說明第 ${qn[md.bindTo]} 題的選擇</div>` : '';
         html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
@@ -1032,7 +1045,7 @@
   }
 
   // ===== 考題分頁：講師編輯 =====
-  const TYPE_NAME = { note: '情境說明', image: '補充資訊', mc: '單選題', short: '簡答題' };
+  const TYPE_NAME = { note: '情境說明', image: '補充資訊', mc: '單選題', short: '簡答題', sop: 'SOP 路徑' };
 
   const pctInput = (md, i) => `<div class="lbl">配分（佔本案件）</div><div class="erow" style="align-items:center"><input type="number" min="0" max="100" step="1" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)"> %</div>`;
 
@@ -1080,7 +1093,8 @@
           <div class="lbl">標準答案（AI 預評分依據）</div><textarea onchange="CQ.setMod(${i},'standard',this.value)">${esc(md.standard || '')}</textarea>
           ${pctInput(md, i)}`;
       }
-      html += `<div class="mod ${md.type === 'note' ? 'note' : md.type === 'mc' || md.type === 'short' ? 'qmod' : ''}">${head}${body}</div>`;
+      if (md.type === 'sop') body = sopEditHtml(md, i) + pctInput(md, i);
+      html += `<div class="mod ${md.type === 'note' ? 'note' : isQ(md) ? 'qmod' : ''}">${head}${body}</div>`;
     });
     html += `<div class="addbar"><span class="hint" style="width:100%;margin:0">＋ 插入模組</span>
       ${Object.keys(TYPE_NAME).map(t => `<button onclick="CQ.addMod('${t}')">${TYPE_NAME[t]}</button>`).join('')}</div>`;
@@ -1088,7 +1102,7 @@
   }
 
   // ───────── 配分：題目佔本案件的百分比（加起來 100）；案件在試卷佔幾分由組卷時設定 ─────────
-  const isQ = (m) => m.type === 'mc' || m.type === 'short';
+  const isQ = (m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop';
   const pctSum = (mods) => Math.round(mods.filter(isQ).reduce((t, m) => t + (Number(m.points) || 0), 0) * 100) / 100;
   /** 加總不是 100 就照比例換算成整數百分比（最大餘數法，總和剛好 100）；全部 0 就平均分配 */
   function pctNormalize(mods, force) {
@@ -1112,6 +1126,7 @@
     if (type === 'image') md.images = [];
     if (type === 'mc') Object.assign(md, { q: '請選擇正確的', options: ['', '', '', ''], answer: 0, points: Math.max(0, 100 - pctSum(C.modules)), explain: '' });
     if (type === 'short') Object.assign(md, { q: '請說明你選擇這個答案的理由', standard: '', bindTo: '', points: Math.max(0, 100 - pctSum(C.modules)) });
+    if (type === 'sop') Object.assign(md, { taskbot: '', sopName: '', flowId: '', version: '', start: '', answer: [], snap: {}, points: Math.max(0, 100 - pctSum(C.modules)) });
     C.modules.push(md); saveCase(); renderSide();
     const pane = document.getElementById('cqQuizPane'); pane.scrollTop = pane.scrollHeight;
   }
@@ -1153,6 +1168,225 @@
     inp.onchange = () => { [...inp.files].forEach(f => addImageFile(f, i)); };
     inp.click();
   }
+  // ═════════════════════════════════════════════════════════════
+  // SOP 路徑題組（2026-11-20 第 1a 步：講師選 SOP、選起點、在仿 DMS 的 SOP 面板走一次＝標準答案）
+  //   md = { type:'sop', taskbot, sopName, flowId, version, start, answer:[{n:節點, pick:選項或分支序號}], snap:{節點快照}, points }
+  //   answer 存路線（發佈給專員時會被拿掉）；snap 存路線上每個節點出題當時的內容（SOP 改版時比對用）
+  //   SOP 來源：排程 rrqp_sop.py 每天從 DMS SOP Tool 抓上線版 → sopFlows/{taskbot}
+  // ═════════════════════════════════════════════════════════════
+  const SOPS = {};                 // taskbot → 整份 SOP（講師畫面快取）
+  let SOP_LIST = null;             // 上線中的 SOP 清單
+  const SOP_LOADING = {};
+  const SOP_PICKSTART = {};        // 模組 id → 正在選起點
+  // DMS Pending Reason 視窗的 Pending by（value 與 SOP pending 節點的 pending_by 相同；dev/dms-ui/pending_by.json）
+  const PENDING_BY = { 4: 'Buyer for Evidence', 5: 'Seller for Evidence', 6: 'BD Team', 7: 'CB Team', 8: 'Logistic Investigation', 9: 'Agent', 10: 'Warehouse',
+    12: 'Buyer and Seller for Evidence', 13: 'Buyer for Return Shipping Proof', 14: 'Item Return to Seller/Warehouse', 15: 'Other Shopee Teams', 16: 'Escalate to Supervisor',
+    17: 'POD Requested to 3PL', 18: 'Awaiting POD Recognition', 21: 'Pending legal/police investigation',
+    29: 'Reassignment – Dispute cancellation with new return request, reassign to Dispute', 30: 'Reassignment – Keyword/aging case, escalate to L2',
+    31: '(TW use)Reassignment – Routed to Flow C', 32: 'Reassignment – Special mall seller', 33: '(TW use)Reassignment – Routed to Flow A',
+    34: '(TW use)Reassignment – Routed to Flow B', 35: '(TW Pause use) A', 36: '(TW Pause use) B', 37: '(TW Pause use) C', 46: 'Pending for Seller Return' };
+  const SOP_TYPE = { manual: '專員選', system: '系統判讀', pending: 'Pending', note: 'Note and Reminder', message: '訊息', validate: 'Validate Proof', judge: '判決', end: '結束' };
+
+  function sopLoadList() {
+    if (SOP_LIST || SOP_LOADING.list) return;
+    SOP_LOADING.list = true;
+    X.api('c_sopList').then((r) => { SOP_LIST = r.items || []; renderSide(); })
+      .catch((e) => { SOP_LIST = []; X.toast('讀取 SOP 清單失敗：' + e.message, 6000); })
+      .finally(() => { SOP_LOADING.list = false; });
+  }
+  function sopLoad(tb) {
+    if (!tb || SOPS[tb] || SOP_LOADING[tb]) return;
+    SOP_LOADING[tb] = true;
+    X.api('c_sopGet', { taskbot: tb }).then((r) => { SOPS[tb] = r.sop; renderSide(); })
+      .catch((e) => X.toast(`讀取 ${tb} 失敗：` + e.message, 6000))
+      .finally(() => { SOP_LOADING[tb] = false; });
+  }
+
+  // 下一個節點：manual 選項、system 分支、其他節點只有一條路（pick 0）
+  function sopNext(node, pick) {
+    if (!node) return null;
+    if (node.type === 'manual') return ((node.options || [])[pick] || {}).to || null;
+    if (node.type === 'system') return ((node.branches || [])[pick] || {}).to || null;
+    return node.to || null;
+  }
+  const sopOtherFlow = (sop, nid) => nid && !String(nid).startsWith(sop.taskbot + '_');
+  /** 照標準答案從起點走一次：回傳每一步（含節點），以及目前停在哪個節點、是不是終點 */
+  function sopWalk(md, sop) {
+    const steps = [];
+    let nid = md.start;
+    for (const st of md.answer || []) {
+      if (st.n !== nid) break;                         // 路線和 SOP 對不上（改版）→ 停在這
+      const node = sop.nodes[nid];
+      if (!node) break;
+      steps.push({ n: nid, pick: st.pick, node });
+      nid = sopNext(node, st.pick);
+    }
+    const node = nid ? sop.nodes[nid] : null;
+    const end = !nid ? 'dead' : sopOtherFlow(sop, nid) ? 'jump' : !node ? 'missing' : node.type === 'judge' || node.type === 'end' ? 'final' : '';
+    return { steps, cur: nid, node, end, broken: steps.length < (md.answer || []).length };
+  }
+  const sopPickLabel = (node, pick) => node.type === 'manual' ? ((node.options || [])[pick] || {}).label || '' : node.type === 'system' ? ((node.branches || [])[pick] || {}).label || '' : '';
+  const sopNodeTitle = (node) => node.type === 'manual' ? (node.question || node.name) : node.name;
+  /** 動作節點（Pending、Note and Reminder）要做的事：給講師確認，1b 再做成底部操作列 */
+  function sopActionHtml(node) {
+    let h = '';
+    (node.pending || []).forEach((p) => {
+      h += `<div class="sop-act">Pending Reason：<b>${esc(PENDING_BY[p.pending_by] || (p.pending_by ? 'Pending by ' + p.pending_by : '（沒有指定 Pending by）'))}</b>${p.remark ? `<div class="sop-rmk">Remark 範本：${esc(p.remark)}</div>` : ''}</div>`;
+    });
+    (node.note || []).forEach((p) => {
+      h += `<div class="sop-act">Note and Reminder：更新真實退貨原因${p.real_return_reason ? '（' + esc(p.real_return_reason) + '）' : ''}${String(p.remark || '').trim() ? `<div class="sop-rmk">Remark 範本：${esc(p.remark)}</div>` : ''}</div>`;
+    });
+    if (node.codes && node.codes.length) h += `<div class="sop-act">代碼：${node.codes.map(esc).join('、')}</div>`;
+    return h;
+  }
+
+  function sopEditHtml(md, i) {
+    if (!md.taskbot) {
+      sopLoadList();
+      if (!SOP_LIST) return '<div class="hint">載入 SOP 清單…</div>';
+      if (!SOP_LIST.length) return '<div class="hint">還沒有 SOP（排程 rrqp_sop.py 還沒同步）</div>';
+      return `<div class="lbl">選擇 SOP（每天從 DMS SOP Tool 同步上線版）</div>
+        <select onchange="CQ.sopSet(${i},this.value)"><option value="">請選擇</option>
+          ${SOP_LIST.map((x) => `<option value="${esc(x.taskbot)}">${esc(x.taskbot)}｜${esc(x.name)}（${esc(x.version)}）</option>`).join('')}</select>`;
+    }
+    const sop = SOPS[md.taskbot];
+    if (!sop) { sopLoad(md.taskbot); return `<div class="hint">載入 ${esc(md.taskbot)}…</div>`; }
+    const changed = md.flowId && md.flowId !== sop.flowId;
+    let h = `<div class="sop-head"><b>${esc(md.taskbot)}｜${esc(sop.taskbotName || md.sopName)}</b>
+        <span class="hint" style="margin:0">${esc(md.flowId || sop.flowId)}</span>
+        <button class="mbtn" onclick="CQ.sopReset(${i},'taskbot')">更換 SOP</button></div>`;
+    if (changed) h += `<div class="sop-warn">這題用的是 ${esc(md.flowId)}，目前上線版是 ${esc(sop.flowId)}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
+
+    // 起點
+    if (!md.start || SOP_PICKSTART[md.id]) {
+      return h + `<div class="lbl">選擇起點（搜尋節點名稱或問題）</div>
+        <div class="erow"><input type="search" placeholder="例如：是否有寄回、買家證據" oninput="CQ.sopSearch(${i},this.value)">
+          <button class="mbtn" onclick="CQ.sopStart(${i},'${esc(sop.root)}')">從 SOP 開頭開始</button>
+          ${md.start ? `<button class="mbtn" onclick="CQ.sopCancelStart(${i})">取消</button>` : ''}</div>
+        <div class="sop-res" id="sopres-${md.id}"><div class="hint">輸入關鍵字後列出符合的節點（專員選、系統判讀的節點）</div></div>`;
+    }
+    const w = sopWalk(md, sop);
+    const st = sop.nodes[md.start];
+    h += `<div class="sop-start">起點：<b>${esc(st ? (st.name || sopNodeTitle(st)) : md.start)}</b> <span class="sop-id">${esc(md.start)}</span>
+      <button class="mbtn" onclick="CQ.sopPickStart(${i})">更換起點</button></div>`;
+    if (w.broken) h += `<div class="sop-warn">標準答案第 ${w.steps.length + 1} 步之後和目前的 SOP 對不上（節點被改或刪除），請從最上面的節點重新選。</div>`;
+    if (w.end) h += `<div class="sop-okbar">✔ 標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? '：跳到其他 SOP，先當成終點' : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : ''}</div>`;
+    return h + sopCardsHtml(md, i, sop, w);
+  }
+
+  // ───────── 仿 DMS 右側 SOP 面板（__federation_expose_Sop：sop-item 卡片、最新的在最上面、舊的收合成一列） ─────────
+  const SOP_ICON_SYS = '<svg class="sopic" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.456 7.188H.5V8.37c0 .553.428 1.004.956 1.004h4.066v.813H4.086a.49.49 0 0 0-.478.5c0 .276.214.5.478.5h3.826a.49.49 0 0 0 .479-.5.49.49 0 0 0-.479-.5H6.479v-.813h4.065c.527 0 .956-.45.956-1.005V7.188H1.457ZM10.544.5H1.456C.929.5.5.951.5 1.505v4.683h11V1.505C11.5.951 11.072.5 10.544.5Z" fill="#2673DD"/></svg>';
+  const SOP_ICON_AGENT = '<svg class="sopic" width="16" height="16" viewBox="0 0 16 16"><path fill="#5c7" d="M7.78 1.006c-1.738.102-3.17 1.52-3.287 3.257C4.36 6.31 5.969 8.018 7.985 8.018a3.507 3.507 0 0 0 3.508-3.506c.014-2.016-1.68-3.623-3.712-3.506zM8 9.157c-2.338 0-7 1.169-7 3.506v1.753c0 .321.263.584.585.584h12.83a.586.586 0 0 0 .585-.584v-1.768c0-2.322-4.662-3.491-7-3.491z"/></svg>';   // DMS 原圖（Chris 2026-11-20）
+  const SOP_ICON_TODO = '<svg class="sopic" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="none" stroke="#ee4d2d" stroke-width="1.4"/><path d="M7 3.8V7l2.2 1.4" fill="none" stroke="#ee4d2d" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  const SOP_ICON_TO = '<svg class="sopic" width="16" height="16" viewBox="0 0 16 16" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.424 13.163a.5.5 0 0 1-.707-.707l4.458-4.458H1.618a.5.5 0 1 1 0-1h11.557L8.716 2.54a.5.5 0 0 1 .708-.707l5.311 5.312a.5.5 0 0 1 .058.638l-.058.069-5.311 5.312Z" fill="#758196"/></svg>';   // DMS 原圖（Chris 2026-11-20）
+  const SOP_ICON_UP = '<svg class="sopic" width="16" height="16" viewBox="0 0 32 32"><path fill="#0a1f44" transform="rotate(-90 16 16)" d="M9 5c0-.6.4-1 1-1 .2 0 .5.1.7.3l12 11c.2.2.3.5.3.7 0 .3-.1.5-.3.7l-12 11c-.4.4-1 .3-1.4-.1-.4-.4-.3-1 .1-1.4L20.5 16 9.3 5.7C9.1 5.5 9 5.3 9 5z"/></svg>';   // DMS 原圖（Chris 2026-11-20）
+  const SOP_ICON_RIGHT = '<svg class="sopic" width="16" height="16" viewBox="0 0 32 32"><path fill="#0a1f44" d="M9 5c0-.6.4-1 1-1 .2 0 .5.1.7.3l12 11c.2.2.3.5.3.7 0 .3-.1.5-.3.7l-12 11c-.4.4-1 .3-1.4-.1-.4-.4-.3-1 .1-1.4L20.5 16 9.3 5.7C9.1 5.5 9 5.3 9 5z"/></svg>';   // DMS 原圖（Chris 2026-11-20）
+  const SOP_ICON_COPY = '<svg class="sopic-copy" width="10" height="10" viewBox="0 0 10 10"><path fill="#2673dd" d="M6.04 5 5 3.96 7.24 1.72 5.52 0H9.7c.17 0 .3.13.3.3v4.18L8.28 2.76 6.04 5ZM1.43 1.43v7.14h7.14V4.29L10 5.71V9.4c0 .33-.27.6-.6.6H.6A.6.6 0 0 1 0 9.4V.6C0 .27.27 0 .6 0h3.69l1.43 1.43H1.43Z"/></svg>';
+  const SOP_BTN = { pending: 'Pending Reason', note: 'Note And Reminder', validate: 'Validate Proof', message: 'Done' };
+  const SOP_OPEN = {};             // 模組 id → { 節點: true/false }（講師自己展開、收合的）
+  /** DMS 的 Node Point ID：SOP71_F17_Node556 */
+  const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(sop.flowId || '').split('_')[1] || ''}_`);
+
+  function sopCardsHtml(md, i, sop, w) {
+    // 卡片由新到舊：目前節點（還沒選）→ 走過的每一步
+    const items = w.steps.map((x, k) => ({ k, n: x.n, node: x.node, pick: x.pick, done: true }));
+    if (w.cur && w.node) items.push({ k: w.steps.length, n: w.cur, node: w.node, pick: null, done: !!w.end });
+    items.reverse();
+    const open = SOP_OPEN[md.id] || {};
+    return '<div class="sop-panel">' + items.map((it, idx) => {
+      const node = it.node, exp = it.n in open ? open[it.n] : idx < 3;
+      const isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
+      const ans = it.pick === null ? '-' : isPick ? sopPickLabel(node, it.pick) : node.type === 'judge' || node.type === 'end' ? node.name : (SOP_BTN[node.type] || '');
+      const title = node.type === 'manual' ? (node.question || node.name) : node.name;
+      let body = '';
+      if (exp) {
+        body = `<div class="sopi-title">${esc(title)}</div>`;
+        if (isPick) {
+          const opts = isSys ? (node.branches || []).map((b) => b.label || (b.default ? 'Default' : '')) : (node.options || []).map((o) => o.label);
+          body += `<div class="sopi-opts">${opts.map((lab, oi) => `<label class="sopr ${it.pick === oi ? 'on' : ''} ${isSys ? 'sopr-sys' : ''}">
+              <input type="radio" name="sop${md.id}_${it.k}" ${it.pick === oi ? 'checked' : ''} onclick="CQ.sopPickAt(${i},${it.k},${oi})"><span>${esc(lab)}</span></label>`).join('')}</div>`;
+          if (isSys) body += `<div class="sopi-note">系統判讀：DMS 依案件資料自動選；請依這個案件的事實選（專員作答時自動帶過、不計分）${
+            (node.branches || []).some((b) => (b.rules || []).length) ? '<br>' + (node.branches || []).filter((b) => (b.rules || []).length).map((b) => esc(`${b.label}：${b.rules.map((r) => (r.varName || r.var) + ' ' + (r.value || []).join('、')).join('；')}`)).join('<br>') : ''}</div>`;
+        } else {
+          if (node.text) body += `<div class="sopi-text">${esc(node.text)}</div>`;
+          const act = sopActionHtml(node);
+          if (act) body += `<div class="sopi-note">${act}</div>`;
+          if (node.type === 'judge' && node.judge && node.judge.judging_reason) body += `<div class="sopi-note">判決理由：${esc(node.judge.judging_reason)}</div>`;
+          if (SOP_BTN[node.type]) body += `<button class="sopi-btn" ${it.done ? 'disabled' : ''} onclick="CQ.sopPick(${i},0)">${SOP_BTN[node.type]}</button>`;
+        }
+        body += `<div class="sopi-bottom"><span class="sopi-pid" title="Node Point ID">${esc(sopPointId(sop, it.n))}</span><span onclick="CQ.sopCopy('${esc(sopPointId(sop, it.n))}')">${SOP_ICON_COPY}</span></div>`;
+      }
+      return `<div class="sopi ${exp ? 'shadow' : ''}">
+        <div class="sopi-head" onclick="CQ.sopToggle(${i},'${esc(it.n)}',${exp ? 0 : 1})">
+          <div class="sopi-left">${it.done ? '' : SOP_ICON_TODO}${isSys ? SOP_ICON_SYS : SOP_ICON_AGENT}
+            ${exp ? '' : `<span class="sopi-ell w200">${esc(node.name || title)}</span>${SOP_ICON_TO}<span class="sopi-ell w120">${esc(ans)}</span>`}</div>
+          ${exp ? SOP_ICON_UP : SOP_ICON_RIGHT}</div>${body}</div>`;
+    }).join('') + (w.end === 'jump' ? `<div class="sopi"><div class="sopi-title">跳到其他 SOP：${esc(w.cur)}</div></div>` : '') + '</div>';
+  }
+  function sopToggle(i, nid, v) { const id = C.modules[i].id; (SOP_OPEN[id] = SOP_OPEN[id] || {})[nid] = !!v; renderSide(); }
+  function sopCopy(t) { try { navigator.clipboard.writeText(t); X.toast('已複製 ' + t); } catch (_) { /* 複製失敗不影響 */ } }
+  /** 在第 k 步選 opt：k 是已走過的步驟就像 DMS「重新選擇這個節點」，之後的節點一起更新 */
+  function sopPickAt(i, k, opt) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    const w = sopWalk(md, sop);
+    if (k < w.steps.length) {
+      if (w.steps[k].pick === opt) return;
+      if (k < w.steps.length - 1 || w.end) { if (!confirm('確定要重新選擇這個節點？之後的節點會一起更新。')) { renderSide(); return; } }
+      md.answer = w.steps.slice(0, k).map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.steps[k].n, pick: opt }]);
+    } else {
+      md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.cur, pick: opt }]);
+    }
+    sopSnap(md, sop); saveCase(); renderSide();
+  }
+
+  /** 路線上每個節點出題當時的內容（之後 SOP 改版時逐一比對） */
+  function sopSnap(md, sop) {
+    const w = sopWalk(md, sop), snap = {};
+    w.steps.forEach((x) => { snap[x.n] = x.node; });
+    if (w.cur && w.node) snap[w.cur] = w.node;
+    md.snap = snap; md.flowId = sop.flowId; md.version = sop.version || ''; md.sopName = sop.taskbotName || '';
+  }
+  function sopSet(i, tb) {
+    const md = C.modules[i];
+    Object.assign(md, { taskbot: tb, sopName: '', flowId: '', version: '', start: '', answer: [], snap: {} });
+    SOP_PICKSTART[md.id] = true; saveCase(); renderSide();
+  }
+  function sopReset(i) {
+    if ((C.modules[i].answer || []).length && !confirm('更換 SOP 會清掉目前設定的路線，確定？')) return;
+    sopSet(i, '');
+  }
+  function sopSearch(i, q) {
+    const md = C.modules[i], sop = SOPS[md.taskbot], box = document.getElementById('sopres-' + md.id);
+    if (!sop || !box) return;
+    const k = String(q || '').trim().toLowerCase();
+    if (!k) { box.innerHTML = '<div class="hint">輸入關鍵字後列出符合的節點</div>'; return; }
+    const hits = Object.entries(sop.nodes).filter(([, n]) => (n.type === 'manual' || n.type === 'system')
+      && ((n.name || '') + ' ' + (n.question || '')).toLowerCase().includes(k)).slice(0, 40);
+    box.innerHTML = hits.length ? hits.map(([id, n]) => `<div class="sop-hit" onclick="CQ.sopStart(${i},'${esc(id)}')">
+        <span class="sop-tag">${SOP_TYPE[n.type]}</span>${esc(sopNodeTitle(n))} <span class="sop-id">${esc(id)}</span></div>`).join('')
+      : '<div class="hint">找不到符合的節點</div>';
+  }
+  function sopStart(i, nid) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    if (md.start && md.start !== nid && (md.answer || []).length && !confirm('更換起點會清掉目前設定的路線，確定？')) return;
+    if (md.start !== nid) md.answer = [];
+    md.start = nid; delete SOP_PICKSTART[md.id];
+    sopSnap(md, sop); saveCase(); renderSide();
+  }
+  function sopPickStart(i) { SOP_PICKSTART[C.modules[i].id] = true; renderSide(); }
+  function sopCancelStart(i) { delete SOP_PICKSTART[C.modules[i].id]; renderSide(); }
+  function sopPick(i, k) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    const w = sopWalk(md, sop);
+    md.answer = w.steps.map((x) => ({ n: x.n, pick: x.pick })).concat([{ n: w.cur, pick: k }]);   // 對不上的舊路線一併丟掉
+    sopSnap(md, sop); saveCase(); renderSide();
+  }
+  function sopBack(i, k) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    md.answer = (md.answer || []).slice(0, k);
+    sopSnap(md, sop); saveCase(); renderSide();
+  }
+
   // ===== 燈箱（滾輪縮放） =====
   function openLightbox(url, type, videoUrl, mk) {
     lbScale = 1;
@@ -1266,7 +1500,7 @@
     return c;
   };
   function exShow(i) {
-    EX.idx = i; MAIN = C = EX.cases[i]; VIEW = -1; A = EX.ans[i];
+    EX.idx = i; MAIN = C = EX.cases[i]; VIEW = -1; A = EX.ans[i]; sideDrawn = '';
     renderAll();
     window.scrollTo({ top: 0 });
   }
@@ -1492,7 +1726,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
