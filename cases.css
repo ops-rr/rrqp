@@ -417,3 +417,13 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .am-btn{min-width:72px;height:34px;padding:0 16px;border:1px solid #d9d9d9;border-radius:2px;background:#fff;color:#333;font-size:14px;cursor:pointer}
 .cq .am-btn.pri{background:#ee4d2d;border-color:#ee4d2d;color:#fff}
 .cq .cq-actbar .actb:first-child{margin-left:auto}
+
+/* Request Proof 的 Evidence Module（2026-11-21） */
+.am-ev{width:100%;border-collapse:collapse;margin:4px 0;font-size:13px}
+.am-ev th{background:#f3f4f6;color:#555;font-weight:400;text-align:left;padding:6px 8px}
+.am-ev td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:middle}
+.am-ev td:first-child,.am-ev th:first-child{width:36px}
+.am-ev td:nth-child(3),.am-ev th:nth-child(3){width:110px}
+.am-ev td:last-child,.am-ev th:last-child{width:24px}
+.am-ev input,.am-ev select{width:100%;box-sizing:border-box}
+.am-add{color:#ee4d2d;cursor:pointer;margin:4px 0 8px;font-size:13px;display:inline-block}

@@ -515,7 +515,7 @@
   }
 
   function newAnswer() {
-    return { mc: {}, short: {}, submitted: false, startAt: Date.now(), leaves: 0, leaveMs: 0 };
+    return { mc: {}, short: {}, sop: {}, submitted: false, startAt: Date.now(), leaves: 0, leaveMs: 0 };
   }
   function saveAnswer() { if (EX && !EX.readOnly) EX.dirtyAns = true; }   // 專員預覽不記錄；測驗中排程自動儲存
 
@@ -982,8 +982,7 @@
           <div class="hint">點圖片可放大</div></div>`;
       }
       if (md.type === 'mc') html += mcAgentHtml(md, qn[md.id]);
-      if (md.type === 'sop') html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. SOP 路徑<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>
-        <div class="hint">SOP 路徑題的作答畫面還在開發中（2026-11 第 2 步）。</div></div>`;
+      if (md.type === 'sop') html += sopAgentHtml(md, C.modules.indexOf(md), qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">說明第 ${qn[md.bindTo]} 題的選擇</div>` : '';
         html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
@@ -1301,7 +1300,8 @@
     h += `<label class="sop-hintset"><input type="checkbox" ${md.hint ? 'checked' : ''} onchange="CQ.setMod(${i},'hint',this.checked)">
       專員點 SOP 動作按鈕後，底部對應的功能亮起提示（練習用建議開、考試用建議關）</label>`;
     const outside = (md.acts || []).filter((a) => !a.link);
-    if (outside.length) h += `<div class="sop-outside"><b>SOP 以外的操作</b>（沒有先點 SOP 卡片上的按鈕）${outside.map((a) => actLine(md, a, i)).join('')}</div>`;
+    h += `<div class="hint">點了 SOP 卡片上的按鈕之後，在底部操作列做的操作（可以好幾個）都記在那個節點，示範的順序就是正解。</div>`;
+    if (outside.length) h += `<div class="sop-outside"><b>SOP 以外的操作</b>（沒有先點 SOP 卡片上的按鈕，或是點完之後又選了其他節點）${outside.map((a) => actLine(md, a, i)).join('')}</div>`;
     return h + sopCardsHtml(md, i, sop, w);
   }
 
@@ -1316,29 +1316,36 @@
   const SOP_BTN = { pending: 'Pending Reason', note: 'Note And Reminder', validate: 'Validate Proof', message: 'Done' };
   const SOP_OPEN = {};             // 模組 id → { 節點: true/false }（講師自己展開、收合的）
   /** DMS 的 Node Point ID：SOP71_F17_Node556 */
-  const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(((SOPS[tb] || sop) || {}).flowId || '').split('_')[1] || ''}_`);
+  const sopPool = () => (EX ? EX.sops || {} : SOPS);   // 測驗中用發佈時的專員版；其他時候用講師畫面載入的上線版
+  const sopPointId = (sop, nid) => String(nid).replace(/^(SOP\d+)_/, (m0, tb) => `${tb}_${String(((sopPool()[tb] || sop) || {}).flowId || '').split('_')[1] || ''}_`);
 
   function sopCardsHtml(md, i, sop, w) {
     // 卡片照順序由上往下（跟 DMS 一樣：最上面是起點，最新的在最下面；2026-11-20 Chris）
+    // 專員作答（2026-11-21）：系統判讀節點自動帶過、預設收合、不能選；判決／結束只顯示「已到終點」；不顯示 SOP 綁定的動作內容（DMS 卡片上也沒有）
+    const ag = !isEdit(), lock = ag && A.submitted;
     const items = w.steps.map((x, k) => ({ k, n: x.n, node: x.node, pick: x.pick, clicked: x.clicked, done: true }));
     if (w.cur && w.node) items.push({ k: w.steps.length, n: w.cur, node: w.node, pick: null, done: !!w.end });
     const open = SOP_OPEN[md.id] || {};
     return '<div class="sop-panel">' + items.map((it, idx) => {
-      const node = it.node, exp = it.n in open ? open[it.n] : idx >= items.length - 3;
-      const isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
-      const ans = it.pick === null ? '-' : isPick ? sopPickLabel(node, it.pick) : node.type === 'judge' || node.type === 'end' ? node.name : (SOP_BTN[node.type] || '');
-      const title = node.type === 'manual' ? (node.question || node.name) : node.name;
+      const node = it.node, isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
+      const isFinal = node.type === 'final' || node.type === 'judge' || node.type === 'end';
+      const exp = it.n in open ? open[it.n] : ag && isSys ? false : idx >= items.length - 3;
+      const ans = it.pick === null ? '-' : isPick ? sopPickLabel(node, it.pick) : isFinal ? (ag ? '已到終點' : node.name) : (SOP_BTN[node.type] || '');
+      const title = ag && isFinal ? '已到終點' : node.type === 'manual' ? (node.question || node.name) : node.name;
       let body = '';
       if (exp) {
         body = `<div class="sopi-title">${esc(title)}</div>`;
         if (isPick) {
           const opts = isSys ? (node.branches || []).map((b) => b.label || (b.default ? 'Default' : '')) : (node.options || []).map((o) => o.label);
+          const can = !lock && !(ag && isSys);
           body += `<div class="sopi-opts">${opts.map((lab, oi) => `<label class="sopr ${it.pick === oi ? 'on' : ''} ${isSys ? 'sopr-sys' : ''}">
-              <input type="radio" name="sop${md.id}_${it.k}" ${it.pick === oi ? 'checked' : ''} onclick="CQ.sopPickAt(${i},${it.k},${oi})"><span>${esc(lab)}</span></label>`).join('')}</div>`;
+              <input type="radio" name="sop${md.id}_${it.k}" ${it.pick === oi ? 'checked' : ''} ${can ? `onclick="CQ.${ag ? 'agPick' : 'sopPickAt'}(${i},${it.k},${oi})"` : 'disabled'}><span>${esc(lab)}</span></label>`).join('')}</div>`;
           // 系統判讀的條件不顯示（2026-11-20 Chris：不需要）
+        } else if (ag && isFinal) {
+          body += `<div class="sopi-text">${A.submitted ? '這條路線走到終點。' : '這條路線走到終點了，可以交卷，或點上面的節點重新選擇。'}</div>`;
         } else {
           if (node.text) body += `<div class="sopi-text">${esc(node.text)}</div>`;
-          const act = sopActionHtml(node);
+          const act = ag ? '' : sopActionHtml(node);
           if (act) body += `<div class="sopi-note">${act}</div>`;
           if (node.type === 'judge' && node.judge && node.judge.judging_reason) body += `<div class="sopi-note">判決理由：${esc(node.judge.judging_reason)}</div>`;
           body += sopBtnsHtml(md, i, node, it);
@@ -1370,12 +1377,14 @@
     if (x.includes('proof') && x.includes('seller')) return 'proofSeller';
     if (x.includes('note')) return 'note';
     if (x.includes('judge')) return 'judge';
-    return 'other';
+    if (x.includes('case done')) return 'caseDone';
+    return 'note';                   // 其他按鈕（Remark…）一律比照 Note And Reminder（Chris 11-21）
   }
   /** 節點綁定的動作按鈕（SOP 資料裡的按鈕；按鈕文字決定是哪個功能，SOP 設定的類型有時候是錯的） */
   function sopButtons(node) {
     const raw = node.pending || node.note || node.buttons || [];
-    let out = raw.map((b) => ({ kind: btnKind(b.button_text), text: b.button_text || '',
+    const fin = node.type === 'judge' || node.type === 'end' || node.type === 'final';   // 判決節點的按鈕只顯示、不用點
+    let out = raw.map((b) => ({ kind: fin ? 'judge' : btnKind(b.button_text), text: b.button_text || '',
       bind: { pendingBy: b.pending_by || null, remark: String(b.remark || '').trim(), realReason: b.real_return_reason || '' } }));
     if (!out.length && node.type === 'pending') out = [{ kind: 'pending', text: 'Pending Reason', bind: {} }];
     if (!out.length && node.type === 'note') out = [{ kind: 'note', text: 'Note And Reminder', bind: {} }];
@@ -1383,19 +1392,20 @@
   }
   const reqButtons = (node) => sopButtons(node).filter((b) => ACT_KINDS[b.kind]);
   function sopBtnsHtml(md, i, node, it) {
+    const ag = !isEdit(), st = sopState(md), lock = ag && A.submitted;
     const all = sopButtons(node), req = reqButtons(node);
-    const clicked = it.done ? (it.clicked && it.clicked.length ? it.clicked : req.map((_, k) => k)) : (md.cur && md.cur.n === it.n ? md.cur.clicked : []);
+    const clicked = it.done ? (it.clicked && it.clicked.length ? it.clicked : req.map((_, k) => k)) : (st.cur && st.cur.n === it.n ? st.cur.clicked : []);
     let h = '';
     let r = -1;
     all.forEach((b) => {
       if (!ACT_KINDS[b.kind]) { h += `<button class="sopi-btn" disabled title="判決不用操作，走到這裡就結束">${esc(b.text)}</button>`; return; }
       r++;
       const on = clicked.includes(r);
-      h += `<button class="sopi-btn ${on ? 'clicked' : ''}" ${it.done || on ? 'disabled' : ''} onclick="CQ.sopBtn(${i},${r})">${on ? '✓ ' : ''}${esc(b.text)}</button>`;
+      h += `<button class="sopi-btn ${on ? 'clicked' : ''}" ${it.done || on || lock ? 'disabled' : ''} onclick="CQ.${ag ? 'agBtn' : 'sopBtn'}(${i},${r})">${on ? '✓ ' : ''}${esc(b.text)}</button>`;
     });
-    if (!req.length && !it.done && node.type !== 'judge' && node.type !== 'end') h += `<button class="sopi-btn" onclick="CQ.sopPick(${i},0)">${esc(SOP_BTN[node.type] || 'Done')}</button>`;
-    const acts = (md.acts || []).filter((a) => a.link && a.link.n === it.n);
-    if (acts.length) h += `<div class="sop-acts">${acts.map((a) => actLine(md, a, i)).join('')}</div>`;
+    if (!req.length && !it.done && !lock && !['judge', 'end', 'final'].includes(node.type)) h += `<button class="sopi-btn" onclick="CQ.${ag ? `agPick(${i},${it.k},0)` : `sopPick(${i},0)`}">${esc(SOP_BTN[node.type] || 'Done')}</button>`;
+    const acts = (st.acts || []).filter((a) => a.link && a.link.n === it.n);
+    if (acts.length) h += `<div class="sop-acts">${acts.map((a, n) => actLine(md, a, i, n + 1)).join('')}</div>`;
     else if (req.length && clicked.length) h += `<div class="sop-acts none">還沒有在底部操作列做對應的操作</div>`;
     return h;
   }
@@ -1406,10 +1416,12 @@
     if (a.kind === 'note') return `Real Return Reason：${f.realReason || '-'}｜Remind me：${f.remindMe ? 'Yes' : 'No'}`;
     return '';
   }
-  function actLine(md, a, i) {
+  function actLine(md, a, i, no) {
     const f = a.fields || {};
-    return `<div class="sop-act-line"><div class="sop-act-txt"><b>✔ ${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
-      <button class="mbtn del" title="刪除這筆操作紀錄" onclick="CQ.actDel(${i},${a.seq})">✕</button></div>`;
+    const items = (f.items || []).length ? `<div class="sop-rmk">證據項目：${f.items.map((x, k) => `${k + 1}. ${esc(x.hint)}${x.req ? '' : '（Optional）'}`).join('　')}</div>` : '';
+    const ck = f.checklist ? `<div class="sop-rmk">Checklist：${esc(f.checklist)}</div>` : '';
+    return `<div class="sop-act-line"><div class="sop-act-txt"><b>${no ? no + '. ' : ''}✔ ${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${ck}${items}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
+      ${isEdit() ? `<button class="mbtn del" title="刪除這筆操作紀錄" onclick="CQ.actDel(${i},${a.seq})">✕</button>` : ''}</div>`;
   }
   function sopBtn(i, r) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
@@ -1437,7 +1449,8 @@
   function renderActbar() {
     const bar = document.getElementById('cqActs');
     if (!bar) return;
-    const show = !EX && isEdit() && sopMods().length > 0 && VIEW < 0;
+    // 講師編輯：示範操作；專員作答（測驗、講師預覽）：交卷前都可以操作
+    const show = sopMods().length > 0 && VIEW < 0 && (isEdit() ? !EX : !(A && A.submitted));
     bar.style.display = show ? '' : 'none';
     document.getElementById('cq').classList.toggle('has-acts', show);
     if (!show) { ACT_MODAL = null; renderActModal(); return; }
@@ -1450,29 +1463,42 @@
   /** 這次操作要記到哪一題：最近操作的 SOP 題組，沒有就第一個還沒走完的 */
   function actTarget() {
     const mods = sopMods();
-    return mods.find((m) => m.id === ACTIVE_SOP) || mods.find((m) => { const sop = SOPS[m.taskbot]; return sop && m.start && !sopWalk(m, sop).end; }) || mods[0];
+    return mods.find((m) => m.id === ACTIVE_SOP) || mods.find((m) => m.start && (isEdit() ? SOPS[m.taskbot] && !sopWalk(m).end : !agWalk(m).end)) || mods[0];
   }
-  /** 這個功能對應到 SOP 上哪一顆「點過、還沒做」的按鈕（最新的優先） */
+  /** 這次操作記到 SOP 哪個節點（2026-11-21 Chris：一顆按鈕可能要做好幾個操作，例如「向賣家索取證明」＝發賣家證據卡＋Pending 等賣家回應＋Case Done）
+   *  規則：目前節點點過按鈕 → 記在目前節點；不然往回找最近一個點過按鈕的節點，中間只經過系統判讀節點才算（選過其他節點就算 SOP 以外的操作）
+   *  同一個節點底下的操作照做的順序排，講師示範的順序就是正解；b＝同類的按鈕（帶綁定欄位用），沒有同類就用最後點的那顆 */
   function actLinkFor(md, kind) {
-    const sop = SOPS[md.taskbot];
-    if (!sop || !md.start) return null;
-    const w = sopWalk(md, sop);
-    const cands = [];
-    w.steps.forEach((x, k) => reqButtons(x.node).forEach((bt, b) => { if (bt.kind === kind && (x.clicked || []).includes(b)) cands.push({ n: x.n, b, k, bind: bt.bind }); }));
-    if (md.cur && md.cur.n === w.cur && w.node) reqButtons(w.node).forEach((bt, b) => { if (bt.kind === kind && md.cur.clicked.includes(b)) cands.push({ n: w.cur, b, k: w.steps.length, bind: bt.bind }); });
-    const used = (md.acts || []).filter((a) => a.link).map((a) => a.link.n + '#' + a.link.b);
-    return cands.reverse().find((c) => !used.includes(c.n + '#' + c.b)) || null;
+    if (!md.start || (isEdit() && !SOPS[md.taskbot])) return null;
+    const w = sopW(md), st = sopState(md);
+    const pick = (n, node, clicked, k) => {
+      const req = reqButtons(node);
+      const same = clicked.filter((b) => req[b] && req[b].kind === kind);
+      const b = same.length ? same[same.length - 1] : clicked[clicked.length - 1];
+      return { n, b, k, bind: same.length ? req[b].bind : {} };
+    };
+    if (st.cur && st.cur.n === w.cur && w.node && st.cur.clicked.length) return pick(w.cur, w.node, st.cur.clicked, w.steps.length);
+    for (let k = w.steps.length - 1; k >= 0; k--) {
+      const x = w.steps[k];
+      if ((x.clicked || []).length && reqButtons(x.node).length) return pick(x.n, x.node, x.clicked, k);
+      if (x.node.type !== 'system') break;
+    }
+    return null;
   }
   function actOpen(kind) {
     const md = actTarget();
     const link = md ? actLinkFor(md, kind) : null;
     const bind = (link && link.bind) || {};     // SOP 有綁定的欄位先帶好（可以改）
     const f = { pendingBy: bind.pendingBy || null, remark: bind.remark || '', template: '', deadline: 'fixed', days: 1, timeType: 'calendar', excludeHolidays: false, email: false,
-      realReason: bind.realReason || '', remindMe: false };
+      realReason: bind.realReason || '', remindMe: false, checklist: '', items: [{ hint: '', req: true }] };
     ACT_MODAL = { kind, f };
     renderActbar();
   }
   function actSet(k, v) { if (ACT_MODAL) ACT_MODAL.f[k] = v; }
+  /** Evidence Module（要索取的證據項目）：改內容不重畫（輸入框才不會跳掉）；新增、刪除才重畫 */
+  function actItem(k, key, v) { if (ACT_MODAL && ACT_MODAL.f.items[k]) ACT_MODAL.f.items[k][key] = v; }
+  function actItemAdd() { if (!ACT_MODAL) return; if (ACT_MODAL.f.items.length >= 10) return X.toast('最多 10 個證據項目'); ACT_MODAL.f.items.push({ hint: '', req: true }); renderActModal(); }
+  function actItemDel(k) { if (!ACT_MODAL) return; ACT_MODAL.f.items.splice(k, 1); renderActModal(); }
   function actClose() { ACT_MODAL = null; renderActbar(); }
   function actConfirm() {
     const m = ACT_MODAL;
@@ -1480,21 +1506,25 @@
     const f = m.f;
     if (m.kind === 'pending' && !f.pendingBy) return X.toast('請選擇 Pending by');
     if ((m.kind === 'proofBuyer' || m.kind === 'proofSeller') && !String(f.template).trim()) return X.toast('請填寫 Evidence checklist template（模板名稱）');
+    if ((m.kind === 'proofBuyer' || m.kind === 'proofSeller') && !f.items.some((x) => String(x.hint).trim())) return X.toast('請至少填一個 Evidence Module（要索取的證據項目）');
     if (m.kind === 'note' && !String(f.realReason).trim()) return X.toast('請填寫 Real Return Reason');
     const md = actTarget();
     if (!md) { ACT_MODAL = null; renderActbar(); return; }
-    const sop = SOPS[md.taskbot];
-    const link = actLinkFor(md, m.kind);
+    const link = actLinkFor(md, m.kind), st = sopState(md);
     const fields = m.kind === 'pending' ? { pendingBy: Number(f.pendingBy), remark: String(f.remark).trim() }
       : m.kind === 'note' ? { realReason: String(f.realReason).trim(), remindMe: !!f.remindMe, remark: String(f.remark).trim() }
       : m.kind === 'caseDone' ? {}
-      : { template: String(f.template).trim(), deadline: f.deadline, days: Number(f.days) || 1, timeType: f.timeType, excludeHolidays: !!f.excludeHolidays, email: !!f.email, remark: String(f.remark).trim() };
-    md.acts = md.acts || [];
-    md.actSeq = (md.actSeq || 0) + 1;
-    md.acts.push({ seq: md.actSeq, kind: m.kind, fields, link: link ? { n: link.n, b: link.b, k: link.k } : null, at: sop && md.start ? sopWalk(md, sop).steps.length : 0 });
+      : { template: String(f.template).trim(), deadline: f.deadline, days: Number(f.days) || 1, timeType: f.timeType, excludeHolidays: !!f.excludeHolidays, email: !!f.email, remark: String(f.remark).trim(),
+        checklist: String(f.checklist).trim(), items: f.items.filter((x) => String(x.hint).trim()).map((x) => ({ hint: String(x.hint).trim(), req: !!x.req })) };
+    st.acts = st.acts || [];
+    st.actSeq = (st.actSeq || 0) + 1;
+    const ac = { seq: st.actSeq, kind: m.kind, fields, link: link ? { n: link.n, b: link.b, k: link.k } : null, at: md.start ? sopW(md).steps.length : 0 };
+    if (EX) ac.t = exNowSec();                 // 專員作答：記下做這個操作的時間（開始作答後第幾秒）
+    st.acts.push(ac);
     if (ACT_HINT === m.kind) ACT_HINT = '';
     ACT_MODAL = null;
-    saveCase(); renderSide();
+    if (isEdit()) saveCase(); else { exEdit(md.id); saveAnswer(); }
+    renderSide();
     X.toast(link ? `已記錄：${ACT_KINDS[m.kind]}（SOP 第 ${link.k + 1} 步）` : `已記錄：${ACT_KINDS[m.kind]}（SOP 以外的操作）`);
   }
   function renderActModal() {
@@ -1521,16 +1551,126 @@
         <div class="am-l"><i>*</i> Remind me</div><div class="am-row">${radio('rm', true, f.remindMe, 'Yes', 'remindMe')}${radio('rm', false, f.remindMe, 'No', 'remindMe')}</div>` + remark(1000);
     } else {
       body = `<div class="am-l"><i>*</i> Evidence checklist template</div><input type="text" value="${esc(f.template)}" placeholder="輸入模板名稱，例如 8.1_退貨_商品缺件_低風險賣家_出貨證明" oninput="CQ.actSet('template',this.value)">
-        <div class="am-hint">DMS 選了模板會帶出 Checklist contents 與 Evidence Module，這裡不用填</div>
+        <div class="am-hint">DMS 選了模板會自動帶出下面兩格；這裡要自己填（索取的證據項目要計分）</div>
         <div class="am-l"><i>*</i> Set evidence deadline</div><div class="am-row">${radio('dl', 'fixed', f.deadline, 'Fixed time', 'deadline')}${radio('dl', 'flexible', f.deadline, 'Flexible time', 'deadline')}</div>
         <select onchange="CQ.actSet('days',+this.value)">${[1, 2, 3, 4, 5, 6, 7].map((d) => `<option value="${d}" ${Number(f.days) === d ? 'selected' : ''}>${d} day${d > 1 ? 's' : ''}</option>`).join('')}</select>
         <div class="am-l"><i>*</i> Proof Time Type</div><div class="am-row">${radio('tt', 'calendar', f.timeType, 'Calendar Days', 'timeType')}${radio('tt', 'working', f.timeType, 'Working Days', 'timeType')}
           <label class="am-r"><input type="checkbox" ${f.excludeHolidays ? 'checked' : ''} onchange="CQ.actSet('excludeHolidays',this.checked)"> Exclude Holidays</label></div>
+        <div class="am-l">Checklist contents</div><textarea maxlength="1000" placeholder="例如 為協助蝦皮審核，請提供相關證明。" oninput="CQ.actSet('checklist',this.value)">${esc(f.checklist)}</textarea>
+        <div class="am-l"><i>*</i> Evidence Module</div>
+        <table class="am-ev"><thead><tr><th>No.</th><th>Hint Text</th><th>If Required</th><th></th></tr></thead><tbody>
+          ${f.items.map((x, k) => `<tr><td>${k + 1}</td><td><input type="text" value="${esc(x.hint)}" placeholder="要索取的證據，例如 可看出正確的商品在良好狀況下依照包裝規範出貨的照片" oninput="CQ.actItem(${k},'hint',this.value)"></td>
+            <td><select onchange="CQ.actItem(${k},'req',this.value==='1')"><option value="1" ${x.req ? 'selected' : ''}>Required</option><option value="0" ${x.req ? '' : 'selected'}>Optional</option></select></td>
+            <td>${f.items.length > 1 ? `<span class="am-x" title="刪除" onclick="CQ.actItemDel(${k})">×</span>` : ''}</td></tr>`).join('')}</tbody></table>
+        <div class="am-add" onclick="CQ.actItemAdd()">⊕ Add Evidence Module</div>
         <div class="am-l"><i>*</i> Email Notification</div><div class="am-row">${radio('em', true, f.email, 'Yes', 'email')}${radio('em', false, f.email, 'No', 'email')}</div>` + remark(1500);
     }
     box.className = 'am-side';
     box.innerHTML = `<div class="am"><div class="am-h">${title}<span class="am-x" onclick="CQ.actClose()">×</span></div><div class="am-b">${body}</div>
       <div class="am-f"><button class="am-btn" onclick="CQ.actClose()">Close</button><button class="am-btn pri" onclick="CQ.actConfirm()">Confirm</button></div></div>`;
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // SOP 路徑題組：專員作答（2026-11-21 第 2 步）
+  //   作答存在 A.sop[模組 id] = { route:[{n, pick, clicked, t}], acts:[…同講師], cur:{n, clicked}, actSeq }
+  //   route 只存專員自己選的步驟；系統判讀節點自動帶過：標準路線上的照講師設定（md.sysPick，發佈時算好），
+  //   不在標準路線上（專員走偏了）就走 Default（批改時標「偏離後的路線」）
+  //   SOP：測驗中用發佈時做的專員版（EX.sops，判決內容已拿掉）；講師用「專員預覽」時用講師畫面載入的上線版
+  // ═════════════════════════════════════════════════════════════
+  function agSt(md, a) {
+    a = a || A;
+    a.sop = a.sop || {};
+    return a.sop[md.id] || (a.sop[md.id] = { route: [], acts: [], cur: null, actSeq: 0 });
+  }
+  /** 講師編輯：題目本身（標準答案）；專員作答：自己的作答 */
+  const sopState = (md) => (isEdit() ? md : agSt(md));
+  const sopW = (md) => (isEdit() ? sopWalk(md) : agWalk(md));
+  function sysPickOf(md, nid, node) {
+    let p = (md.sysPick || {})[nid];
+    if (p === undefined && !EX && Array.isArray(md.answer)) { const s = md.answer.find((x) => x.n === nid); if (s) p = s.pick; }   // 講師預覽：從標準答案找
+    if (Number.isInteger(p) && (node.branches || [])[p]) return { pick: p, off: false };
+    const d = (node.branches || []).findIndex((b) => b.default);
+    return { pick: d >= 0 ? d : 0, off: true };
+  }
+  /** 照專員的作答從起點走：steps 每一步帶 r（對應 route 第幾筆；系統節點 auto） */
+  function agWalk(md, st) {
+    st = st || agSt(md);
+    const pool = sopPool(), steps = [];
+    if (EX && !EX.sops) return { steps, cur: md.start, node: null, end: 'loading' };
+    let nid = md.start, r = 0, guard = 0;
+    while (nid && guard++ < 400) {
+      const tb = sopTbOf(nid);
+      if (!pool[tb]) {
+        if (!EX && (!SOP_LIST || SOP_LIST.some((x) => x.taskbot === tb))) { sopLoad(tb); return { steps, cur: nid, node: null, end: 'loading' }; }
+        break;
+      }
+      const node = pool[tb].nodes[nid];
+      if (!node) break;
+      if (node.type === 'system') {
+        const p = sysPickOf(md, nid, node);
+        steps.push({ n: nid, node, pick: p.pick, auto: true, off: p.off, r });
+        nid = sopNext(node, p.pick);
+        continue;
+      }
+      if (['judge', 'end', 'final'].includes(node.type)) break;
+      const s = st.route[r];
+      if (!s || s.n !== nid) break;
+      steps.push({ n: nid, node, pick: s.pick, clicked: s.clicked || [], r });
+      r++;
+      nid = sopNext(node, s.pick);
+    }
+    const node = nid && pool[sopTbOf(nid)] ? pool[sopTbOf(nid)].nodes[nid] || null : null;
+    const end = guard >= 400 ? 'dead' : !nid ? 'dead' : !node ? (pool[sopTbOf(nid)] ? 'missing' : 'jump') : ['judge', 'end', 'final'].includes(node.type) ? 'final' : '';
+    return { steps, cur: nid, node, end };
+  }
+  /** 專員在第 k 步選 opt（k 是走過的步驟＝重新選擇這個節點；已經做過的操作不會收回，跟 DMS 一樣） */
+  function agPick(i, k, opt) {
+    const md = C.modules[i];
+    if (A.submitted) return;
+    const st = agSt(md), w = agWalk(md);
+    const t = EX ? exNowSec() : 0;
+    if (k < w.steps.length) {
+      const s = w.steps[k];
+      if (s.auto || s.pick === opt) return;
+      if (k < w.steps.length - 1 || w.end) { if (!confirm('確定要重新選擇這個節點？之後的節點會一起更新。')) { renderSide(); return; } }
+      st.route = st.route.slice(0, s.r).concat([{ n: s.n, pick: opt, clicked: [], t }]);
+    } else {
+      if (!w.node || w.end) return;
+      st.route = st.route.slice(0, w.steps.filter((x) => !x.auto).length).concat([{ n: w.cur, pick: opt, clicked: [], t }]);
+    }
+    st.cur = null; ACTIVE_SOP = md.id;
+    exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
+  }
+  /** 專員點 SOP 卡片上的動作按鈕：變色打勾；按鈕都點過就往下一步 */
+  function agBtn(i, r) {
+    const md = C.modules[i];
+    if (A.submitted) return;
+    const st = agSt(md), w = agWalk(md);
+    if (!w.node || w.end) return;
+    const req = reqButtons(w.node);
+    if (!req[r]) return;
+    if (!st.cur || st.cur.n !== w.cur) st.cur = { n: w.cur, clicked: [] };
+    if (!st.cur.clicked.includes(r)) st.cur.clicked.push(r);
+    ACTIVE_SOP = md.id;
+    ACT_HINT = md.hint ? req[r].kind : '';
+    if (req.every((_, k) => st.cur.clicked.includes(k))) {
+      st.route = st.route.slice(0, w.steps.filter((x) => !x.auto).length).concat([{ n: w.cur, pick: 0, clicked: st.cur.clicked.slice(), t: EX ? exNowSec() : 0 }]);
+      st.cur = null;
+    }
+    exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
+  }
+  function sopAgentHtml(md, i, no) {
+    let h = `<div class="mod qmod"><div class="mh">${no}. SOP 路徑<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>`;
+    if (!md.start) return h + '<div class="hint">這題沒有設定 SOP。</div></div>';
+    if (!EX) sopLoadList();
+    const w = agWalk(md);
+    if (w.end === 'loading') return h + `<div class="hint">載入 SOP…</div></div>`;
+    const st = agSt(md);
+    if (!A.submitted) h += `<div class="hint">照 SOP 一步步選。遇到要操作的節點，先點卡片上的按鈕，再到畫面底部的操作列完成操作。</div>`;
+    if (w.end) h += `<div class="sop-okbar">✔ 已到終點${A.submitted ? '' : '（要改的話，點上面的節點重新選擇）'}</div>`;
+    const outside = (st.acts || []).filter((a) => !a.link);
+    if (outside.length) h += `<div class="sop-outside"><b>不是從 SOP 卡片按鈕開始的操作</b>${outside.map((a) => actLine(md, a, i)).join('')}</div>`;
+    return h + sopCardsHtml(md, i, null, w) + '</div>';
   }
 
   /** 選完一步後，把最新的卡片捲到看得到的地方 */
@@ -1702,7 +1842,8 @@
     const readOnly = !!opt.result;
     if (EX && EX.tick) clearInterval(EX.tick);
     EX = { sid: d.session.sessionId, session: d.session, cases, idx: 0, readOnly, reveal: readOnly && !!d.key, result: d.result || null,
-      ans: cases.map((_, i) => { const a = (d.answers || {})[i] || {}; return Object.assign(newAnswer(), { mc: a.mc || {}, short: a.short || {}, submitted: readOnly }); }),
+      ans: cases.map((_, i) => { const a = (d.answers || {})[i] || {}; return Object.assign(newAnswer(), { mc: a.mc || {}, short: a.short || {}, sop: sopAnsOut(a.sop), submitted: readOnly }); }),
+      sops: null,
       track: Object.assign({ c: {}, lv: [], ed: {}, ps: {} }, d.track || {}),
       offset: (d.serverNow || Date.now()) - Date.now(), startedAt: (d.attempt || {}).startedAt || Date.now(), deadline: (d.attempt || {}).deadline || 0,
       dirtyAns: false, dirtyTrack: false, lastSave: Date.now(), saving: false, saveErr: '', awayAt: null, submitting: false };
@@ -1717,6 +1858,8 @@
         <div class="main" id="cqMain"></div>
         <div class="side"><div class="ctabs" id="cqTabs"></div><div id="cqSide"></div></div>
       </div>
+      <div class="cq-actbar" id="cqActs" style="display:none"></div>
+      <div id="cqActModal"></div>
       <div id="cqWm"></div>
       <div id="cqLb" onclick="CQ.closeLightbox(event)"><img id="cqLbImg" alt=""><div class="tip" id="cqLbTip"></div></div>
       <div id="cqPop"></div></div>`;
@@ -1725,12 +1868,21 @@
       lbScale = Math.min(5, Math.max(1, lbScale * (e.deltaY < 0 ? 1.15 : 0.87)));
       $('#cqLbImg').style.transform = `scale(${lbScale})`;
     }, { passive: false });
+    ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
+    // SOP 路徑題組：讀發佈時做的專員版（載完重畫）
+    if (cases.some((c) => c.modules.some((m) => m.type === 'sop'))) {
+      const ex = EX;
+      X.api('x_sops', { sessionId: ex.sid }).then((r) => { ex.sops = r.sops || {}; }).catch((e) => { ex.sops = {}; X.toast('讀取 SOP 失敗：' + e.message, 6000); })
+        .then(() => { if (EX === ex && $('#cq')) { renderSide(); exBar(); } });
+    }
     exShow(0);
     if (!readOnly) {
       EX.tick = setInterval(exTick, 1000);
       X.setLeaveGuard(() => { exSave(true); return true; });
     }
   }
+  // SOP 作答存成 JSON 字串（db.js xSopAnsIn），讀回來時轉回物件
+  const sopAnsOut = (v) => Object.fromEntries(Object.entries(v || {}).map(([k, x]) => { if (typeof x === 'string') { try { x = JSON.parse(x); } catch (_) { x = {}; } } return [k, Object.assign({ route: [], acts: [], cur: null, actSeq: 0 }, x)]; }));
   const exNowSec = () => Math.max(0, Math.round((Date.now() + EX.offset - EX.startedAt) / 1000));
   const exCase = () => {
     const c = EX.track.c[EX.idx] || (EX.track.c[EX.idx] = {});
@@ -1748,7 +1900,8 @@
     if (!EX.readOnly) exSave(true);
     exShow(i);
   }
-  const answeredAll = (i) => EX.cases[i].modules.every((m) => (m.type === 'mc' ? EX.ans[i].mc[m.id] !== undefined : m.type === 'short' ? String(EX.ans[i].short[m.id] || '').trim() : true));
+  const answeredAll = (i) => EX.cases[i].modules.every((m) => (m.type === 'mc' ? EX.ans[i].mc[m.id] !== undefined : m.type === 'short' ? String(EX.ans[i].short[m.id] || '').trim()
+    : m.type === 'sop' ? !EX.sops || !m.start || !!agWalk(m, agSt(m, EX.ans[i])).end : true));
   function exBar() {
     const s = EX.session, left = EX.deadline ? Math.max(0, EX.deadline - (Date.now() + EX.offset)) : 0;
     const mm = Math.floor(left / 60000), ss = Math.floor((left % 60000) / 1000);
@@ -1872,7 +2025,7 @@
   document.addEventListener('play', (e) => { const mk = e.target && e.target.dataset && e.target.dataset.mk; if (mk) exMedia(mk, 0); }, true);
   document.addEventListener('visibilitychange', () => { if (document.hidden && EX && !EX.readOnly) exSave(true); });
 
-  const exAnswersOut = () => { const o = {}; EX.ans.forEach((a, i) => { o[i] = { mc: a.mc, short: a.short }; }); return o; };
+  const exAnswersOut = () => { const o = {}; EX.ans.forEach((a, i) => { o[i] = { mc: a.mc, short: a.short, sop: a.sop || {} }; }); return o; };
   function exTrackOut() {   // 播放秒數四捨五入，資料小一點
     const t = JSON.parse(JSON.stringify(EX.track));
     Object.values(t.c || {}).forEach((c) => Object.values(c.m || {}).forEach((m) => { m[2] = Math.round(m[2]); }));
@@ -1965,7 +2118,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, actDel, actOpen, actSet, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, actDel, actOpen, actSet, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,

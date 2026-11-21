@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-20k';
+const VERSION = 'V2-2026-11-21b';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2189,8 +2189,8 @@ function caseCheck(c, title) {
   const mods = (c && c.modules) || [];
   const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop');
   if (!qs.length) errors.push('還沒有作答題（單選題、簡答題或 SOP 路徑）');
-  // 2026-11-20：SOP 路徑題組只做到講師設定標準答案（第 1a 步），專員作答與批改還沒做 → 先不能核准
-  if (mods.some((m) => m.type === 'sop')) errors.push('SOP 路徑題的作答與批改還在開發中，暫時不能核准有 SOP 路徑的案件');
+  // 2026-11-21：SOP 路徑題組可以作答了（第 2 步）；自動批改還沒做（第 3 步），交卷後先由講師人工給分
+  if (mods.some((m) => m.type === 'sop')) warns.push('SOP 路徑題的自動批改還沒做，交卷後請講師人工給分');
   let no = 0;
   mods.forEach((m) => {
     if (m.type === 'note' && !String(m.text || '').trim()) warns.push('有一個空白的情境說明');
@@ -2508,10 +2508,11 @@ function caseAgentView(src) {
   }
   return c;
 }
-const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short')
+const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop')
   // Firestore 不收 undefined：簡答題沒有 answer，一律給明確的值
-  .map((m) => ({ id: m.id, type: m.type, q: m.q || '', options: m.options || [], answer: m.type === 'mc' && Number.isInteger(m.answer) ? m.answer : null,
-    standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '' }));
+  // SOP 路徑：解答（標準路線、講師示範的操作、節點快照…）由 x_create 另外放進 sop（JSON 字串）
+  .map((m) => ({ id: m.id, type: m.type, q: m.type === 'sop' ? 'SOP 路徑' : m.q || '', options: m.options || [], answer: m.type === 'mc' && Number.isInteger(m.answer) ? m.answer : null,
+    standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '', sop: '' }));
 const xIndexRow = (s) => ({ title: s.title, mode: s.mode, review: s.review || '', startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, caseCount: (s.caseIds || []).length,
   questionCount: s.questionCount || 0, points: s.points || 0, assigned: (s.assignees || []).length, ended: !!s.ended, released: !!s.released, answersOpen: !!s.answersOpen,
   createdBy: s.createdBy || '', createdAt: s.createdAt || 0 });
@@ -2556,10 +2557,111 @@ const xAnswersIn = (v, n) => {
     const a = (v || {})[i] || {}, mc = {}, short = {};
     Object.entries(a.mc || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k) && Number.isInteger(x)) mc[k] = x; });
     Object.entries(a.short || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k)) short[k] = String(x || '').slice(0, 3000); });
-    out[i] = { mc, short };
+    const sop = {};
+    Object.entries(a.sop || {}).slice(0, 20).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k)) sop[k] = xSopAnsIn(x); });
+    out[i] = { mc, short, sop };
   }
   return out;
 };
+/** SOP 路徑的作答（存成 JSON 字串，裡面有陣列）：
+ *  route＝專員自己選的每一步 {n 節點, pick 選項, clicked 點過的按鈕, t 秒}（系統判讀節點不存，作答畫面自動帶過）
+ *  acts＝底部操作列的操作 {seq, kind, fields, link:{n,b,k}|null, at 當時第幾步, t 秒}；cur＝目前節點已點過的按鈕 */
+const SOP_ACT_KINDS = ['note', 'proofBuyer', 'proofSeller', 'pending', 'caseDone'];
+function xSopAnsIn(x) {
+  if (typeof x === 'string') { try { x = JSON.parse(x); } catch (_) { x = {}; } }
+  x = x && typeof x === 'object' ? x : {};
+  const int = (v) => (Number.isInteger(v) ? v : 0), str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const ints = (v) => (Array.isArray(v) ? v.filter(Number.isInteger).slice(0, 10) : []);
+  const route = (Array.isArray(x.route) ? x.route : []).slice(0, 300).map((st) => ({ n: str(st && st.n, 60), pick: int(st && st.pick), clicked: ints(st && st.clicked), t: int(st && st.t) }));
+  const acts = (Array.isArray(x.acts) ? x.acts : []).slice(0, 100).filter((ac) => ac && SOP_ACT_KINDS.includes(ac.kind)).map((ac) => {
+    const f = ac.fields || {}, fields = {};
+    ['remark', 'template', 'realReason'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 1500); });
+    if (f.checklist !== undefined) fields.checklist = str(f.checklist, 1000);
+    if (Array.isArray(f.items)) fields.items = f.items.slice(0, 10).map((x) => ({ hint: str(x && x.hint, 500), req: !!(x && x.req) }));
+    ['deadline', 'timeType'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 20); });
+    ['pendingBy', 'days'].forEach((k) => { if (f[k] !== undefined) fields[k] = Number(f[k]) || 0; });
+    ['excludeHolidays', 'email', 'remindMe'].forEach((k) => { if (f[k] !== undefined) fields[k] = !!f[k]; });
+    const l = ac.link;
+    return { seq: int(ac.seq), kind: ac.kind, fields, link: l && typeof l === 'object' ? { n: str(l.n, 60), b: int(l.b), k: int(l.k) } : null, at: int(ac.at), t: int(ac.t) };
+  });
+  const cur = x.cur && typeof x.cur === 'object' ? { n: str(x.cur.n, 60), clicked: ints(x.cur.clicked) } : null;
+  return JSON.stringify({ route, acts, cur, actSeq: int(x.actSeq) });
+}
+
+/** SOP 路徑題組發佈（2026-11-21 第 2 步）：
+ *  - 一律用目前上線版（sopFlows）重走標準路線；對不上（改版改到路線）就擋發佈，請講師重走
+ *  - 收集起點往下「走得到的所有節點」（專員作答時所有分支都開放，可以跨 SOP），做成專員版存在這場測驗底下（v3sessions/{sid}/sops/{taskbot}）
+ *    → 測驗進行中 SOP 更新也不影響這份考卷；看成績、批改也讀這份（不靠 SOP 舊版）
+ *  - 專員版：判決／結束節點的名稱與內容拿掉，只標終點（type:'final'）；系統判讀的條件拿掉
+ *  - 系統判讀節點：標準路線上的分支（sysPick）給作答畫面自動帶過；不在標準路線上的走 Default
+ *  list：[{ key, md, label }] → { mods: { key: { sysPick, flows, finals } }, docs: [{ tb, data }] } */
+const sopTbOf = (nid) => (String(nid || '').match(/^(SOP\d+)_/) || [])[1] || '';
+const sopNextOf = (n, pick) => (n.type === 'manual' ? ((n.options || [])[pick] || {}).to : n.type === 'system' ? ((n.branches || [])[pick] || {}).to : n.to) || null;
+const sopTargets = (n) => (n.type === 'manual' ? (n.options || []).map((o) => o.to) : n.type === 'system' ? (n.branches || []).map((b) => b.to) : [n.to]).filter(Boolean);
+function sopAgentNode(n) {
+  if (n.type === 'judge' || n.type === 'end') return { type: 'final' };
+  const o = Object.assign({}, n);
+  if (o.branches) o.branches = o.branches.map((b) => ({ label: b.label || '', default: !!b.default, to: b.to || null }));
+  delete o.judge;
+  return o;
+}
+async function sopPack(list) {
+  const idx = ((await S.get('meta/v3SopIndex')) || {}).items || {};
+  const flows = {};
+  const load = async (tb) => {
+    if (tb in flows) return flows[tb];
+    let f = null;
+    if (idx[tb] && idx[tb].live !== false) {            // 不在上線清單的 SOP＝終點（和講師畫面一樣）
+      const d = await S.get('sopFlows/' + tb).catch(() => null);
+      if (d) { try { f = JSON.parse(d.json || '{}'); } catch (_) { fail('SOP 資料損壞 / SOP data is corrupted: ' + tb); } }
+    }
+    flows[tb] = f && f.nodes ? f : null;
+    return flows[tb];
+  };
+  const nodeOf = (nid) => { const f = flows[sopTbOf(nid)]; return f ? f.nodes[nid] || null : null; };
+  const keep = {}, out = {};
+  for (const it of list) {
+    const md = it.md;
+    if (!(await load(md.taskbot)) || !nodeOf(md.start)) fail(`${it.label}（SOP 路徑）的起點在目前上線版找不到，請講師重新設定起點`);
+    // 標準路線：用最新版重走
+    const sysPick = {}, used = new Set([md.taskbot]);
+    let nid = md.start;
+    for (const [k, st] of (md.answer || []).entries()) {
+      await load(sopTbOf(nid));
+      const n = nodeOf(nid);
+      if (!n || st.n !== nid) fail(`${it.label}（SOP 路徑）：SOP 已改版，標準路線第 ${k + 1} 步和目前上線版對不上，請講師打開案件重走一次`);
+      used.add(sopTbOf(nid));
+      if (n.type === 'system') sysPick[nid] = st.pick;
+      nid = sopNextOf(n, st.pick);
+    }
+    // 起點往下走得到的所有節點
+    const seen = new Set(), q = [md.start], finals = {};
+    while (q.length) {
+      const id = q.shift();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (seen.size > 6000) fail(`${it.label}（SOP 路徑）走得到的節點太多 / Too many SOP nodes`);
+      const tb = sopTbOf(id);
+      if (!(await load(tb))) continue;
+      const n = nodeOf(id);
+      if (!n) continue;
+      (keep[tb] = keep[tb] || new Set()).add(id);
+      used.add(tb);
+      if (n.type === 'judge' || n.type === 'end') { finals[id] = { type: n.type, name: n.name || '', text: n.text || '', judge: n.judge || null }; continue; }
+      sopTargets(n).forEach((x) => q.push(x));
+    }
+    out[it.key] = { sysPick, finals, flows: Object.fromEntries([...used].filter((tb) => flows[tb]).map((tb) => [tb, flows[tb].flowId])) };
+  }
+  const docs = Object.entries(keep).map(([tb, ids]) => {
+    const f = flows[tb], nodes = {};
+    ids.forEach((id) => { nodes[id] = sopAgentNode(f.nodes[id]); });
+    const json = JSON.stringify({ taskbot: tb, taskbotName: f.taskbotName || '', flowId: f.flowId || '', version: f.version || '', root: f.root || '', nodes });
+    if (json.length > 900000) fail(`${tb} 的專員版超過 Firestore 單一文件上限 / SOP too large: ${tb}`);
+    return { tb, data: { taskbot: tb, flowId: f.flowId || '', version: f.version || '', json } };
+  });
+  return { mods: out, docs };
+}
+
 // 足跡存成 JSON 字串：裡面有二維陣列（離開頁面 [時間點, 秒]），Firestore 不能直接存
 const xTrackIn = (t) => { const s = JSON.stringify(t || {}); if (s.length > 200000) fail('作答紀錄太大 / Track data too large'); return s; };
 const xTrackOut = (v) => { if (!v) return null; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (_) { return null; } };
@@ -2592,6 +2694,10 @@ const EXAM = {
     const docs = await Promise.all(ids.map((id) => S.get('v3cases/' + id)));
     const pub = [], key = [], refs = new Set(), wIn = b.weights || {};
     const nQ = docs.filter((x) => x && xKeyMods(JSON.parse(x.body || '{}').modules).some((y) => y.points > 0)).length;
+    // SOP 路徑題組：先用目前上線版做專員版（改版改到標準路線就擋下來）
+    const sopList = [];
+    docs.forEach((d, i) => { if (d) (JSON.parse(d.body || '{}').modules || []).forEach((md, mi) => { if (md.type === 'sop') sopList.push({ key: i + ':' + md.id, md, label: `${ids[i]} 第 ${mi + 1} 個模組` }); }); });
+    const sopP = sopList.length ? await sopPack(sopList) : { mods: {}, docs: [] };
     docs.forEach((d, i) => {
       if (!d) fail('找不到案件 / Case not found: ' + ids[i]);
       if (d.status !== 'approved') fail(ids[i] + ' 還沒核准 / is not approved');
@@ -2604,7 +2710,16 @@ const EXAM = {
       if (pt > 0 && !(w > 0)) fail(ids[i] + ' 的分數要大於 0 / Case score must be above 0');
       mods.forEach((x) => { x.pct = pt > 0 ? r2(x.points / pt * 100) : 0; x.points = pt > 0 ? r2(w * x.points / pt) : 0; });
       const av = caseAgentView(body), am = Object.fromEntries(mods.map((x) => [x.id, x.points]));
-      av.modules.forEach((x) => { if (am[x.id] !== undefined) x.points = am[x.id]; });
+      av.modules.forEach((x) => {
+        if (am[x.id] !== undefined) x.points = am[x.id];
+        const sp = x.type === 'sop' && sopP.mods[i + ':' + x.id];
+        if (sp) { x.sysPick = sp.sysPick; x.flows = sp.flows; delete x.flowId; delete x.version; delete x.actSeq; }
+      });
+      mods.forEach((x) => {
+        const sp = x.type === 'sop' && sopP.mods[i + ':' + x.id], md = sp && (body.modules || []).find((y) => y.id === x.id);
+        if (sp) x.sop = JSON.stringify({ taskbot: md.taskbot, start: md.start, hint: !!md.hint, route: md.answer || [], acts: md.acts || [], snap: md.snap || {},
+          sysPick: sp.sysPick, flows: sp.flows, finals: sp.finals });
+      });
       pub.push({ caseId: ids[i], body: JSON.stringify(av) });
       key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods });   // topics：AI 批改用主題的批改原則
     });
@@ -2626,6 +2741,7 @@ const EXAM = {
     const sess = { title, mode, review, startAt: S.ts(startAt), endAt: S.ts(endAt), minutes, graceMin: Number((settings.autoSubmitGraceMin || {}).value) || GRACE_MIN,
       assignees, caseIds: ids, caseCount: ids.length, questionCount: qn, points: r2(pts), ended: false, released: false, answersOpen: false, createdBy: m.email, createdAt: t };
     const ops = [
+      ...sopP.docs.map((x) => ({ op: 'set', path: `v3sessions/${sid}/sops/${x.tb}`, data: x.data })),
       { op: 'set', path: `v3sessions/${sid}/paper/public`, data: { cases: pub } },
       { op: 'set', path: `v3sessions/${sid}/paper/key`, data: { cases: key } },
       { op: 'set', path: 'v3sessions/' + sid, data: sess },
@@ -2790,8 +2906,8 @@ const EXAM = {
   x_delete: async (b) => {
     await needDelete('session');
     const [sid] = await xSessionDoc(b.sessionId);
-    const [atts, grades, imgs] = await Promise.all(['attempts', 'grades', 'images'].map((c) => S.list(`v3sessions/${sid}/${c}`).catch(() => [])));
-    const ops = [];
+    const [atts, grades, imgs, sops] = await Promise.all(['attempts', 'grades', 'images', 'sops'].map((c) => S.list(`v3sessions/${sid}/${c}`).catch(() => [])));
+    const ops = sops.map((x) => ({ op: 'del', path: `v3sessions/${sid}/sops/${x.id}` }));
     atts.forEach((a) => ops.push({ op: 'del', path: `v3sessions/${sid}/attempts/${a.id}` }, { op: 'del', path: `v3results/${sid}_${a.id}` }));
     grades.forEach((g) => ops.push({ op: 'del', path: `v3sessions/${sid}/grades/${g.id}` }));
     imgs.forEach((im) => { for (let i = 0; i < (im.n || 0); i++) ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}/chunks/${i}` }); ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}` }); });
@@ -2875,6 +2991,17 @@ const EXAM = {
       reveal ? S.get(`v3sessions/${sid}/paper/key`).catch(() => null) : null,
       s.released ? S.get(`v3results/${sid}_${m.email}`).catch(() => null) : null]);
     return { serverNow: t, session: xSessionOut(sid, s, t), attempt: att, answers: a.answers || {}, paper: pub || { cases: [] }, key: key || null, result: res || null };
+  },
+
+  /** SOP 路徑題組用的 SOP（發佈時做的專員版）：{ taskbot: 整份 } */
+  x_sops: async (b) => {
+    const m = await whoAmI();
+    const [sid, s] = await xSessionDoc(b.sessionId);
+    if (!m.isTeacher) requireAssigned(s, m);
+    const rows = await S.list(`v3sessions/${sid}/sops`);
+    const sops = {};
+    rows.forEach((r) => { try { sops[r.id] = JSON.parse(r.json || '{}'); } catch (_) { /* 壞掉的略過，畫面會顯示找不到節點 */ } });
+    return { sops };
   },
 
   /** 補充資訊圖片（測驗裡的那份） */
