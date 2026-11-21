@@ -1688,7 +1688,8 @@
     const endOf = (route) => {
       const last = route[route.length - 1];
       if (!last) return '';
-      const n = nodeOf(last.n), to = n ? sopNext(n, last.pick || 0) : null, f = to && (k.finals || {})[to];
+      const n = nodeOf(last.n), to = n ? sopNext(n, last.pick || 0) : null, tn = to && nodeOf(to);
+      const f = to && ((k.finals || {})[to] || (tn && (tn.type === 'judge' || tn.type === 'end') ? tn : null));
       return f ? `終點：${esc(f.name)}` : '';
     };
     const std = (k.route || []).slice(0, k.stopAfter || undefined), mine = a.route || [];
@@ -1719,6 +1720,8 @@
     if (!md.start) return h + '<div class="hint">這題沒有設定 SOP。</div></div>';
     if (!EX) sopLoadList();
     if (A.submitted && EX && EX.reveal && md.keySop) h += sopReviewHtml(md.keySop, agSt(md), EX.sops);
+    // 講師「專員預覽」交卷後：用題目本身的標準答案做同一份比對（含自動判定），講師試走就能看到會怎麼判（2026-11-21 Chris）
+    if (A.submitted && !EX) h += sopReviewHtml({ route: md.answer || [], acts: md.acts || [], snap: md.snap || {}, stopAfter: agStopAfter(md), finals: {} }, agSt(md), SOPS, { teacher: true });
     const w = agWalk(md);
     if (w.end === 'loading') return h + `<div class="hint">載入 SOP…</div></div>`;
     const st = agSt(md);
