@@ -1331,7 +1331,8 @@
     return '<div class="sop-panel">' + items.map((it, idx) => {
       const node = it.node, isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
       const isFinal = ['final', 'judge', 'end', 'stop'].includes(node.type), isStop = node.type === 'stop';
-      const exp = it.n in open ? open[it.n] : idx >= items.length - 3;
+      // 跟 DMS 一樣：只打開目前這張（最下面），選過的收起來；自己點開的照自己的（選下一步時重設）
+      const exp = it.n in open ? open[it.n] : idx === items.length - 1;
       // 專員看不到系統判讀走了哪個分支（2026-11-21：走錯路線後的系統節點只能走 Default，顯示出來專員就知道自己走錯）
       const stopTxt = ag ? '這一段作答完成' : '這一段在這裡結束';
       const ans = it.pick === null ? '-' : isPick ? sopPickLabel(node, it.pick) : isStop ? stopTxt : isFinal ? (ag ? '已到終點' : node.name) : (SOP_BTN[node.type] || '');
@@ -1342,11 +1343,11 @@
         if (isPick) {
           const opts = isSys ? (node.branches || []).map((b) => b.label || (b.default ? 'Default' : '')) : (node.options || []).map((o) => o.label);
           const can = !lock;
-          body += `<div class="sopi-opts">${opts.map((lab, oi) => `<label class="sopr ${it.pick === oi ? 'on' : ''} ${isSys ? 'sopr-sys' : ''}">
+          body += `<div class="sopi-opts">${opts.map((lab, oi) => `<label class="sopr ${it.pick === oi ? 'on' : ''} ${isSys && !ag ? 'sopr-sys' : ''}">
               <input type="radio" name="sop${md.id}_${it.k}" ${it.pick === oi ? 'checked' : ''} ${can ? `onclick="CQ.${ag ? 'agPick' : 'sopPickAt'}(${i},${it.k},${oi})"` : 'disabled'}><span>${esc(lab)}</span></label>`).join('')}</div>`;
           // 系統判讀的條件不顯示（2026-11-20 Chris：不需要）
         } else if (isStop && !ag) {
-          body += `<div class="sopi-text">這一段只考到這裡，下一個節點（${esc(it.n)}）之後不出題。</div><button class="mbtn" onclick="CQ.sopStop(${i},'')">取消結束點，繼續往下設定</button>`;
+          body += `<div class="sopi-text">這一段只考到這裡，從這個節點（${esc(it.n)}）開始不出題。</div><button class="mbtn" onclick="CQ.sopStop(${i},'')">取消結束點，繼續往下設定</button>`;
         } else if (ag && isFinal) {
           body += `<div class="sopi-text">${isStop ? '這一段的題目做完了。' : '流程走到終點。'}${A.submitted ? '' : '要改答案的話，點上面的節點重新選。'}</div>`;
         } else {
@@ -1355,8 +1356,9 @@
           if (act) body += `<div class="sopi-note">${act}</div>`;
           if (node.type === 'judge' && node.judge && node.judge.judging_reason) body += `<div class="sopi-note">判決理由：${esc(node.judge.judging_reason)}</div>`;
           body += sopBtnsHtml(md, i, node, it);
-          if (!ag && !it.done && !isFinal) body += `<button class="mbtn sop-stopbtn" onclick="CQ.sopStop(${i},'${esc(it.n)}')" title="分段考：這一段只考到這裡">⏹ 在這裡結束這一段</button>`;
         }
+        // 講師：目前還沒選的節點（專員、系統、動作節點都可以）可以設成這一段的結束點（2026-11-21 修：原本只有動作節點有）
+        if (!ag && !it.done && !isFinal) body += `<button class="mbtn sop-stopbtn" onclick="CQ.sopStop(${i},'${esc(it.n)}')" title="分段考：這一段只考到這裡，這個節點之後不出題">⏹ 在這裡結束這一段（這個節點不考）</button>`;
         // 專員畫面的終點不顯示節點編號（被截斷的終點其實是系統節點，查得到編號就會露餡）
         if (!(ag && isFinal)) body += `<div class="sopi-bottom"><span class="sopi-pid" title="Node Point ID">${esc(sopPointId(sop, it.n))}</span><span onclick="CQ.sopCopy('${esc(sopPointId(sop, it.n))}')">${SOP_ICON_COPY}</span></div>`;
       }
@@ -1444,7 +1446,7 @@
       md.answer = w.steps.map(stepOut).concat([{ n: w.cur, pick: 0, clicked: md.cur.clicked.slice() }]);
       md.cur = null;
     }
-    sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function actDel(i, seq) {
     const md = C.modules[i];
@@ -1645,7 +1647,7 @@
       st.route = st.route.slice(0, w.steps.length).concat([{ n: w.cur, pick: opt, clicked: [], t }]);
     }
     st.cur = null; ACTIVE_SOP = md.id;
-    exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
   }
   /** 專員點 SOP 卡片上的動作按鈕：變色打勾；按鈕都點過就往下一步 */
   function agBtn(i, r) {
@@ -1663,12 +1665,60 @@
       st.route = st.route.slice(0, w.steps.length).concat([{ n: w.cur, pick: 0, clicked: st.cur.clicked.slice(), t: EX ? exNowSec() : 0 }]);
       st.cur = null;
     }
-    exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; exEdit(md.id); saveAnswer(); renderSide(); sopScrollLast();
   }
+  // ───────── 第 3 步：批改比對畫面（講師批改、專員公布解答後共用） ─────────
+  //   比對規則在 db.js sopGrade：路線不是完整走在標準路線上就全錯；動作逐節點比對種類、順序、欄位
+  const sopParse = (v) => { if (!v) return null; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (_) { return null; } };
+  const OKMARK = (ok) => (ok === true ? '<span class="sop-ok">✔</span>' : ok === false ? '<span class="sop-ng">✘</span>' : '<span class="sop-chk">需確認</span>');
+  /** keySopRaw：解答（key 的 sop）；ansRaw：專員作答；pool：這場測驗的 SOP 專員版（顯示節點名稱） */
+  function sopReviewHtml(keySopRaw, ansRaw, pool, opt = {}) {
+    const DB = window.RRQP_DB;
+    if (!DB || !DB.sopGrade) return '';
+    const k = sopParse(keySopRaw) || {}, a = sopParse(ansRaw) || {}, g = DB.sopGrade(k, a);
+    const nodeOf = (n) => (k.snap || {})[n] || ((pool || {})[sopTbOf(n)] || { nodes: {} }).nodes[n] || null;
+    const label = (st) => {
+      const n = nodeOf(st.n);
+      if (!n) return `<span class="mono">${esc(st.n)}</span>`;
+      const name = n.type === 'manual' ? (n.question || n.name) : n.name;
+      const pick = n.type === 'manual' || n.type === 'system' ? sopPickLabel(n, st.pick || 0) : (sopButtons(n).filter((b) => ACT_KINDS[b.kind]).map((b) => b.text).join('、') || SOP_BTN[n.type] || '完成');
+      return `${n.type === 'system' ? '<span class="sop-tag">系統</span>' : ''}${esc(name)} → <b>${esc(pick)}</b>`;
+    };
+    // 路線最後到哪個判決（解答裡有判決名稱）
+    const endOf = (route) => {
+      const last = route[route.length - 1];
+      if (!last) return '';
+      const n = nodeOf(last.n), to = n ? sopNext(n, last.pick || 0) : null, f = to && (k.finals || {})[to];
+      return f ? `終點：${esc(f.name)}` : '';
+    };
+    const std = (k.route || []).slice(0, k.stopAfter || undefined), mine = a.route || [];
+    const rows = Array.from({ length: Math.max(std.length, mine.length) }, (_, i) => {
+      const cls = g.diverge < 0 || i < g.diverge ? '' : i === g.diverge ? 'sop-rv-bad' : 'sop-rv-after';
+      const chg = mine[i] && mine[i].chg ? `<span class="sop-chg" title="這一步改過答案">改過 ${mine[i].chg} 次</span>` : '';
+      return `<tr class="${cls}"><td>${i + 1}</td><td>${std[i] ? label(std[i]) : '<span class="soft">（標準答案到這裡結束）</span>'}</td><td>${mine[i] ? label(mine[i]) + chg : '<span class="soft">（沒有作答）</span>'}</td></tr>`;
+    }).join('');
+    const head = g.routeOk ? '<span class="sop-ok">✔ 路線正確</span>' : `<span class="sop-ng">✘ 路線從第 ${g.diverge + 1} 步開始不同</span>${mine.length < std.length && g.diverge === mine.length ? '（沒有走完）' : ''}`;
+    const actName = (x) => (x ? `${esc(ACT_KINDS[x.kind] || x.kind)}${actSummary(x) ? '：' + esc(actSummary(x)) : ''}` : '<span class="soft">—</span>');
+    const acts = g.acts.map((x) => {
+      const n = nodeOf(x.n), name = n ? n.name || n.question : x.n;
+      return `<div class="sop-rv-act"><div class="sop-rv-node">${OKMARK(x.ok)} 第 ${x.i + 1} 步　${esc(name)}</div>${x.pairs.map((p) => `<div class="sop-rv-pair">
+        <div>${OKMARK(p.ok)} <b>標準</b> ${actName(p.exp)}<br><b>專員</b> ${actName(p.got)}${p.note ? `　<span class="sop-ng">${esc(p.note)}</span>` : ''}</div>
+        ${(p.fields || []).filter((f) => f.ok !== true).map((f) => { const v = (x) => esc(String(x == null ? '' : f.name === 'Pending by' ? PENDING_BY[x] || x : x));
+          return `<div class="sop-rv-f">${OKMARK(f.ok)} ${esc(f.name)}：標準「${v(f.exp)}」／專員「${v(f.got)}」</div>`; }).join('')}</div>`).join('')}</div>`;
+    }).join('');
+    const outside = g.outside.length ? `<div class="sop-rv-act"><div class="sop-rv-node">${OKMARK(null)} 標準路線以外的操作</div>${g.outside.map((x) => `<div class="sop-rv-pair">${actName(x)}</div>`).join('')}</div>` : '';
+    const auto = g.auto === 1 ? '自動判定：滿分（路線與操作都正確）' : g.auto === 0 ? `自動判定：0 分（${g.mineLen || (a.acts || []).length ? '路線錯誤' : '沒有作答'}）` : `需要講師給分${g.actsOk === false ? '（操作有錯，建議 0 分）' : '（有文字需要確認）'}`;
+    return `<div class="sop-rv">
+      <div class="sop-rv-head">${head}${g.changes ? `<span class="sop-chg">改過答案共 ${g.changes} 次</span>` : ''}${opt.teacher ? `<span class="sop-rv-auto">${auto}</span>` : ''}</div>
+      <table class="sop-rv-t"><thead><tr><th>步</th><th>標準答案${std.length ? `<div class="soft">${endOf(std)}</div>` : ''}</th><th>${opt.teacher ? '專員' : '你的作答'}<div class="soft">${g.routeOk ? '' : endOf(mine)}</div></th></tr></thead><tbody>${rows}</tbody></table>
+      ${acts || outside ? `<div class="sop-rv-sub">操作比對</div>${acts}${outside}` : ''}</div>`;
+  }
+
   function sopAgentHtml(md, i, no) {
     let h = `<div class="mod qmod"><div class="mh">${no}. SOP 路徑<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>`;
     if (!md.start) return h + '<div class="hint">這題沒有設定 SOP。</div></div>';
     if (!EX) sopLoadList();
+    if (A.submitted && EX && EX.reveal && md.keySop) h += sopReviewHtml(md.keySop, agSt(md), EX.sops);
     const w = agWalk(md);
     if (w.end === 'loading') return h + `<div class="hint">載入 SOP…</div></div>`;
     const st = agSt(md);
@@ -1719,7 +1769,7 @@
       md.answer = w.steps.map(stepOut).concat([{ n: w.cur, pick: opt }]);
     }
     md.cur = null; ACTIVE_SOP = md.id;
-    sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
 
   /** 路線上每個節點出題當時的內容（之後 SOP 改版時逐一比對） */
@@ -1778,7 +1828,7 @@
     if (md.start && (md.start !== nid || md.taskbot !== tb) && (md.answer || []).length && !confirm('更換起點會清掉目前設定的路線，確定？')) return;
     if (md.start !== nid || md.taskbot !== tb) { md.answer = []; md.acts = []; md.cur = null; md.stop = ''; }
     md.taskbot = tb; md.start = nid; delete SOP_PICKSTART[md.id];
-    sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function sopPickStart(i) { SOP_PICKSTART[C.modules[i].id] = true; renderSide(); }
   function sopCancelStart(i) { delete SOP_PICKSTART[C.modules[i].id]; renderSide(); }
@@ -1787,7 +1837,7 @@
     const w = sopWalk(md, sop);
     md.answer = w.steps.map(stepOut).concat([{ n: w.cur, pick: k }]);   // 對不上的舊路線一併丟掉
     md.cur = null; ACTIVE_SOP = md.id;
-    sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
+    delete SOP_OPEN[md.id]; sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
   function sopBack(i, k) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
@@ -1866,7 +1916,7 @@
     const cases = (d.paper.cases || []).map((x) => normCase(JSON.parse(x.body)));
     if (d.key) (d.key.cases || []).forEach((kc, i) => (kc.mods || []).forEach((k) => {      // 公布後：把正解、參考答案、詳解放回題目
       const md = (cases[i] || { modules: [] }).modules.find((x) => x.id === k.id);
-      if (md) Object.assign(md, { answer: k.answer, standard: k.standard, explain: k.explain });
+      if (md) Object.assign(md, { answer: k.answer, standard: k.standard, explain: k.explain }, k.sop ? { keySop: k.sop } : {});
     }));
     const readOnly = !!opt.result;
     if (EX && EX.tick) clearInterval(EX.tick);
@@ -2163,5 +2213,5 @@
   }
   // 網站切換語言時：作答中只重畫 DMS 畫面（app.js 的 setLang 會先問 examActive）
   const examActive = () => !!(EX && !EX.readOnly && $('#cq'));
-  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf, examActive, relang: () => renderAll() };
+  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf, examActive, relang: () => renderAll(), sopReview: (k, a, pool) => sopReviewHtml(k, a, pool, { teacher: true }) };
 })();

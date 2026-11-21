@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21j';
+const VERSION = 'V2-2026-11-21m';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2527,6 +2527,69 @@ async function xSessionDoc(id) {
   if (!s) fail('找不到測驗 / Quiz not found: ' + id);
   return [sid, s];
 }
+/** SOP 路徑題組批改（2026-11-21 第 3 步，Chris）：
+ *  - 路線：專員走的每一步（專員節點、系統節點、動作節點）要和標準路線完全一樣，而且走到終點／結束點，才算對；不是完整走在正確路線上就全錯
+ *  - 動作：標準路線上每個節點，講師示範的操作（種類、順序、欄位）和專員做的比對
+ *      能自動判斷的：種類、順序、Pending by、期限、工作日／日曆日、Email 通知、Remind me、案件完成
+ *      文字（模板名稱、證據項目、真實退貨原因、Checklist、Remark）：正規化後一樣＝對，不一樣＝講師確認（之後可交 AI）
+ *  - 自動分數：路線錯＝0；路線對且全部比對都對＝滿分；其他（有要確認的、有做錯的）＝講師給分（suggest＝建議分數比例）
+ *  keySop：解答（key 的 mods[].sop 解開）；ansSop：專員作答（answers[i].sop[模組 id] 解開） */
+const sopJson = (v) => { if (!v) return null; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (_) { return null; } };
+function sopGrade(keySop, ansSop) {
+  const k = sopJson(keySop) || {}, a = sopJson(ansSop) || {};
+  const std = (k.route || []).slice(0, k.stopAfter || undefined), mine = a.route || [];
+  let diverge = -1;
+  for (let i = 0; i < Math.max(std.length, mine.length); i++) {
+    const x = std[i], y = mine[i];
+    if (!x || !y || x.n !== y.n || (x.pick || 0) !== (y.pick || 0)) { diverge = i; break; }
+  }
+  const routeOk = diverge < 0;
+  const norm = (v) => String(v == null ? '' : v).replace(/\s+/g, '').toLowerCase();
+  const txt = (e, g) => (norm(e) === norm(g) ? true : null);           // 文字：一樣＝對，不一樣＝講師確認
+  const same = (e, g) => (e === g || (e == null && !g) || (!e && g == null));
+  const fieldChecks = (kind, e, g) => {
+    const f = [], add = (name, ok, ev, gv) => f.push({ name, ok, exp: ev, got: gv });
+    e = e || {}; g = g || {};
+    if (kind === 'pending') add('Pending by', Number(e.pendingBy) === Number(g.pendingBy), e.pendingBy, g.pendingBy);
+    if (kind === 'note') { add('Real Return Reason', txt(e.realReason, g.realReason), e.realReason, g.realReason); add('Remind me', same(!!e.remindMe, !!g.remindMe), !!e.remindMe, !!g.remindMe); }
+    if (kind === 'proofBuyer' || kind === 'proofSeller') {
+      add('模板名稱', txt(e.template, g.template), e.template, g.template);
+      const it = (x) => (x.items || []).map((y) => norm(y.hint) + (y.req ? '' : '(optional)')).sort().join('|');
+      add('證據項目', it(e) === it(g) ? true : null, (e.items || []).map((y) => y.hint + (y.req ? '' : '（Optional）')).join('、'), (g.items || []).map((y) => y.hint + (y.req ? '' : '（Optional）')).join('、'));
+      add('期限', e.deadline === g.deadline && Number(e.days) === Number(g.days), `${e.deadline === 'flexible' ? 'Flexible' : 'Fixed'} ${e.days || 1} day`, `${g.deadline === 'flexible' ? 'Flexible' : 'Fixed'} ${g.days || 1} day`);
+      add('Proof Time Type', e.timeType === g.timeType && !!e.excludeHolidays === !!g.excludeHolidays, (e.timeType === 'working' ? 'Working' : 'Calendar') + (e.excludeHolidays ? '＋Exclude Holidays' : ''), (g.timeType === 'working' ? 'Working' : 'Calendar') + (g.excludeHolidays ? '＋Exclude Holidays' : ''));
+      add('Email 通知', !!e.email === !!g.email, !!e.email, !!g.email);
+      if (e.checklist || g.checklist) add('Checklist', txt(e.checklist, g.checklist), e.checklist, g.checklist);
+    }
+    if (kind !== 'caseDone' && (e.remark || g.remark)) add('Remark', txt(e.remark, g.remark), e.remark, g.remark);
+    return f;
+  };
+  const byNode = (acts) => { const o = {}; (acts || []).filter((x) => x.link).sort((x, y) => x.seq - y.seq).forEach((x) => { (o[x.link.n] = o[x.link.n] || []).push(x); }); return o; };
+  const want = byNode(k.acts), got = byNode(a.acts);
+  const acts = [];
+  std.forEach((st, i) => {
+    const e = want[st.n] || [], g = got[st.n] || [];
+    if (!e.length && !g.length) return;
+    const pairs = [];
+    for (let j = 0; j < Math.max(e.length, g.length); j++) {
+      const ex = e[j], gx = g[j];
+      if (!ex) { pairs.push({ exp: null, got: gx, ok: null, note: '多做的操作' }); continue; }
+      if (!gx) { pairs.push({ exp: ex, got: null, ok: false, note: '沒有做' }); continue; }
+      if (ex.kind !== gx.kind) { pairs.push({ exp: ex, got: gx, ok: false, note: '操作種類或順序不同' }); continue; }
+      const fields = fieldChecks(ex.kind, ex.fields, gx.fields);
+      const ok = fields.some((f) => f.ok === false) ? false : fields.some((f) => f.ok === null) ? null : true;
+      pairs.push({ exp: ex, got: gx, ok, fields });
+    }
+    acts.push({ i, n: st.n, pairs, ok: pairs.some((p) => p.ok === false) ? false : pairs.some((p) => p.ok === null) ? null : true });
+  });
+  const outside = (a.acts || []).filter((x) => !x.link || !std.some((st) => st.n === x.link.n));
+  const changes = mine.reduce((t, x) => t + (x.chg || 0), 0);
+  const actsOk = acts.some((x) => x.ok === false) ? false : acts.some((x) => x.ok === null) || outside.length ? null : true;
+  const answered = mine.length > 0 || (a.acts || []).length > 0;
+  const auto = !answered ? 0 : !routeOk ? 0 : actsOk === true ? 1 : null;
+  return { routeOk, diverge, stdLen: std.length, mineLen: mine.length, acts, outside, changes, actsOk, auto, suggest: auto !== null ? auto : actsOk === false ? 0 : null };
+}
+
 /** 單選題自動計分＋講師給的簡答分數 */
 function xScore(key, att, grade) {
   // 成績 100 分制：案件分數（weight，組卷時講師設定）× 該案件得分比例；舊測驗沒有 weight＝每個案件一樣重（100 ÷ 有作答題的案件數）
@@ -2542,7 +2605,10 @@ function xScore(key, att, grade) {
       if (m.type === 'mc') detail[k] = (a.mc || {})[m.id] === m.answer ? m.points : 0;
       else {
         const g = ((grade && grade.scores) || {})[k];
-        if (g === undefined || g === null || g === '') { pending++; detail[k] = null; } else detail[k] = Math.max(0, Math.min(m.points, Number(g) || 0));
+        // SOP 路徑：講師沒給分時用自動分數（路線錯＝0、全對＝滿分）；要講師確認的才算待給分
+        const auto = m.type === 'sop' && (g === undefined || g === null || g === '') ? sopGrade(m.sop, (a.sop || {})[m.id]).auto : null;
+        if (auto !== null) detail[k] = r2(auto * m.points);
+        else if (g === undefined || g === null || g === '') { pending++; detail[k] = null; } else detail[k] = Math.max(0, Math.min(m.points, Number(g) || 0));
       }
       got += detail[k] || 0;
     });
@@ -2776,13 +2842,16 @@ const EXAM = {
   x_get: async (b) => {
     await needTeacher();
     const [sid, s] = await xSessionDoc(b.sessionId), t = now();
-    const [atts, key, pub, grades] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`)]);
+    const [atts, key, pub, grades, sopRows] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`),
+      S.list(`v3sessions/${sid}/sops`).catch(() => [])]);
+    const sops = {};
+    sopRows.forEach((x) => { try { sops[x.id] = JSON.parse(x.json || '{}'); } catch (_) { /* 略過 */ } });
     const roster = (s.assignees || []).map((email) => {
       const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
       return Object.assign({ email }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {}, ai: (g && g.ai) || {},
         result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
     });
-    return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] } };
+    return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] }, sops };
   },
 
   /** 加入專員：新加的人照原本的開放時間與作答時間作答；記錄他們做過這些案件 */
@@ -3158,7 +3227,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
     caseAgentView,
-    xFlags,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
+    xFlags, sopGrade,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
     caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）

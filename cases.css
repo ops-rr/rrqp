@@ -431,3 +431,21 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* 講師設定分段結束點（2026-11-21） */
 .cq .sop-stopbtn{margin-top:10px;color:#555}
 .cq .sop-rec{margin-left:6px;font-size:11px;padding:1px 6px;border-radius:8px;background:#eef7ee;color:#2e7d32;white-space:nowrap}
+
+/* SOP 路徑批改比對（2026-11-21 第 3 步）；講師畫面（exam.js）也用 */
+.sop-rv{border:1px solid #e3e6ec;border-radius:8px;padding:10px;margin:6px 0;background:#fff;font-size:13px}
+.sop-rv-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-weight:700;margin-bottom:6px}
+.sop-rv-auto{margin-left:auto;font-weight:400;color:#555}
+.sop-ok{color:#2e7d32}.sop-ng{color:#c62828}.sop-chk{color:#b26a00;font-size:12px;border:1px solid #f0c36d;border-radius:8px;padding:0 5px}
+.sop-chg{font-size:11px;font-weight:400;color:#b26a00;margin-left:6px}
+.sop-tag{font-size:11px;color:#2673dd;border:1px solid #b9d3f5;border-radius:6px;padding:0 4px;margin-right:4px}
+.sop-rv-t{width:100%;border-collapse:collapse}
+.sop-rv-t th,.sop-rv-t td{border-bottom:1px solid #eef0f4;padding:5px 6px;text-align:left;vertical-align:top}
+.sop-rv-t th:first-child,.sop-rv-t td:first-child{width:28px;color:#888}
+.sop-rv-t th .soft{font-weight:400;font-size:12px}
+.sop-rv-bad td{background:#fdecea}.sop-rv-after td{color:#999}
+.sop-rv-sub{margin:10px 0 4px;font-weight:700}
+.sop-rv-act{border-top:1px dashed #e3e6ec;padding:6px 0}
+.sop-rv-node{font-weight:600}
+.sop-rv-pair{margin:4px 0 0 16px;line-height:1.6}
+.sop-rv-f{margin-left:16px;font-size:12px;color:#555}
