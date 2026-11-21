@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21q';
+const VERSION = 'V2-2026-11-21u';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2591,6 +2591,28 @@ function sopGrade(keySop, ansSop) {
 }
 
 /** 單選題自動計分＋講師給的簡答分數 */
+/**
+ * 單一題目「答對了嗎」：true 答對、false 答錯、null 還沒判定（等講師給分）
+ * 所有題型共用（單選、SOP、簡答；之後加複選也在這裡加一段）。
+ * m：解答卷的題目；a：專員這個案件的作答；g：講師給的分數（沒有就 undefined）
+ */
+function qRight(m, a, g) {
+  a = a || {};
+  const has = g !== undefined && g !== null && g !== '';
+  if (m.type === 'mc') return (a.mc || {})[m.id] === m.answer;
+  if (has) return Number(g) >= (Number(m.points) || 0) - 1e-9 && Number(g) > 0;
+  if (m.type === 'sop') { const au = sopGrade(m.sop, (a.sop || {})[m.id]).auto; return au === null ? null : au >= 1; }
+  return null;                                                         // 簡答：沒給分就是還沒判定
+}
+/** 一份作答的答對題數：{ ok 答對, n 已判定, wait 還沒判定 }，練習的「答對率」＝ok / n */
+function xRight(key, att, grade) {
+  let ok = 0, n = 0, wait = 0;
+  (key.cases || []).forEach((kc, i) => kc.mods.forEach((m) => {
+    const v = qRight(m, ((att && att.answers) || {})[i], ((grade && grade.scores) || {})[i + ':' + m.id]);
+    if (v === null) wait++; else { n++; if (v) ok++; }
+  }));
+  return { ok, n, wait };
+}
 function xScore(key, att, grade) {
   // 成績 100 分制：案件分數（weight，組卷時講師設定）× 該案件得分比例；舊測驗沒有 weight＝每個案件一樣重（100 ÷ 有作答題的案件數）
   // raw／rawTotal 是題目分數加總（新測驗的題目分數已是實際分數，raw 就等於成績）
@@ -3123,18 +3145,18 @@ async function xResultsOf(sid, s) {
     const r = xScore(key || {}, a, grades.find((x) => x.id === email)), track = xTrackOut(a.track) || {};
     det[email] = r.detail;
     const wrong = [];
-    let mcN = 0, mcOk = 0;
+    const rt = xRight(key || {}, a, grades.find((x) => x.id === email));
     kc.forEach((c, i) => c.mods.forEach((m, qi) => {
       const got = r.detail[i + ':' + m.id];
-      if (m.type === 'mc') { mcN++; if (got > 0) mcOk++; }
-      if (practice && m.type !== 'mc') return;
+      // 練習：逐題判定（所有題型共用 qRight），答錯的列進「錯在哪」、還沒判定的不列
+      if (practice) { if (qRight(m, (a.answers || {})[i], undefined) === false) wrong.push({ label: `案件${i + 1} 第${qi + 1}題` }); return; }
       if (got === null) wrong.push({ label: `案件${i + 1} 第${qi + 1}題`, pending: true });
       else if (got < m.points - 1e-9) wrong.push({ label: `案件${i + 1} 第${qi + 1}題`, partial: got > 0 });
     }));
     const lv = track.lv || [], pct = r.total ? r2((r.score / r.total) * 100) : null;
     return { email, status: 'submitted', score: practice ? null : r.score, total: practice ? null : r.total, pct: practice ? null : pct, pending: practice ? 0 : r.pending,
       raw: practice ? null : r.raw, rawTotal: practice ? null : r.rawTotal,
-      coaching: !practice && pct !== null && pct < line, mcRate: mcN ? r2(mcOk / mcN) : null, wrong,
+      coaching: !practice && pct !== null && pct < line, mcRate: rt.n ? r2(rt.ok / rt.n) : null, rightWait: rt.wait, wrong,
       flags: kc.flatMap((c, i) => xFlags(track, i, (a.answers || {})[i] || {}, c).map((f) => `案件${i + 1}：${f}`)),
       secs: Object.values(track.c || {}).reduce((n, c) => n + (c.t || 0), 0), leaves: lv.length, leaveSecs: lv.reduce((n, x) => n + x[1], 0),
       startedAt: st.startedAt, submittedAt: st.submittedAt, autoSubmitted: st.autoSubmitted, extraMin: Number(a.extraMin) || 0 };
@@ -3227,7 +3249,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
     caseAgentView,
-    xFlags, sopGrade,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
+    xFlags, sopGrade, qRight, xRight,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
     caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）

@@ -226,7 +226,7 @@
   function renderBar() {
     if (EX) return exBar();
     const st = CUR.status === 'approved';
-    const sv = saveErr ? `<span class="sv err" title="${esc(saveErr)}">⚠ 儲存失敗：${esc(saveErr.slice(0, 60))} ${/剛修改過/.test(saveErr) ? '<button class="cbtn" onclick="location.reload()">重新整理（放棄這次修改）</button>' : '<button class="cbtn" onclick="CQ.saveNow()">重試</button>'}</span>`
+    const sv = saveErr ? `<span class="sv err" title="${esc(saveErr)}">儲存失敗：${esc(saveErr.slice(0, 60))} ${/剛修改過/.test(saveErr) ? '<button class="cbtn" onclick="location.reload()">重新整理（放棄這次修改）</button>' : '<button class="cbtn" onclick="CQ.saveNow()">重試</button>'}</span>`
       : saving ? '<span class="sv">儲存中…</span>'
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
@@ -587,7 +587,7 @@
         <div class="t"><span contenteditable data-set="tl" data-b="${bi}" data-i="${i}" data-k="t">${esc(n.t)}</span></div>
         ${n.leak ? '<span class="leak">可能洩漏結果</span>' : ''}
         <div class="ectl"><button class="del" onclick="CQ.delTl(${bi},${i})">✕</button>
-        <button onclick="CQ.cutTl(${bi},${i})" title="刪除這個節點之後的所有節點">✂ 之後全刪</button></div></div>`;
+        <button onclick="CQ.cutTl(${bi},${i})" title="刪除這個節點之後的所有節點">之後全刪</button></div></div>`;
     }).join('');
     return `<div class="tlh">${items}</div>${isEdit() ? `<button class="addfd" onclick="CQ.addTl(${bi})">＋ 新增節點</button>` : ''}`;
   }
@@ -866,7 +866,7 @@
     return list.map((m, i) => {
       const ctl = isEdit() ? `<span class="ectl">
         <button class="del" onclick="CQ.delMsg('${room}',${i})">✕</button>
-        <button onclick="CQ.cutAfter('${room}',${i})" title="刪除這則之後的所有訊息">✂ 之後全刪</button></span>` : '';
+        <button onclick="CQ.cutAfter('${room}',${i})" title="刪除這則之後的所有訊息">之後全刪</button></span>` : '';
       if (m.type === 'system') {
         // DMS：系統訊息下面可以有買家說明（note，粗體）和照片影片（已上傳證明）
         // DMS 順序：系統文字 → 照片影片 → 說明（242584941223071 對過：提案下面先附件、再「未收到貨」）
@@ -911,7 +911,7 @@
   const OP_FILTERS = [['all', 'All'], ['bs', 'Buyer/Seller'], ['agent', 'Human Agent'], ['ai', 'AI']];
 
   function opsHtml() {
-    const chips = OP_FILTERS.map(f => `<button class="${opFilter === f[0] ? 'on' : ''}" onclick="CQ.filter('${f[0]}')">${f[0] === 'all' ? '<span style="color:#1aa260">✔</span> ' : ''}${f[1]}</button>`).join('');
+    const chips = OP_FILTERS.map(f => `<button class="${opFilter === f[0] ? 'on' : ''}" onclick="CQ.filter('${f[0]}')">${f[0] === 'all' ? '' : ''}${f[1]}</button>`).join('');
     const list = C.ops.map((n, i) => ({ n, i }))
       .filter(x => isEdit() || !x.n.hidden)
       .filter(x => opFilter === 'all' || x.n.cat === opFilter);
@@ -944,7 +944,7 @@
     const ctl = isEdit() ? `<div class="ectl" style="margin:0">
         <button onclick="CQ.toggleOp(${i})">${n.hidden ? '顯示給專員' : '隱藏'}</button>
         <button class="del" onclick="CQ.delOp(${i})">✕</button>
-        <button onclick="CQ.cutOp(${i})" title="刪除這個節點之後的所有節點">✂ 之後全刪</button></div>
+        <button onclick="CQ.cutOp(${i})" title="刪除這個節點之後的所有節點">之後全刪</button></div>
         ${n.leak ? '<span class="leak">可能洩漏結果</span>' : ''}${n.hidden ? '<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看不到</span>' : ''}` : '';
     return `<div class="op ${n.hidden ? 'hid' : ''}">
       <div class="ol"><span class="role ${n.cat}" style="border-left-color:${opRoleColor(n)}">${esc(n.role)}</span>
@@ -1079,7 +1079,7 @@
       if (md.type === 'image') {
         body = `${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s), k: s })), `CQ.delImg(${i},IDX)`)}
           <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
-            <button class="mbtn" style="padding:8px 14px;font-size:13px;border-color:var(--brand);color:var(--brand)" onclick="CQ.pickImg(${i})">⬆ 上傳補充資訊圖片</button>
+            <button class="mbtn" style="padding:8px 14px;font-size:13px;border-color:var(--brand);color:var(--brand)" onclick="CQ.pickImg(${i})">上傳補充資訊圖片</button>
             <div class="drop" tabindex="0" style="flex:1;padding:8px" onclick="this.focus()" onpaste="CQ.pasteImg(event,${i})">或點這裡後按 Ctrl+V 貼上截圖</div></div>
           <div class="hint">圖片原檔拆段存進 Firestore（太大才壓縮）。上傳前請確認圖片裡的帳號與浮水印。</div>`;
       }
@@ -1303,7 +1303,7 @@
       <button class="mbtn" onclick="CQ.sopPickStart(${i})">更換起點</button></div>`;
     if (w.broken) h += `<div class="sop-warn">標準答案第 ${w.steps.length + 1} 步之後和目前的 SOP 對不上（節點被改或刪除），請從最上面的節點重新選。</div>`;
     if (w.end === 'loading') h += `<div class="hint">載入 ${esc(sopTbOf(w.cur))}…</div>`;
-    else if (w.end) h += `<div class="sop-okbar">✔ 標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? `：跳到的 ${esc(sopTbOf(w.cur))} 不在上線中的 SOP，當成終點` : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : w.end === 'stop' ? '：這一段在這裡結束' : ''}</div>`;
+    else if (w.end) h += `<div class="sop-okbar">標準答案設定完成（共 ${w.steps.length} 步）${w.end === 'jump' ? `：跳到的 ${esc(sopTbOf(w.cur))} 不在上線中的 SOP，當成終點` : w.end === 'dead' ? '：這個選項在 SOP 裡沒有下一步，當成終點' : w.end === 'missing' ? '：找不到下一個節點，當成終點' : w.end === 'stop' ? '：這一段在這裡結束' : ''}</div>`;
     h += `<label class="sop-hintset"><input type="checkbox" ${md.hint ? 'checked' : ''} onchange="CQ.setMod(${i},'hint',this.checked)">
       專員點 SOP 動作按鈕後，底部對應的功能亮起提示（練習用建議開、考試用建議關）</label>`;
     const outside = (md.acts || []).filter((a) => !a.link);
@@ -1364,7 +1364,7 @@
           body += sopBtnsHtml(md, i, node, it);
         }
         // 講師：目前還沒選的節點（專員、系統、動作節點都可以）可以設成這一段的結束點（2026-11-21 修：原本只有動作節點有）
-        if (!ag && !it.done && !isFinal) body += `<button class="mbtn sop-stopbtn" onclick="CQ.sopStop(${i},'${esc(it.n)}')" title="分段考：這一段只考到這裡，這個節點之後不出題">⏹ 在這裡結束這一段（這個節點不考）</button>`;
+        if (!ag && !it.done && !isFinal) body += `<button class="mbtn sop-stopbtn" onclick="CQ.sopStop(${i},'${esc(it.n)}')" title="分段考：這一段只考到這裡，這個節點之後不出題">在這裡結束這一段（這個節點不考）</button>`;
         // 專員畫面的終點不顯示節點編號（被截斷的終點其實是系統節點，查得到編號就會露餡）
         if (!(ag && isFinal)) body += `<div class="sopi-bottom"><span class="sopi-pid" title="Node Point ID">${esc(sopPointId(sop, it.n))}</span><span onclick="CQ.sopCopy('${esc(sopPointId(sop, it.n))}')">${SOP_ICON_COPY}</span></div>`;
       }
@@ -1436,7 +1436,7 @@
     const f = a.fields || {};
     const items = (f.items || []).length ? `<div class="sop-rmk">證據項目：${f.items.map((x, k) => `${k + 1}. ${esc(x.hint)}${x.req ? '' : '（Optional）'}`).join('　')}</div>` : '';
     const ck = f.checklist ? `<div class="sop-rmk">Checklist：${esc(f.checklist)}</div>` : '';
-    return `<div class="sop-act-line"><div class="sop-act-txt"><b>${no ? no + '. ' : ''}✔ ${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${ck}${items}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
+    return `<div class="sop-act-line"><div class="sop-act-txt"><b>${no ? no + '. ' : ''}${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${ck}${items}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
       ${isEdit() ? `<button class="mbtn del" title="刪除這筆操作紀錄" onclick="CQ.actDel(${i},${a.seq})">✕</button>` : ''}</div>`;
   }
   function sopBtn(i, r) {
@@ -1676,7 +1676,7 @@
   // ───────── 第 3 步：批改比對畫面（講師批改、專員公布解答後共用） ─────────
   //   比對規則在 db.js sopGrade：路線不是完整走在標準路線上就全錯；動作逐節點比對種類、順序、欄位
   const sopParse = (v) => { if (!v) return null; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (_) { return null; } };
-  const OKMARK = (ok) => (ok === true ? '<span class="sop-ok">✔</span>' : ok === false ? '<span class="sop-ng">✘</span>' : '<span class="sop-chk">需確認</span>');
+  const OKMARK = (ok) => (ok === true ? '<span class="sop-chk ok">對</span>' : ok === false ? '<span class="sop-chk ng">錯</span>' : '<span class="sop-chk">需確認</span>');
   /** keySopRaw：解答（key 的 sop）；ansRaw：專員作答；pool：這場測驗的 SOP 專員版（顯示節點名稱） */
   function sopReviewHtml(keySopRaw, ansRaw, pool, opt = {}) {
     const DB = window.RRQP_DB;
@@ -1704,7 +1704,7 @@
       const chg = mine[i] && mine[i].chg ? `<span class="sop-chg" title="這一步改過答案">改過 ${mine[i].chg} 次</span>` : '';
       return `<tr class="${cls}"><td>${i + 1}</td><td>${std[i] ? label(std[i]) : '<span class="soft">（標準答案到這裡結束）</span>'}</td><td>${mine[i] ? label(mine[i]) + chg : '<span class="soft">（沒有作答）</span>'}</td></tr>`;
     }).join('');
-    const head = g.routeOk ? '<span class="sop-ok">✔ 路線正確</span>' : `<span class="sop-ng">✘ 路線從第 ${g.diverge + 1} 步開始不同</span>${mine.length < std.length && g.diverge === mine.length ? '（沒有走完）' : ''}`;
+    const head = g.routeOk ? '<span class="sop-ok">路線正確</span>' : `<span class="sop-ng">路線從第 ${g.diverge + 1} 步開始不同</span>${mine.length < std.length && g.diverge === mine.length ? '（沒有走完）' : ''}`;
     // 操作比對：每個操作一張小表（欄位｜標準｜專員｜結果），2026-11-21 Chris：原本一長句＋再列一次差異，太亂
     const actName = (x) => (x ? `${esc(ACT_KINDS[x.kind] || x.kind)}${actSummary(x) ? '：' + esc(actSummary(x)) : ''}` : '<span class="soft">—</span>');
     const fv = (f, x) => { const v = x == null || x === '' ? '' : f.name === 'Pending by' ? PENDING_BY[x] || x : typeof x === 'boolean' ? (x ? 'Yes' : 'No') : x; return v === '' ? '<span class="soft">—</span>' : esc(String(v)); };
@@ -1716,8 +1716,8 @@
       }
       if (!p.fields.length) return `<div class="sop-rv-op"><div class="sop-rv-opk">${OKMARK(p.ok)}<span>${kind}</span></div></div>`;
       return `<div class="sop-rv-op"><div class="sop-rv-opk">${OKMARK(p.ok)}<span>${kind}</span></div>
-        <table class="sop-rv-ft"><thead><tr><th>欄位</th><th>標準</th><th>專員</th><th></th></tr></thead><tbody>
-        ${p.fields.map((f) => `<tr class="${f.ok === false ? 'bad' : f.ok === null ? 'chk' : ''}"><td>${esc(f.name)}</td><td>${fv(f, f.exp)}</td><td>${fv(f, f.got)}</td><td>${OKMARK(f.ok)}</td></tr>`).join('')}</tbody></table></div>`;
+        <table class="sop-rv-ft"><thead><tr><th>欄位</th><th>標準</th><th>專員</th></tr></thead><tbody>
+        ${p.fields.map((f) => `<tr class="${f.ok === false ? 'bad' : f.ok === null ? 'chk' : ''}"><td>${esc(f.name)}</td><td>${fv(f, f.exp)}</td><td>${fv(f, f.got)}</td></tr>`).join('')}</tbody></table></div>`;
     };
     const acts = g.acts.map((x) => {
       const n = nodeOf(x.n), name = n ? n.name || n.question : x.n;
@@ -1728,7 +1728,7 @@
     return `<div class="sop-rv">
       <div class="sop-rv-head">${head}${g.changes ? `<span class="sop-chg">改過答案共 ${g.changes} 次</span>` : ''}${opt.teacher ? `<span class="sop-rv-auto">${auto}</span>` : ''}</div>
       <table class="sop-rv-t"><thead><tr><th>步</th><th>標準答案${std.length ? `<div class="soft">${endOf(std)}</div>` : ''}</th><th>${opt.teacher ? '專員' : '你的作答'}<div class="soft">${g.routeOk ? '' : endOf(mine)}</div></th></tr></thead><tbody>${rows}</tbody></table>
-      ${acts || outside ? `<div class="sop-rv-sub">操作比對</div>${acts}${outside}` : ''}</div>`;
+      ${acts || outside ? `<div class="sop-rv-sub">操作比對<span class="sop-rv-legend"><i class="bad"></i>錯　<i class="chk"></i>需確認</span></div>${acts}${outside}` : ''}</div>`;
   }
 
   const sopPreviewKey = (md) => ({ route: md.answer || [], acts: md.acts || [], snap: md.snap || {}, stopAfter: agStopAfter(md), finals: {} });
@@ -1743,7 +1743,7 @@
     if (w.end === 'loading') return h + `<div class="hint">載入 SOP…</div></div>`;
     const st = agSt(md);
     if (!A.submitted) h += `<div class="hint">照 SOP 一步步往下選，系統判斷的節點也要依案件資料自己選。選完可以回頭改（改答案會留下紀錄）。遇到要操作的節點，先點卡片上的按鈕，再到畫面底部的操作列完成操作。</div>`;
-    if (w.end) h += `<div class="sop-okbar">✔ ${w.node && w.node.type === 'stop' ? '這一段作答完成' : '已到終點'}${A.submitted ? '' : '（要改答案的話，點上面的節點重新選）'}</div>`;
+    if (w.end) h += `<div class="sop-okbar">${w.node && w.node.type === 'stop' ? '這一段作答完成' : '已到終點'}${A.submitted ? '' : '（要改答案的話，點上面的節點重新選）'}</div>`;
     const outside = (st.acts || []).filter((a) => !a.link);
     if (outside.length) h += `<div class="sop-outside"><b>不是從 SOP 卡片按鈕開始的操作</b>${outside.map((a) => actLine(md, a, i)).join('')}</div>`;
     return h + sopCardsHtml(md, i, null, w) + '</div>';
@@ -2003,7 +2003,7 @@
   function exBar() {
     const s = EX.session, left = EX.deadline ? Math.max(0, EX.deadline - (Date.now() + EX.offset)) : 0;
     const mm = Math.floor(left / 60000), ss = Math.floor((left % 60000) / 1000);
-    const sv = EX.saveErr ? `<span class="sv err">⚠ ${esc(EX.saveErr.slice(0, 40))}</span>` : EX.saving ? '<span class="sv">儲存中…</span>'
+    const sv = EX.saveErr ? `<span class="sv err">${esc(EX.saveErr.slice(0, 40))}</span>` : EX.saving ? '<span class="sv">儲存中…</span>'
       : `<span class="sv">已自動儲存 ${new Date(EX.lastSave).toLocaleTimeString('sv-SE').slice(0, 5)}</span>`;
     $('#cqBar').innerHTML = `<a class="cbtn" href="${X.me.isTeacher ? '#/mine' : '#/'}">← 我的測驗</a><span class="cid">${esc(s.sessionId)}</span><b>${esc(s.title)}</b>
       <span class="chipc ${EX.readOnly ? 'ok' : ''}">${s.mode === 'practice' ? '練習' : '考試'}${EX.readOnly ? '・已交卷' : ''}</span>
@@ -2022,11 +2022,19 @@
   }
   function exResultHtml() {
     if (!EX.readOnly) return '';
-    const mods = C.modules.filter((m) => m.type === 'mc');
     if (!EX.reveal) return `<div class="cres"><div>已交卷</div><div class="hint">${EX.session.mode === 'practice' ? '等講師公布解答' : '等講師公布成績'}</div></div>`;
-    const got = mods.filter((m) => A.mc[m.id] === m.answer).length;
-    return `<div class="cres"><div>單選題答對 <b class="big">${got}</b> / ${mods.length} 題</div>
-      ${C.modules.some((m) => m.type === 'short') ? '<div class="hint">簡答題請對照下方的參考答案</div>' : ''}</div>`;
+    // 逐題判定，所有題型共用 db.js 的 qRight（2026-11-21：原本只算單選，只有 SOP 題時顯示 0 / 0）
+    const DB = window.RRQP_DB, det = (EX.result && EX.result.detail) || {}, qs = C.modules.filter((m) => ['mc', 'sop', 'short'].includes(m.type));
+    let ok = 0, n = 0, wait = 0;
+    qs.forEach((m) => {
+      const km = Object.assign({}, m, { sop: m.keySop }), a = { mc: A.mc, sop: { [m.id]: m.type === 'sop' ? agSt(m) : null } };
+      const g = det[EX.idx + ':' + m.id], sc = g === null || g === undefined ? undefined : g;
+      const v = DB && DB.qRight ? DB.qRight(km, a, m.type === 'mc' ? undefined : sc) : null;
+      if (v === null) wait++; else { n++; if (v) ok++; }
+    });
+    return `<div class="cres">${n ? `<div>這個案件答對 <b class="big">${ok}</b> / ${n} 題</div>` : ''}
+      ${wait ? `<div class="hint">${wait} 題沒有自動判定${qs.some((m) => m.type === 'short') ? '（簡答題請對照下方的參考答案）' : ''}</div>` : ''}
+      ${qs.some((m) => m.type === 'sop') ? '<div class="hint">SOP 題請看下方的比對：標準答案和你的作答逐步並排，紅底是開始走錯的那一步。</div>' : ''}</div>`;
   }
   function exShortScore(md) {
     if (!EX || !EX.result || !EX.result.detail) return '';
@@ -2184,7 +2192,7 @@
       <div class="fpm"><div><b>${fmtS(t.t || 0)}</b><span>這個案件花的時間</span></div>
         <div><b>${imgs.filter(opened).length} / ${imgs.length}</b><span>照片打開</span></div>
         <div><b>${vids.filter(opened).length} / ${vids.length}</b><span>影片打開</span></div></div>
-      ${flags.length ? `<div class="fpflag">⚠ 需要留意：${flags.map(esc).join('；')}</div>` : ''}
+      ${flags.length ? `<div class="fpflag">需要留意：${flags.map(esc).join('；')}</div>` : ''}
       <div class="fpl">中間的 DMS 區塊</div><div class="fpr">${blocks}</div>
       <div class="fpl">右側分頁</div><div class="fpr">${tabs}</div>
       ${vids.length ? `<div class="fpl">影片</div><ul class="fpv">${vidRows}</ul>` : ''}</div>`;

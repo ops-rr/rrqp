@@ -453,5 +453,20 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .sop-rv-ft{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;font-size:12px}
 .sop-rv-ft th,.sop-rv-ft td{border-bottom:1px solid #eef0f4;padding:4px 6px;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
 .sop-rv-ft th{color:#888;font-weight:400;background:#fafbfc}
-.sop-rv-ft th:nth-child(1){width:26%}.sop-rv-ft th:nth-child(4){width:4.5em}
+.sop-rv-ft th:nth-child(1){width:30%}
+.sop-rv-legend{margin-left:12px;font-weight:400;font-size:12px;color:#666}
+.sop-rv-legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 3px 0 6px}
+.sop-rv-legend i.bad{background:#fdecea;border:1px solid #f3b6b0}.sop-rv-legend i.chk{background:#fff8e6;border:1px solid #f0d48a}
 .sop-rv-ft tr.bad td{background:#fdecea}.sop-rv-ft tr.chk td{background:#fff8e6}
+
+/* 依題目批改：SOP 題一位專員一張卡（2026-11-21） */
+.xsop{border:1px solid var(--line,#e5e5e5);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fff}
+.xsop-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.xsop-em{word-break:break-all}
+.xsop-tag{font-size:12px;padding:2px 8px;border-radius:10px;background:#f1f1f1;color:#555;white-space:nowrap}
+.xsop-tag.ok{background:#e8f5ec;color:#1e7a3c}.xsop-tag.bad{background:#fdecea;color:#c0392b}.xsop-tag.chk{background:#fff8e6;color:#8a6100}
+.xsop-sc{white-space:nowrap;font-size:14px}
+.xsop-d{margin-top:8px}.xsop-d>summary{cursor:pointer;color:var(--brand,#ee4d2d)}
+.xsop-d .sop-rv{max-width:none}
+
+.sop-chk.ok{color:#2e7d32;border-color:#9fd3a7}.sop-chk.ng{color:#c62828;border-color:#f3b6b0}
