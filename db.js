@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21u';
+const VERSION = 'V2-2026-11-21w';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2504,7 +2504,7 @@ function caseAgentView(src) {
   if (c.i18n) {
     const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));
     const keep = (m) => Object.fromEntries(Object.entries(m || {}).filter(([k]) => txt.includes(JSON.stringify(k))));
-    c.i18n = { ui: c.i18n.ui || {}, zh: keep(c.i18n.zh), bpo: keep(c.i18n.bpo), opzh: keep(c.i18n.opzh) };
+    c.i18n = { ui: c.i18n.ui || {}, zh: keep(c.i18n.zh), bpo: keep(c.i18n.bpo), opzh: keep(c.i18n.opzh), tx: keep(c.i18n.tx) };   // tx：使用者打的字的英文（BPO）
   }
   return c;
 }
@@ -2752,7 +2752,9 @@ async function sopPack(list) {
   const docs = Object.entries(keep).map(([tb, ids]) => {
     const f = flows[tb], nodes = {};
     ids.forEach((id) => { nodes[id] = sopAgentNode(f.nodes[id]); });
-    const json = JSON.stringify({ taskbot: tb, taskbotName: f.taskbotName || '', flowId: f.flowId || '', version: f.version || '', root: f.root || '', nodes });
+    // BPO 翻譯（2026-11-21）：排程存在 SOP 的 tx（原文 → 英文），只留專員版畫面上有的字
+    const used = JSON.stringify(nodes), tx = Object.fromEntries(Object.entries(f.tx || {}).filter(([k]) => used.includes(JSON.stringify(k))));
+    const json = JSON.stringify({ taskbot: tb, taskbotName: f.taskbotName || '', flowId: f.flowId || '', version: f.version || '', root: f.root || '', nodes, tx });
     if (json.length > 900000) fail(`${tb} 的專員版超過 Firestore 單一文件上限 / SOP too large: ${tb}`);
     return { tb, data: { taskbot: tb, flowId: f.flowId || '', version: f.version || '', json } };
   });

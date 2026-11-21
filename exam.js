@@ -16,11 +16,15 @@
   const toLocal = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const xLink = (id) => location.origin + location.pathname + '#/x/' + id;
   const REFRESH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';   // 和 app.js 同一個圖示
-  const MODE = (s) => (s.mode === 'practice' ? (s.review === 'unified' ? '練習・統一檢討' : '練習・隨時檢討') : '考試');
-  const STATE = { scheduled: '尚未開始', open: '進行中', closed: '已結束', released: '已公布成績' };
-  const ATT = { not_started: '未開始', in_progress: '作答中', submitted: '已交卷', expired: '逾時未交' };
-  const stChip = (st) => `<span class="chip ${st === 'open' ? 'ok' : st === 'scheduled' ? 'info' : st === 'released' ? 'brand' : ''}">${STATE[st] || esc(st)}</span>`;
-  const atChip = (a) => `<span class="chip ${a.status === 'submitted' ? 'ok' : a.status === 'in_progress' ? 'info' : a.status === 'expired' ? 'warn' : ''}">${ATT[a.status] || esc(a.status)}${a.autoSubmitted ? '・自動交卷' : ''}</span>`;
+  // 專員看得到的字跟右上角「中文／EN」切換（2026-11-21 BPO）；中文、英文寫在同一處
+  const U = (zh, en) => (document.documentElement.lang === 'en' ? en : zh);
+  const MODE = (s) => (s.mode === 'practice' ? (s.review === 'unified' ? U('練習・統一檢討', 'Practice · reviewed together') : U('練習・隨時檢討', 'Practice · instant review')) : U('考試', 'Exam'));
+  const STATE_ZH = { scheduled: '尚未開始', open: '進行中', closed: '已結束', released: '已公布成績' };
+  const STATE_EN = { scheduled: 'Not started', open: 'Open', closed: 'Closed', released: 'Results released' };
+  const ATT_ZH = { not_started: '未開始', in_progress: '作答中', submitted: '已交卷', expired: '逾時未交' };
+  const ATT_EN = { not_started: 'Not started', in_progress: 'In progress', submitted: 'Submitted', expired: 'Expired' };
+  const stChip = (st) => `<span class="chip ${st === 'open' ? 'ok' : st === 'scheduled' ? 'info' : st === 'released' ? 'brand' : ''}">${U(STATE_ZH, STATE_EN)[st] || esc(st)}</span>`;
+  const atChip = (a) => `<span class="chip ${a.status === 'submitted' ? 'ok' : a.status === 'in_progress' ? 'info' : a.status === 'expired' ? 'warn' : ''}">${U(ATT_ZH, ATT_EN)[a.status] || esc(a.status)}${a.autoSubmitted ? U('・自動交卷', ' · auto-submitted') : ''}</span>`;
 
   // ═════════════════════════════ 測驗管理：列表＋新增 ═════════════════════════════
   async function sessions(box, ctx) {
@@ -363,7 +367,7 @@
   const CSV_HEAD = ['專員', '測驗編號', '測驗名稱', '類型', '練習／考試', '開放時間', '狀態', '分數', '滿分', '百分比', '原始得分', '原始總分', '答對率', '需輔導', '錯在哪', '作答時間', '離開頁面次數', '離開總秒數', '需要留意', '交卷時間'];
   function csvRow(r) {
     const sub = r.status === 'submitted';
-    return [r.email, r.sessionId, r.title, 'DMS 考題', r.mode === 'practice' ? '練習' : '考試', fmtDT(r.startAt), ATT[r.status] || r.status,
+    return [r.email, r.sessionId, r.title, 'DMS 考題', r.mode === 'practice' ? '練習' : '考試', fmtDT(r.startAt), ATT_ZH[r.status] || r.status,
       sub && r.score !== null ? r.score : '', sub && r.total !== null ? r.total : '', sub && r.pct !== null ? r.pct : '', sub && r.raw != null ? r.raw : '', sub && r.rawTotal != null ? r.rawTotal : '', sub && r.mcRate !== null ? Math.round(r.mcRate * 100) + '%' : '',
       r.coaching ? 'Y' : '', r.wrong.map((w) => w.label + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、'),
       sub ? durTxt(r.secs) : '', sub ? r.leaves : '', sub ? r.leaveSecs : '', r.flags.join('；'), sub ? fmtDT(r.submittedAt) : ''];
@@ -499,12 +503,13 @@
     try { d = await X.api('x_mine'); } catch (_) { return { html: '', count: 0 }; }
     const html = d.sessions.map((s) => {
       const a = s.attempt;
-      const btn = a.status === 'in_progress' ? '繼續作答' : a.status === 'not_started' && s.state === 'open' ? '開始作答' : a.status === 'submitted' ? '查看作答' : '查看';
-      return `<div class="card pad quizcard"><div class="row"><span class="chip brand">DMS 考題</span>${stChip(s.state)}${a.status !== 'not_started' ? atChip(a) : ''}</div>
+      const go = a.status === 'in_progress' || (a.status === 'not_started' && s.state === 'open');
+      const btn = a.status === 'in_progress' ? U('繼續作答', 'Continue') : a.status === 'not_started' && s.state === 'open' ? U('開始作答', 'Start') : a.status === 'submitted' ? U('查看作答', 'View answers') : U('查看', 'View');
+      return `<div class="card pad quizcard"><div class="row"><span class="chip brand">${U('DMS 考題', 'DMS quiz')}</span>${stChip(s.state)}${a.status !== 'not_started' ? atChip(a) : ''}</div>
         <h2 style="margin-top:8px">${esc(s.title)}</h2>
-        <div class="kv small" style="margin-top:8px"><span>類型</span><span>${MODE(s)}</span><span>開放時間</span><span>${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</span>
-          <span>作答時間</span><span>${s.minutes} 分鐘</span><span>內容</span><span>${s.caseCount} 個案件・${s.questionCount} 題</span></div>
-        <div class="row" style="margin-top:12px"><a class="btn ${btn.includes('作答') && a.status !== 'submitted' ? 'brand' : ''}" style="display:inline-grid;place-items:center;text-decoration:none" href="#/x/${esc(s.sessionId)}">${btn}</a>
+        <div class="kv small" style="margin-top:8px"><span>${U('類型', 'Type')}</span><span>${MODE(s)}</span><span>${U('開放時間', 'Open')}</span><span>${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</span>
+          <span>${U('作答時間', 'Time limit')}</span><span>${U(`${s.minutes} 分鐘`, `${s.minutes} min`)}</span><span>${U('內容', 'Content')}</span><span>${U(`${s.caseCount} 個案件・${s.questionCount} 題`, `${s.caseCount} case(s) · ${s.questionCount} question(s)`)}</span></div>
+        <div class="row" style="margin-top:12px"><a class="btn ${go ? 'brand' : ''}" style="display:inline-grid;place-items:center;text-decoration:none" href="#/x/${esc(s.sessionId)}">${btn}</a>
           ${s.score !== null && s.score !== undefined ? `<span class="score" style="font-size:20px"><b>${s.score}</b><span> / ${s.total}</span></span>` : ''}</div></div>`;
     }).join('');
     return { html, count: d.sessions.length };
@@ -520,14 +525,15 @@
     if (a.status === 'submitted') {
       try { return window.RRQP_CASES.take(main, await X.api('x_result', { sessionId: id }), X, { result: true }); } catch (e) { X.showError(e, main); return; }
     }
-    const msg = a.status === 'expired' ? '作答時間已過，沒有交卷。' : s.state === 'scheduled' ? `測驗尚未開始，開放時間：${fmtDT(s.startAt)}` : s.state !== 'open' ? '測驗已結束。' : '';
+    const msg = a.status === 'expired' ? U('作答時間已過，沒有交卷。', 'Time ran out before you submitted.') : s.state === 'scheduled' ? U(`測驗尚未開始，開放時間：${fmtDT(s.startAt)}`, `This quiz has not started yet. Opens: ${fmtDT(s.startAt)}`) : s.state !== 'open' ? U('測驗已結束。', 'This quiz has ended.') : '';
     main.innerHTML = `<div class="card pad" style="max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px">
-      <div class="row"><span class="chip brand">DMS 考題</span><span class="chip">${MODE(s)}</span>${stChip(s.state)}</div>
+      <div class="row"><span class="chip brand">${U('DMS 考題', 'DMS quiz')}</span><span class="chip">${MODE(s)}</span>${stChip(s.state)}</div>
       <h1>${esc(s.title)}</h1>
-      <div class="kv small"><span>開放時間</span><span>${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</span><span>作答時間</span><span>${s.minutes} 分鐘（按「開始作答」起算）</span>
-        <span>內容</span><span>${s.caseCount} 個案件・${s.questionCount} 題</span></div>
-      <div class="banner">畫面和 DMS 一樣，右側「考題」分頁作答，上方可以切換案件。作答會自動儲存；作答過程會記錄瀏覽的區塊、開啟的照片與影片、離開考試頁面的時間，講師看得到。</div>
-      ${msg ? `<div class="banner warn">${esc(msg)}</div>` : '<div class="row"><button class="btn brand" id="xGo">開始作答</button></div>'}</div>`;
+      <div class="kv small"><span>${U('開放時間', 'Open')}</span><span>${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</span><span>${U('作答時間', 'Time limit')}</span><span>${U(`${s.minutes} 分鐘（按「開始作答」起算）`, `${s.minutes} min (starts when you click Start)`)}</span>
+        <span>${U('內容', 'Content')}</span><span>${U(`${s.caseCount} 個案件・${s.questionCount} 題`, `${s.caseCount} case(s) · ${s.questionCount} question(s)`)}</span></div>
+      <div class="banner">${U('畫面和 DMS 一樣，右側「考題」分頁作答，上方可以切換案件。作答會自動儲存；作答過程會記錄瀏覽的區塊、開啟的照片與影片、離開考試頁面的時間，講師看得到。',
+        'The screen works like DMS: answer in the Questions tab on the right, and switch cases at the top. Answers are saved automatically. Your activity (sections viewed, photos and videos opened, time away from the page) is recorded and visible to the trainer.')}</div>
+      ${msg ? `<div class="banner warn">${esc(msg)}</div>` : `<div class="row"><button class="btn brand" id="xGo">${U('開始作答', 'Start')}</button></div>`}</div>`;
     const go = $('#xGo');
     if (go) go.onclick = async () => {
       go.disabled = true;

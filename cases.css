@@ -470,3 +470,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .xsop-d .sop-rv{max-width:none}
 
 .sop-chk.ok{color:#2e7d32;border-color:#9fd3a7}.sop-chk.ng{color:#c62828;border-color:#f3b6b0}
+
+/* BPO 翻譯：英文旁的 Original（2026-11-21） */
+.tx-o{font-size:12px;color:var(--brand,#ee4d2d);cursor:pointer;white-space:nowrap;margin-left:4px}
+.tx-src{display:block;margin-top:2px;color:#888;font-size:12px;white-space:pre-wrap}
