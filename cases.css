@@ -439,9 +439,10 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .sop-ok{color:#2e7d32}.sop-ng{color:#c62828}.sop-chk{color:#b26a00;font-size:12px;border:1px solid #f0c36d;border-radius:8px;padding:0 5px}
 .sop-chg{font-size:11px;font-weight:400;color:#b26a00;margin-left:6px}
 .sop-tag{font-size:11px;color:#2673dd;border:1px solid #b9d3f5;border-radius:6px;padding:0 4px;margin-right:4px}
-.sop-rv-t{width:100%;border-collapse:collapse}
+.sop-rv-t{width:100%;border-collapse:collapse;table-layout:fixed}
+.sop-rv-t td,.sop-rv-t th{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
 .sop-rv-t th,.sop-rv-t td{border-bottom:1px solid #eef0f4;padding:5px 6px;text-align:left;vertical-align:top}
-.sop-rv-t th:first-child,.sop-rv-t td:first-child{width:28px;color:#888}
+.sop-rv-t th:first-child,.sop-rv-t td:first-child{width:3em;color:#888;white-space:nowrap;word-break:keep-all;overflow-wrap:normal}
 .sop-rv-t th .soft{font-weight:400;font-size:12px}
 .sop-rv-bad td{background:#fdecea}.sop-rv-after td{color:#999}
 .sop-rv-sub{margin:10px 0 4px;font-weight:700}

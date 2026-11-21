@@ -1026,10 +1026,15 @@
   }
 
   function resultHtml() {
-    let got = 0, mcTotal = 0, shortTotal = 0;
+    let got = 0, mcTotal = 0, shortTotal = 0, sopTotal = 0, sopGot = 0, sopWait = 0;
     const notes = [];
     C.modules.forEach(md => {
       if (md.type === 'mc') { mcTotal += md.points; if (A.mc[md.id] === md.answer) got += md.points; }
+      if (md.type === 'sop' && window.RRQP_DB && window.RRQP_DB.sopGrade) {
+        sopTotal += md.points;
+        const g = window.RRQP_DB.sopGrade(sopPreviewKey(md), agSt(md));
+        if (g.auto === null) sopWait += md.points; else sopGot += g.auto * md.points;
+      }
       if (md.type === 'short') {
         shortTotal += md.points;
         const bound = C.modules.find(x => x.id === md.bindTo);
@@ -1039,7 +1044,8 @@
     const secs = Math.round(A.leaveMs / 1000);
     const isPractice = C.meta.usage === 'practice';
     return `<div class="cres">
-      <div>單選題答對 <b class="big">${got}%</b> / ${mcTotal}%（佔本案件）</div>
+      ${mcTotal ? `<div>單選題答對 <b class="big">${got}%</b> / ${mcTotal}%（佔本案件）</div>` : ''}
+      ${sopTotal ? `<div>SOP 路徑自動判定 <b class="big">${Math.round(sopGot * 100) / 100}%</b> / ${sopTotal}%（佔本案件）${sopWait ? `，另有 ${sopWait}% 要講師給分` : ''}</div>` : ''}
       ${shortTotal ? `<div>簡答題 ${shortTotal}%：待 AI 預評分，再由講師確認</div>` : ''}
       ${notes.map(n => `<div class="hint">${esc(n)}</div>`).join('')}
       <div class="hint">作答期間離開考試頁面 ${A.leaves} 次，共 ${secs} 秒（講師看得到）</div>
@@ -1680,7 +1686,7 @@
     const label = (st) => {
       const n = nodeOf(st.n);
       if (!n) return `<span class="mono">${esc(st.n)}</span>`;
-      const name = n.type === 'manual' ? (n.question || n.name) : n.name;
+      const name = n.name || n.question || st.n;
       const pick = n.type === 'manual' || n.type === 'system' ? sopPickLabel(n, st.pick || 0) : (sopButtons(n).filter((b) => ACT_KINDS[b.kind]).map((b) => b.text).join('、') || SOP_BTN[n.type] || '完成');
       return `${n.type === 'system' ? '<span class="sop-tag">系統</span>' : ''}${esc(name)} → <b>${esc(pick)}</b>`;
     };
@@ -1715,13 +1721,14 @@
       ${acts || outside ? `<div class="sop-rv-sub">操作比對</div>${acts}${outside}` : ''}</div>`;
   }
 
+  const sopPreviewKey = (md) => ({ route: md.answer || [], acts: md.acts || [], snap: md.snap || {}, stopAfter: agStopAfter(md), finals: {} });
   function sopAgentHtml(md, i, no) {
     let h = `<div class="mod qmod"><div class="mh">${no}. SOP 路徑<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>`;
     if (!md.start) return h + '<div class="hint">這題沒有設定 SOP。</div></div>';
     if (!EX) sopLoadList();
     if (A.submitted && EX && EX.reveal && md.keySop) h += sopReviewHtml(md.keySop, agSt(md), EX.sops);
     // 講師「專員預覽」交卷後：用題目本身的標準答案做同一份比對（含自動判定），講師試走就能看到會怎麼判（2026-11-21 Chris）
-    if (A.submitted && !EX) h += sopReviewHtml({ route: md.answer || [], acts: md.acts || [], snap: md.snap || {}, stopAfter: agStopAfter(md), finals: {} }, agSt(md), SOPS, { teacher: true });
+    if (A.submitted && !EX) h += sopReviewHtml(sopPreviewKey(md), agSt(md), SOPS, { teacher: true });
     const w = agWalk(md);
     if (w.end === 'loading') return h + `<div class="hint">載入 SOP…</div></div>`;
     const st = agSt(md);
