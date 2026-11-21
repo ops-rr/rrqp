@@ -247,7 +247,8 @@
     let x = ((a && a.sop) || {})[id];
     if (typeof x === 'string') { try { x = JSON.parse(x); } catch (_) { x = null; } }
     if (!x || !((x.route || []).length || (x.acts || []).length)) return '';
-    return `自己選了 ${(x.route || []).length} 步、底部操作 ${(x.acts || []).length} 次（路線與操作的比對之後會做，目前請人工給分）`;
+    const chg = (x.route || []).reduce((n, s) => n + (s.chg || 0), 0), nodes = (x.route || []).filter((s) => s.chg).length;
+    return `作答 ${(x.route || []).length} 個節點、底部操作 ${(x.acts || []).length} 次${chg ? `、改過答案 ${chg} 次（${nodes} 個節點）` : ''}（逐節點比對之後會做，目前請人工給分）`;
   }
   const mcRight = (key, r) => {
     let ok = 0, n = 0;

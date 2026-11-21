@@ -186,7 +186,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .leak{display:inline-block;font-size:11px;background:#fff7ed;color:var(--warn);border:1px solid #fed7aa;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap}
 .cq .hid{opacity:.45}
 .cq .addfd{margin-top:14px;border:1px dashed #cbd5e1;background:#fff;color:#64748b;border-radius:4px;padding:4px 10px;font-size:12px}
-.cq #cqWm{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:.07}   /* 2026-11-19：放在照片放大（#cqLb 50）、彈窗（#cqPop 40）上面，放大照片截圖也會有作答者 email */
+.cq #cqWm{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:.045}   /* 2026-11-21：Chris 覺得太明顯，調淡成接近 DMS */   /* 2026-11-19：放在照片放大（#cqLb 50）、彈窗（#cqPop 40）上面，放大照片截圖也會有作答者 email */
 .cq #cqLb{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#fff}
 .cq #cqLb.on{display:flex}
 .cq #cqLb img{max-width:92vw;max-height:84vh;transition:transform .1s;cursor:zoom-in}
@@ -428,13 +428,6 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .am-ev input,.am-ev select{width:100%;box-sizing:border-box}
 .am-add{color:#ee4d2d;cursor:pointer;margin:4px 0 8px;font-size:13px;display:inline-block}
 
-/* 其他路線會遇到的系統判斷（2026-11-21） */
-.cq .sop-sys{margin:12px 0;padding:8px 10px;border:1px solid #d9dee8;border-radius:6px;background:#fafbfd}
-.cq .sop-sys summary{cursor:pointer;font-size:13px;font-weight:700;color:#333}
-.cq .sop-sys summary b{color:#ee4d2d}
-.cq .sop-sys-row{padding:8px 0;border-top:1px dashed #e3e6ec}
-.cq .sop-sys-h{display:flex;align-items:center;gap:6px;font-size:13px;flex-wrap:wrap}
-.cq .sop-sys-h .sopi-pid{margin-left:auto}
-.cq .sop-sys-tag{font-size:11px;padding:1px 6px;border-radius:8px;background:#e8f0fe;color:#2673dd}
-.cq .sop-sys-tag.auto{background:#eef7ee;color:#2e7d32}
-.cq .sop-sys-tag.need{background:#fdecea;color:#c62828}
+/* 講師設定分段結束點（2026-11-21） */
+.cq .sop-stopbtn{margin-top:10px;color:#555}
+.cq .sop-rec{margin-left:6px;font-size:11px;padding:1px 6px;border-radius:8px;background:#eef7ee;color:#2e7d32;white-space:nowrap}

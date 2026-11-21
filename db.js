@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21e';
+const VERSION = 'V2-2026-11-21j';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2572,7 +2572,9 @@ function xSopAnsIn(x) {
   x = x && typeof x === 'object' ? x : {};
   const int = (v) => (Number.isInteger(v) ? v : 0), str = (v, n) => String(v == null ? '' : v).slice(0, n);
   const ints = (v) => (Array.isArray(v) ? v.filter(Number.isInteger).slice(0, 10) : []);
-  const route = (Array.isArray(x.route) ? x.route : []).slice(0, 300).map((st) => ({ n: str(st && st.n, 60), pick: int(st && st.pick), clicked: ints(st && st.clicked), t: int(st && st.t) }));
+  // chg＝這個節點改過幾次答案、hist＝[[選項, 秒], …]（第一筆是第一次的答案；2026-11-21 開放往前改但要記錄）
+  const route = (Array.isArray(x.route) ? x.route : []).slice(0, 300).map((st) => Object.assign({ n: str(st && st.n, 60), pick: int(st && st.pick), clicked: ints(st && st.clicked), t: int(st && st.t) },
+    st && st.chg ? { chg: int(st.chg), hist: (Array.isArray(st.hist) ? st.hist : []).slice(-30).map((h) => [int(h && h[0]), int(h && h[1])]) } : {}));
   const acts = (Array.isArray(x.acts) ? x.acts : []).slice(0, 100).filter((ac) => ac && SOP_ACT_KINDS.includes(ac.kind)).map((ac) => {
     const f = ac.fields || {}, fields = {};
     ['remark', 'template', 'realReason'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 1500); });
@@ -2588,25 +2590,21 @@ function xSopAnsIn(x) {
   return JSON.stringify({ route, acts, cur, actSeq: int(x.actSeq) });
 }
 
-/** SOP 路徑題組發佈（2026-11-21 第 2 步）：
+/** SOP 路徑題組發佈（2026-11-21 第 2 步；Chris 最後定案：自由走＋系統節點也由專員自己選）：
  *  - 一律用目前上線版（sopFlows）重走標準路線；對不上（改版改到路線）就擋發佈，請講師重走
- *  - 收集起點往下「走得到的所有節點」（專員作答時所有分支都開放，可以跨 SOP），做成專員版存在這場測驗底下（v3sessions/{sid}/sops/{taskbot}）
- *    → 測驗進行中 SOP 更新也不影響這份考卷；看成績、批改也讀這份（不靠 SOP 舊版）
- *  - 專員版：判決／結束節點的名稱與內容拿掉，只標終點（type:'final'）；系統判讀的條件拿掉
- *  - 系統判讀節點：標準路線上的分支（sysPick）給作答畫面自動帶過；不在標準路線上的走 Default
- *  list：[{ key, md, label }] → { mods: { key: { sysPick, flows, finals } }, docs: [{ tb, data }] } */
+ *  - 專員照 SOP 自由往下走，所以給起點往下走得到的所有節點（可以跨 SOP；不在上線清單的 SOP＝終點），
+ *    存在這場測驗底下 v3sessions/{sid}/sops/{taskbot}（測驗進行中 SOP 更新也不影響）
+ *  - 專員版節點：判決／結束只標終點（final）；系統節點留分支名稱與下一步（專員自己選），條件拿掉
+ *  - 講師設了結束點（md.stop）：專員走滿和標準答案一樣的步數就結束（stopAfter），節點也只給這個範圍內的
+ *  - 解答（key）另外存走得到的判決／結束節點的完整內容（finals）
+ *  list：[{ key, md, label }] → { mods: { key: { finals, flows, stopAfter } }, docs: [{ tb, data }] } */
 const sopTbOf = (nid) => (String(nid || '').match(/^(SOP\d+)_/) || [])[1] || '';
 const sopNextOf = (n, pick) => (n.type === 'manual' ? ((n.options || [])[pick] || {}).to : n.type === 'system' ? ((n.branches || [])[pick] || {}).to : n.to) || null;
-/** 系統節點判斷的是什麼（和 cases.js sysVarKey 相同）：判斷的變數；沒有條件的用節點名稱 */
-function sopVarKey(n) {
-  const vs = [...new Set((n.branches || []).flatMap((b) => (b.rules || []).map((r) => r.var)).filter(Boolean))].sort();
-  return vs.length ? vs.join('|') : 'name:' + (n.name || '');
-}
 const sopTargets = (n) => (n.type === 'manual' ? (n.options || []).map((o) => o.to) : n.type === 'system' ? (n.branches || []).map((b) => b.to) : [n.to]).filter(Boolean);
 function sopAgentNode(n) {
   if (n.type === 'judge' || n.type === 'end') return { type: 'final' };
   const o = Object.assign({}, n);
-  if (o.branches) o.branches = o.branches.map((b) => ({ label: b.label || '', default: !!b.default, to: b.to || null }));
+  if (o.branches) o.branches = o.branches.map((b) => ({ label: b.label || (b.default ? 'Default' : ''), to: b.to || null }));
   delete o.judge;
   return o;
 }
@@ -2629,45 +2627,39 @@ async function sopPack(list) {
     const md = it.md;
     if (!(await load(md.taskbot)) || !nodeOf(md.start)) fail(`${it.label}（SOP 路徑）的起點在目前上線版找不到，請講師重新設定起點`);
     // 標準路線：用最新版重走
-    const sysPick = {}, used = new Set([md.taskbot]), facts = {};
-    const addFact = (n, pick) => { const b = (n.branches || [])[pick]; if (!b || !b.label) return; const k = sopVarKey(n); facts[k] = facts[k] || []; if (!facts[k].includes(b.label)) facts[k].push(b.label); };
-    let nid = md.start;
+    const used = new Set([md.taskbot]);
+    let nid = md.start, steps = 0;
     for (const [k, st] of (md.answer || []).entries()) {
+      if (md.stop && nid === md.stop) break;
       await load(sopTbOf(nid));
       const n = nodeOf(nid);
       if (!n || st.n !== nid) fail(`${it.label}（SOP 路徑）：SOP 已改版，標準路線第 ${k + 1} 步和目前上線版對不上，請講師打開案件重走一次`);
       used.add(sopTbOf(nid));
-      if (n.type === 'system') { sysPick[nid] = st.pick; addFact(n, st.pick); }
+      steps++;
       nid = sopNextOf(n, st.pick);
     }
-    // 起點往下走得到的所有節點
-    const seen = new Set(), q = [md.start], finals = {}, sysIds = [];
+    if (nid) await load(sopTbOf(nid));
+    const last = nid ? nodeOf(nid) : null;
+    const stopped = !!(md.stop && nid === md.stop);
+    if (!stopped && last && last.type !== 'judge' && last.type !== 'end') fail(`${it.label}（SOP 路徑）的標準答案還沒走完：請走到判決，或在要結束的地方按「在這裡結束這一段」`);
+    // 起點往下走得到的所有節點（有結束點時只到標準答案的步數）
+    const depth = new Map(), q = [[md.start, 0]], finals = {};
     while (q.length) {
-      const id = q.shift();
-      if (seen.has(id)) continue;
-      seen.add(id);
-      if (seen.size > 6000) fail(`${it.label}（SOP 路徑）走得到的節點太多 / Too many SOP nodes`);
+      const [id, d] = q.shift();
+      if (depth.has(id) && depth.get(id) <= d) continue;
+      depth.set(id, d);
+      if (depth.size > 6000) fail(`${it.label}（SOP 路徑）走得到的節點太多 / Too many SOP nodes`);
       const tb = sopTbOf(id);
       if (!(await load(tb))) continue;
       const n = nodeOf(id);
       if (!n) continue;
       (keep[tb] = keep[tb] || new Set()).add(id);
       used.add(tb);
-      if (n.type === 'system') sysIds.push(id);
       if (n.type === 'judge' || n.type === 'end') { finals[id] = { type: n.type, name: n.name || '', text: n.text || '', judge: n.judge || null }; continue; }
-      sopTargets(n).forEach((x) => q.push(x));
+      if (stopped && d >= steps) continue;
+      sopTargets(n).forEach((x) => q.push([x, d + 1]));
     }
-    // 其他路線的系統節點（2026-11-21）：講師補設定的（md.sysSet）＋同一種判斷選過的分支名稱自動帶入；都沒有的不放（專員走到就截斷）
-    Object.entries(md.sysSet || {}).forEach(([id, p]) => { const n = nodeOf(id); if (n && n.type === 'system') addFact(n, p); });
-    const sysAll = Object.assign({}, sysPick);
-    sysIds.forEach((id) => {
-      if (sysAll[id] !== undefined) return;
-      const n = nodeOf(id), set = (md.sysSet || {})[id];
-      if (Number.isInteger(set) && (n.branches || [])[set]) { sysAll[id] = set; return; }
-      const labels = facts[sopVarKey(n)] || [], k = (n.branches || []).findIndex((b) => b.label && labels.includes(b.label));
-      if (k >= 0) sysAll[id] = k;
-    });
-    out[it.key] = { sysPick: sysAll, stdSys: sysPick, finals, flows: Object.fromEntries([...used].filter((tb) => flows[tb]).map((tb) => [tb, flows[tb].flowId])) };
+    out[it.key] = { finals, stopAfter: stopped ? steps : 0, flows: Object.fromEntries([...used].filter((tb) => flows[tb]).map((tb) => [tb, flows[tb].flowId])) };
   }
   const docs = Object.entries(keep).map(([tb, ids]) => {
     const f = flows[tb], nodes = {};
@@ -2730,12 +2722,12 @@ const EXAM = {
       av.modules.forEach((x) => {
         if (am[x.id] !== undefined) x.points = am[x.id];
         const sp = x.type === 'sop' && sopP.mods[i + ':' + x.id];
-        if (sp) { x.sysPick = sp.sysPick; x.flows = sp.flows; delete x.flowId; delete x.version; delete x.actSeq; }
+        if (sp) { x.flows = sp.flows; x.stopAfter = sp.stopAfter; delete x.flowId; delete x.version; delete x.actSeq; delete x.stop; }
       });
       mods.forEach((x) => {
         const sp = x.type === 'sop' && sopP.mods[i + ':' + x.id], md = sp && (body.modules || []).find((y) => y.id === x.id);
-        if (sp) x.sop = JSON.stringify({ taskbot: md.taskbot, start: md.start, hint: !!md.hint, route: md.answer || [], acts: md.acts || [], snap: md.snap || {},
-          sysPick: sp.stdSys, sysAll: sp.sysPick, flows: sp.flows, finals: sp.finals });
+        if (sp) x.sop = JSON.stringify({ taskbot: md.taskbot, start: md.start, stop: md.stop || '', hint: !!md.hint, route: md.answer || [], acts: md.acts || [], snap: md.snap || {},
+          stopAfter: sp.stopAfter, flows: sp.flows, finals: sp.finals });
       });
       pub.push({ caseId: ids[i], body: JSON.stringify(av) });
       key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods });   // topics：AI 批改用主題的批改原則
