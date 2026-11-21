@@ -448,5 +448,10 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .sop-rv-sub{margin:10px 0 4px;font-weight:700}
 .sop-rv-act{border-top:1px dashed #e3e6ec;padding:6px 0}
 .sop-rv-node{font-weight:600}
-.sop-rv-pair{margin:4px 0 0 16px;line-height:1.6}
-.sop-rv-f{margin-left:16px;font-size:12px;color:#555}
+.sop-rv-op{margin:6px 0 0 12px}
+.sop-rv-opk{display:flex;align-items:center;gap:6px;font-weight:600;flex-wrap:wrap}
+.sop-rv-ft{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px;font-size:12px}
+.sop-rv-ft th,.sop-rv-ft td{border-bottom:1px solid #eef0f4;padding:4px 6px;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+.sop-rv-ft th{color:#888;font-weight:400;background:#fafbfc}
+.sop-rv-ft th:nth-child(1){width:26%}.sop-rv-ft th:nth-child(4){width:4.5em}
+.sop-rv-ft tr.bad td{background:#fdecea}.sop-rv-ft tr.chk td{background:#fff8e6}

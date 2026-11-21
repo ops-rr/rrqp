@@ -1705,15 +1705,25 @@
       return `<tr class="${cls}"><td>${i + 1}</td><td>${std[i] ? label(std[i]) : '<span class="soft">（標準答案到這裡結束）</span>'}</td><td>${mine[i] ? label(mine[i]) + chg : '<span class="soft">（沒有作答）</span>'}</td></tr>`;
     }).join('');
     const head = g.routeOk ? '<span class="sop-ok">✔ 路線正確</span>' : `<span class="sop-ng">✘ 路線從第 ${g.diverge + 1} 步開始不同</span>${mine.length < std.length && g.diverge === mine.length ? '（沒有走完）' : ''}`;
+    // 操作比對：每個操作一張小表（欄位｜標準｜專員｜結果），2026-11-21 Chris：原本一長句＋再列一次差異，太亂
     const actName = (x) => (x ? `${esc(ACT_KINDS[x.kind] || x.kind)}${actSummary(x) ? '：' + esc(actSummary(x)) : ''}` : '<span class="soft">—</span>');
+    const fv = (f, x) => { const v = x == null || x === '' ? '' : f.name === 'Pending by' ? PENDING_BY[x] || x : typeof x === 'boolean' ? (x ? 'Yes' : 'No') : x; return v === '' ? '<span class="soft">—</span>' : esc(String(v)); };
+    const opHtml = (p) => {
+      const kind = esc(ACT_KINDS[(p.exp || p.got).kind] || (p.exp || p.got).kind);
+      if (!p.fields) {
+        const diff = p.exp && p.got ? `：標準是 ${esc(ACT_KINDS[p.exp.kind] || '')}，專員做了 ${esc(ACT_KINDS[p.got.kind] || '')}` : '';
+        return `<div class="sop-rv-op"><div class="sop-rv-opk">${OKMARK(p.ok)}<span>${kind}</span><span class="sop-ng">${esc(p.note || '')}${diff}</span></div></div>`;
+      }
+      if (!p.fields.length) return `<div class="sop-rv-op"><div class="sop-rv-opk">${OKMARK(p.ok)}<span>${kind}</span></div></div>`;
+      return `<div class="sop-rv-op"><div class="sop-rv-opk">${OKMARK(p.ok)}<span>${kind}</span></div>
+        <table class="sop-rv-ft"><thead><tr><th>欄位</th><th>標準</th><th>專員</th><th></th></tr></thead><tbody>
+        ${p.fields.map((f) => `<tr class="${f.ok === false ? 'bad' : f.ok === null ? 'chk' : ''}"><td>${esc(f.name)}</td><td>${fv(f, f.exp)}</td><td>${fv(f, f.got)}</td><td>${OKMARK(f.ok)}</td></tr>`).join('')}</tbody></table></div>`;
+    };
     const acts = g.acts.map((x) => {
       const n = nodeOf(x.n), name = n ? n.name || n.question : x.n;
-      return `<div class="sop-rv-act"><div class="sop-rv-node">${OKMARK(x.ok)} 第 ${x.i + 1} 步　${esc(name)}</div>${x.pairs.map((p) => `<div class="sop-rv-pair">
-        <div>${OKMARK(p.ok)} <b>標準</b> ${actName(p.exp)}<br><b>專員</b> ${actName(p.got)}${p.note ? `　<span class="sop-ng">${esc(p.note)}</span>` : ''}</div>
-        ${(p.fields || []).filter((f) => f.ok !== true).map((f) => { const v = (x) => esc(String(x == null ? '' : f.name === 'Pending by' ? PENDING_BY[x] || x : x));
-          return `<div class="sop-rv-f">${OKMARK(f.ok)} ${esc(f.name)}：標準「${v(f.exp)}」／專員「${v(f.got)}」</div>`; }).join('')}</div>`).join('')}</div>`;
+      return `<div class="sop-rv-act"><div class="sop-rv-node">第 ${x.i + 1} 步　${esc(name)}</div>${x.pairs.map(opHtml).join('')}</div>`;
     }).join('');
-    const outside = g.outside.length ? `<div class="sop-rv-act"><div class="sop-rv-node">${OKMARK(null)} 標準路線以外的操作</div>${g.outside.map((x) => `<div class="sop-rv-pair">${actName(x)}</div>`).join('')}</div>` : '';
+    const outside = g.outside.length ? `<div class="sop-rv-act"><div class="sop-rv-node">標準路線以外的操作 ${OKMARK(null)}</div>${g.outside.map((x) => `<div class="sop-rv-op">${actName(x)}</div>`).join('')}</div>` : '';
     const auto = g.auto === 1 ? '自動判定：滿分（路線與操作都正確）' : g.auto === 0 ? `自動判定：0 分（${g.mineLen || (a.acts || []).length ? '路線錯誤' : '沒有作答'}）` : `需要講師給分${g.actsOk === false ? '（操作有錯，建議 0 分）' : '（有文字需要確認）'}`;
     return `<div class="sop-rv">
       <div class="sop-rv-head">${head}${g.changes ? `<span class="sop-chg">改過答案共 ${g.changes} 次</span>` : ''}${opt.teacher ? `<span class="sop-rv-auto">${auto}</span>` : ''}</div>
