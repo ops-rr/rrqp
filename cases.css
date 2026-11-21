@@ -427,3 +427,14 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .am-ev td:last-child,.am-ev th:last-child{width:24px}
 .am-ev input,.am-ev select{width:100%;box-sizing:border-box}
 .am-add{color:#ee4d2d;cursor:pointer;margin:4px 0 8px;font-size:13px;display:inline-block}
+
+/* 其他路線會遇到的系統判斷（2026-11-21） */
+.cq .sop-sys{margin:12px 0;padding:8px 10px;border:1px solid #d9dee8;border-radius:6px;background:#fafbfd}
+.cq .sop-sys summary{cursor:pointer;font-size:13px;font-weight:700;color:#333}
+.cq .sop-sys summary b{color:#ee4d2d}
+.cq .sop-sys-row{padding:8px 0;border-top:1px dashed #e3e6ec}
+.cq .sop-sys-h{display:flex;align-items:center;gap:6px;font-size:13px;flex-wrap:wrap}
+.cq .sop-sys-h .sopi-pid{margin-left:auto}
+.cq .sop-sys-tag{font-size:11px;padding:1px 6px;border-radius:8px;background:#e8f0fe;color:#2673dd}
+.cq .sop-sys-tag.auto{background:#eef7ee;color:#2e7d32}
+.cq .sop-sys-tag.need{background:#fdecea;color:#c62828}

@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21b';
+const VERSION = 'V2-2026-11-21e';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2499,7 +2499,7 @@ function caseAgentView(src) {
   delete c.meta.rid; delete c.meta.title; delete c.meta.groups; delete c.meta.topics; delete c.meta.tags;
   delete c.notes;
   // SOP 路徑：answer（標準路線）、acts（講師示範的操作）、snap（路線節點快照）、cur 都是解答，不能給專員
-  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; delete o.acts; delete o.snap; delete o.cur; return o; });
+  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; delete o.acts; delete o.snap; delete o.cur; delete o.sysSet; return o; });
   // 中文對照只留專員畫面上真的有的文字（隱藏欄位的值不能從對照表看出來）
   if (c.i18n) {
     const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));
@@ -2597,6 +2597,11 @@ function xSopAnsIn(x) {
  *  list：[{ key, md, label }] → { mods: { key: { sysPick, flows, finals } }, docs: [{ tb, data }] } */
 const sopTbOf = (nid) => (String(nid || '').match(/^(SOP\d+)_/) || [])[1] || '';
 const sopNextOf = (n, pick) => (n.type === 'manual' ? ((n.options || [])[pick] || {}).to : n.type === 'system' ? ((n.branches || [])[pick] || {}).to : n.to) || null;
+/** 系統節點判斷的是什麼（和 cases.js sysVarKey 相同）：判斷的變數；沒有條件的用節點名稱 */
+function sopVarKey(n) {
+  const vs = [...new Set((n.branches || []).flatMap((b) => (b.rules || []).map((r) => r.var)).filter(Boolean))].sort();
+  return vs.length ? vs.join('|') : 'name:' + (n.name || '');
+}
 const sopTargets = (n) => (n.type === 'manual' ? (n.options || []).map((o) => o.to) : n.type === 'system' ? (n.branches || []).map((b) => b.to) : [n.to]).filter(Boolean);
 function sopAgentNode(n) {
   if (n.type === 'judge' || n.type === 'end') return { type: 'final' };
@@ -2624,18 +2629,19 @@ async function sopPack(list) {
     const md = it.md;
     if (!(await load(md.taskbot)) || !nodeOf(md.start)) fail(`${it.label}（SOP 路徑）的起點在目前上線版找不到，請講師重新設定起點`);
     // 標準路線：用最新版重走
-    const sysPick = {}, used = new Set([md.taskbot]);
+    const sysPick = {}, used = new Set([md.taskbot]), facts = {};
+    const addFact = (n, pick) => { const b = (n.branches || [])[pick]; if (!b || !b.label) return; const k = sopVarKey(n); facts[k] = facts[k] || []; if (!facts[k].includes(b.label)) facts[k].push(b.label); };
     let nid = md.start;
     for (const [k, st] of (md.answer || []).entries()) {
       await load(sopTbOf(nid));
       const n = nodeOf(nid);
       if (!n || st.n !== nid) fail(`${it.label}（SOP 路徑）：SOP 已改版，標準路線第 ${k + 1} 步和目前上線版對不上，請講師打開案件重走一次`);
       used.add(sopTbOf(nid));
-      if (n.type === 'system') sysPick[nid] = st.pick;
+      if (n.type === 'system') { sysPick[nid] = st.pick; addFact(n, st.pick); }
       nid = sopNextOf(n, st.pick);
     }
     // 起點往下走得到的所有節點
-    const seen = new Set(), q = [md.start], finals = {};
+    const seen = new Set(), q = [md.start], finals = {}, sysIds = [];
     while (q.length) {
       const id = q.shift();
       if (seen.has(id)) continue;
@@ -2647,10 +2653,21 @@ async function sopPack(list) {
       if (!n) continue;
       (keep[tb] = keep[tb] || new Set()).add(id);
       used.add(tb);
+      if (n.type === 'system') sysIds.push(id);
       if (n.type === 'judge' || n.type === 'end') { finals[id] = { type: n.type, name: n.name || '', text: n.text || '', judge: n.judge || null }; continue; }
       sopTargets(n).forEach((x) => q.push(x));
     }
-    out[it.key] = { sysPick, finals, flows: Object.fromEntries([...used].filter((tb) => flows[tb]).map((tb) => [tb, flows[tb].flowId])) };
+    // 其他路線的系統節點（2026-11-21）：講師補設定的（md.sysSet）＋同一種判斷選過的分支名稱自動帶入；都沒有的不放（專員走到就截斷）
+    Object.entries(md.sysSet || {}).forEach(([id, p]) => { const n = nodeOf(id); if (n && n.type === 'system') addFact(n, p); });
+    const sysAll = Object.assign({}, sysPick);
+    sysIds.forEach((id) => {
+      if (sysAll[id] !== undefined) return;
+      const n = nodeOf(id), set = (md.sysSet || {})[id];
+      if (Number.isInteger(set) && (n.branches || [])[set]) { sysAll[id] = set; return; }
+      const labels = facts[sopVarKey(n)] || [], k = (n.branches || []).findIndex((b) => b.label && labels.includes(b.label));
+      if (k >= 0) sysAll[id] = k;
+    });
+    out[it.key] = { sysPick: sysAll, stdSys: sysPick, finals, flows: Object.fromEntries([...used].filter((tb) => flows[tb]).map((tb) => [tb, flows[tb].flowId])) };
   }
   const docs = Object.entries(keep).map(([tb, ids]) => {
     const f = flows[tb], nodes = {};
@@ -2718,7 +2735,7 @@ const EXAM = {
       mods.forEach((x) => {
         const sp = x.type === 'sop' && sopP.mods[i + ':' + x.id], md = sp && (body.modules || []).find((y) => y.id === x.id);
         if (sp) x.sop = JSON.stringify({ taskbot: md.taskbot, start: md.start, hint: !!md.hint, route: md.answer || [], acts: md.acts || [], snap: md.snap || {},
-          sysPick: sp.sysPick, flows: sp.flows, finals: sp.finals });
+          sysPick: sp.stdSys, sysAll: sp.sysPick, flows: sp.flows, finals: sp.finals });
       });
       pub.push({ caseId: ids[i], body: JSON.stringify(av) });
       key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods });   // topics：AI 批改用主題的批改原則
