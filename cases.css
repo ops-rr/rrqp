@@ -362,8 +362,8 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .sopi-ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cq .sopi-ell.w200{max-width:200px}
 .cq .sopi-ell.w120{max-width:120px}
-.cq .sopi-title{margin:18px 24px 0 0;font-size:14px;line-height:18px;white-space:pre-wrap;word-break:break-all}
-.cq .sopi-text{margin-top:12px;font-size:13px;line-height:18px;color:#0a1f44;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow:auto}
+.cq .sopi-title{margin:18px 24px 0 0;font-size:14px;line-height:18px;white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere}
+.cq .sopi-text{margin-top:12px;font-size:13px;line-height:18px;color:#0a1f44;white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere;max-height:240px;overflow:auto}
 .cq .sopi-opts{margin-top:16px;display:flex;flex-direction:column;gap:14px}
 .cq .sopr{display:flex;align-items:flex-start;gap:8px;color:#333;font-size:14px;line-height:16px;cursor:pointer}
 .cq .sopr input{appearance:none;-webkit-appearance:none;flex:none;width:16px;height:16px;margin:0;border:1px solid #d9d9d9;border-radius:50%;background:#fff;position:relative;cursor:pointer}
@@ -383,7 +383,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .sop-acts{margin-top:10px;padding:8px 10px;border-radius:4px;background:#f1f8f1;border:1px solid #c8e6c9;font-size:12px;color:#2e5130}
 .cq .sop-acts.none{background:#fff8e1;border-color:#ffe08a;color:#8d6e00}
 .cq .sop-act-line{display:flex;gap:6px;align-items:flex-start;padding:3px 0}
-.cq .sop-act-txt{flex:1;min-width:0;word-break:break-all}
+.cq .sop-act-txt{flex:1;min-width:0;word-break:normal;overflow-wrap:anywhere}
 .cq .sop-outside{margin:8px 0;padding:8px 10px;border-radius:4px;background:#fff1f0;border:1px solid #ffccc7;font-size:12px;color:#a8071a}
 .cq .sop-hintset{display:flex;gap:6px;align-items:flex-start;margin:6px 0 10px;font-size:12px;color:#555;cursor:pointer}
 .cq.has-acts .wrap{padding-bottom:64px}
@@ -474,3 +474,8 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* BPO 翻譯：英文旁的 Original（2026-11-21） */
 .tx-o{font-size:12px;color:var(--brand,#ee4d2d);cursor:pointer;white-space:nowrap;margin-left:4px}
 .tx-src{display:block;margin-top:2px;color:#888;font-size:12px;white-space:pre-wrap}
+
+/* SOP 節點的 HTML（問題、訊息；2026-11-21） */
+.sopi-html p{margin:0 0 4px}.sopi-html ol,.sopi-html ul{margin:2px 0 4px;padding-left:20px}
+.sopi-html ol[data-bullet]{list-style:disc}
+.sopi-html a{color:var(--brand,#ee4d2d);text-decoration:underline}

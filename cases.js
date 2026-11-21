@@ -82,6 +82,24 @@
     for (const k in p) { const t = p[k] && p[k].tx; if (t && t[s]) return t[s]; }
     return s;
   }
+  // SOP 節點的 HTML（問題、訊息，含講義連結；2026-11-21 Chris：保留）：只留格式標籤與 http(s) 連結，其他標籤拿掉、保留文字
+  const SAFE_TAGS = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'OL', 'UL', 'LI', 'A', 'SPAN', 'DIV', 'BLOCKQUOTE', 'CODE', 'H1', 'H2', 'H3', 'H4']);
+  function safeHtml(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(html || '');
+    const walk = (el) => [...el.children].forEach((c) => {
+      if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT)$/.test(c.tagName)) { c.remove(); return; }    // 連內容一起刪
+      const href = c.tagName === 'A' ? c.getAttribute('href') || '' : '';
+      const bullet = c.tagName === 'OL' && !!c.querySelector(':scope > li[data-list="bullet"]');           // SOP Tool 的項目符號清單
+      walk(c);
+      if (!SAFE_TAGS.has(c.tagName)) { c.replaceWith(...c.childNodes); return; }
+      [...c.attributes].forEach((a) => c.removeAttribute(a.name));
+      if (c.tagName === 'A' && /^https?:\/\//i.test(href)) { c.setAttribute('href', href); c.setAttribute('target', '_blank'); c.setAttribute('rel', 'noopener noreferrer'); }
+      if (bullet) c.dataset.bullet = '1';
+    });
+    walk(tpl.content);
+    return tpl.innerHTML;
+  }
   const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
   const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
   const L = (n) => (n && typeof n === 'object' ? n.zh || n.en || '' : String(n || ''));
@@ -1354,6 +1372,7 @@
       const node = it.node, isSys = node.type === 'system', isPick = node.type === 'manual' || isSys;
       const isFinal = ['final', 'judge', 'end', 'stop'].includes(node.type), isStop = node.type === 'stop';
       // 跟 DMS 一樣：只打開目前這張（最下面），選過的收起來；自己點開的照自己的（選下一步時重設）
+      // 專員：收合時顯示問題（跟 DMS 一樣，DMS 卡片不顯示節點名稱；節點名稱常是 SOP 內部用語，翻譯服務也翻不出來）
       const exp = it.n in open ? open[it.n] : idx === items.length - 1;
       // 專員看不到系統判讀走了哪個分支（2026-11-21：走錯路線後的系統節點只能走 Default，顯示出來專員就知道自己走錯）
       const stopTxt = ag ? U('這一段作答完成', 'This section is complete') : '這一段在這裡結束';
@@ -1361,7 +1380,8 @@
       const title = isStop ? stopTxt : ag && isFinal ? U('已到終點', 'End of flow') : ST(node.type === 'manual' ? (node.question || node.name) : node.name);
       let body = '';
       if (exp) {
-        body = `<div class="sopi-title">${esc(title)}</div>`;
+        const qh = node.type === 'manual' && node.qhtml && !isStop && !(ag && isFinal);
+        body = qh ? `<div class="sopi-title sopi-html">${safeHtml(ST(node.qhtml))}</div>` : `<div class="sopi-title">${esc(title)}</div>`;
         if (isPick) {
           const opts = isSys ? (node.branches || []).map((b) => ST(b.label) || (b.default ? 'Default' : '')) : (node.options || []).map((o) => ST(o.label));
           const can = !lock;
@@ -1373,7 +1393,8 @@
         } else if (ag && isFinal) {
           body += `<div class="sopi-text">${isStop ? U('這一段的題目做完了。', 'You have finished this section. ') : U('流程走到終點。', 'You have reached the end of the flow. ')}${A.submitted ? '' : U('要改答案的話，點上面的節點重新選。', 'To change an answer, click a node above and choose again.')}</div>`;
         } else {
-          if (node.text) body += `<div class="sopi-text">${esc(ST(node.text))}</div>`;
+          if (node.thtml) body += `<div class="sopi-text sopi-html">${safeHtml(ST(node.thtml))}</div>`;
+          else if (node.text) body += `<div class="sopi-text">${esc(ST(node.text))}</div>`;
           const act = ag ? '' : sopActionHtml(node);
           if (act) body += `<div class="sopi-note">${act}</div>`;
           if (node.type === 'judge' && node.judge && node.judge.judging_reason) body += `<div class="sopi-note">判決理由：${esc(node.judge.judging_reason)}</div>`;
@@ -1387,7 +1408,7 @@
       return `<div class="sopi ${exp ? 'shadow' : ''} ${idx === items.length - 1 ? 'sopi-last' : ''}">
         <div class="sopi-head" onclick="CQ.sopToggle(${i},'${esc(it.n)}',${exp ? 0 : 1})">
           <div class="sopi-left">${it.done ? '' : SOP_ICON_TODO}${isSys ? SOP_ICON_SYS : SOP_ICON_AGENT}
-            ${exp ? '' : `<span class="sopi-ell w200">${esc(ST(node.name) || title)}</span>${SOP_ICON_TO}<span class="sopi-ell w120">${esc(ans)}</span>`}${!ag && it.rec ? '<span class="sop-rec" title="系統節點依案件處理時的 SOP 紀錄自動選擇，講師可以改">依案件紀錄</span>' : ''}</div>
+            ${exp ? '' : `<span class="sopi-ell w200">${esc(ag && node.type === 'manual' ? title : ST(node.name) || title)}</span>${SOP_ICON_TO}<span class="sopi-ell w120">${esc(ans)}</span>`}${!ag && it.rec ? '<span class="sop-rec" title="系統節點依案件處理時的 SOP 紀錄自動選擇，講師可以改">依案件紀錄</span>' : ''}</div>
           ${exp ? SOP_ICON_UP : SOP_ICON_RIGHT}</div>${body}</div>`;
     }).join('') + (w.end === 'jump' ? `<div class="sopi"><div class="sopi-title">${U(`跳到 ${esc(w.cur)}（這個 SOP 沒有上線，當成終點）`, `Jumps to ${esc(w.cur)} (this SOP is not live; treated as the end)`)}</div></div>` : '') + '</div>';
   }
