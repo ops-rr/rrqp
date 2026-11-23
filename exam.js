@@ -65,7 +65,7 @@
         <label class="k" for="x_s">開放時間</label><div class="row"><input type="datetime-local" id="x_s" value="${toLocal(start)}"> – <input type="datetime-local" id="x_e" value="${toLocal(end)}"></div>
         <label class="k" for="x_min">作答時間</label><div class="row"><input type="number" id="x_min" min="1" max="600" value="30"> 分鐘<span class="small muted">（整場；從專員按「開始作答」起算，開放時間結束也會截止）</span></div>
         <label class="k" for="x_em">指派專員</label><div><textarea id="x_em" rows="4" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="一行一個 email，或用逗號分隔"></textarea>
-          <div class="small muted">DMS 考題目前只有中文，請指派 TW 專員。</div></div>
+          <div class="small muted">要給 BPO 專員作答，請選標「TW＋BPO」、而且已經翻好英文的案件；標「TW」的案件只有中文。</div></div>
       </div>
       <div class="lib-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
         <div class="card pad"><div class="row" style="margin-bottom:8px"><b>可用的案件</b><span class="spacer"></span><span class="small muted" id="x_cnt"></span></div>
@@ -90,7 +90,7 @@
         return `<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px;${no ? 'opacity:.5' : ''}">
           <input type="checkbox" data-c="${esc(c.caseId)}" ${on ? 'checked' : ''} ${no ? 'disabled' : ''}>
           <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
-          ${st.seen[c.caseId] ? `<span class="chip warn">${st.seen[c.caseId]} 人做過</span>` : ''}${no ? '<span class="small soft">練習用，不能放進考試</span>' : ''}</label>`;
+          ${window.RRQP_CASES.langChip(c)}${st.seen[c.caseId] ? `<span class="chip warn">${st.seen[c.caseId]} 人做過</span>` : ''}${no ? '<span class="small soft">練習用，不能放進考試</span>' : ''}</label>`;
       }).join('') : '<div class="empty-state">沒有符合的已核准案件</div>';
       $$('#x_pool [data-c]').forEach((cb) => cb.addEventListener('change', () => {
         const id = cb.dataset.c;
@@ -118,7 +118,7 @@
       if (!st.manual) evenW();
       st.picked.forEach((id) => { if (st.w[id] === undefined) st.w[id] = 0; });
       drawSum();
-      $('#x_sel').innerHTML = rows.length ? rows.map((c, i) => `<div class="it"><b>案件 ${i + 1}</b><span class="mono">${esc(c.caseId)}</span><span style="flex:1">${esc(c.title)}</span>
+      $('#x_sel').innerHTML = rows.length ? rows.map((c, i) => `<div class="it"><b>案件 ${i + 1}</b><span class="mono">${esc(c.caseId)}</span><span style="flex:1">${esc(c.title)}</span>${window.RRQP_CASES.langChip(c)}
         ${prac ? '' : c.questions ? `<span class="row" style="gap:4px;white-space:nowrap"><input type="number" min="0" max="100" step="any" data-w="${esc(c.caseId)}" value="${st.w[c.caseId]}" style="width:64px;height:30px;border:1px solid var(--line2);border-radius:6px;padding:0 6px"> 分</span>` : '<span class="small soft">沒有作答題・0 分</span>'}
         <button type="button" class="btn sm ghost" data-u="${i}" ${i ? '' : 'disabled'}>↑</button><button type="button" class="btn sm ghost" data-d="${i}" ${i < rows.length - 1 ? '' : 'disabled'}>↓</button>
         <button type="button" class="btn sm ghost danger" data-x="${i}">✕</button></div>`).join('') : `<div class="small muted">從左邊勾選案件；專員作答時依這裡的順序。${prac ? '練習不計分，只看答對率與作答比對。' : '每個案件的分數預設平均分配，可以手動改，合計要 100 分；案件裡各題再依案件設定的百分比分配。'}</div>`;
@@ -146,6 +146,9 @@
     drawPool(); drawSel();
     $('#xf').addEventListener('submit', async (e) => {
       e.preventDefault();
+      // 沒有英文的案件：BPO 專員會看到中文；講師確認後才發佈（不擋，只給 TW 專員時本來就不需要英文）
+      const noEn = st.picked.map((id) => all.find((c) => c.caseId === id)).filter((c) => c && !(c.twOnly === false && c.tx === 'done'));
+      if (noEn.length && !confirm(`這些案件沒有完整的英文，BPO 專員會看到中文：\n${noEn.map((c) => `${c.caseId} ${c.title || ''}（${c.twOnly !== false ? 'TW' : c.tx === 'partial' ? '有句子沒翻到' : '還沒翻好'}）`).join('\n')}\n\n只指派 TW 專員的話可以直接發佈。要繼續嗎？`)) return;
       const btn = $('#x_go'); btn.disabled = true; $('#x_err').hidden = true;
       const m = modeOf();
       try {

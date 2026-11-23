@@ -472,8 +472,9 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .sop-chk.ok{color:#2e7d32;border-color:#9fd3a7}.sop-chk.ng{color:#c62828;border-color:#f3b6b0}
 
 /* BPO 翻譯：英文旁的 Original（2026-11-21） */
-.tx-o{font-size:12px;color:var(--brand,#ee4d2d);cursor:pointer;white-space:nowrap;margin-left:4px}
-.tx-src{display:block;margin-top:2px;color:#888;font-size:12px;white-space:pre-wrap}
+.tx-src{display:block;margin-top:6px;color:#999;white-space:pre-wrap}
+.tx-src[hidden]{display:none}
+.tx-o{display:block;margin-top:6px;color:#2673dd;cursor:pointer;width:max-content}
 
 /* SOP 節點的 HTML（問題、訊息；2026-11-21） */
 .sopi-html p{margin:0 0 4px}.sopi-html ol,.sopi-html ul{margin:2px 0 4px;padding-left:20px}

@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-21z';
+const VERSION = 'V2-2026-11-23a';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2235,7 +2235,7 @@ const CASES = {
     if (m.role === 'tw') await Promise.all(Object.keys(items).filter((id) => items[id].copyOf && !rid[id]).map(async (id) => {
       rid[id] = rid[items[id].copyOf] || ((await S.get('v3cases/' + id + '/private/raw').catch(() => null)) || {}).rid || '';
     }));
-    const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
+    const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, tx: '', txMissed: 0, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
       items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
     const [topics, tags, groups] = await Promise.all([S.list('topics'), S.list('tags'), loadGroups()]);
     return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.sample, groups,
@@ -2295,7 +2295,9 @@ const CASES = {
     const priv = m.role === 'tw' ? await S.get('v3cases/' + b.caseId + '/private/raw').catch(() => null) : null;
     let body;
     try { body = JSON.parse(d.body || '{}'); } catch (_) { fail('案件內容損壞，無法讀取 / Case data is corrupted'); }
+    body.i18n = Object.assign({}, body.i18n, { tx: Object.assign({}, (body.i18n || {}).tx, txMap(d)) });
     return { caseId: b.caseId, status: d.status || 'pending', title: d.title || '', rev: d.rev || 0, version: body.version || '',
+      tx: { state: d.txState || '', missed: d.txMissed || [], at: d.txAt || 0, rev: d.txRev || 0 },
       notes: d.importNotes || [], requestId: d.requestId || '', createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '',
       approvedBy: d.approvedBy || '', copyOf: d.copyOf || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample,
       groups: await loadGroups(), topics: (await S.list('topics')).map(topicOut).filter((x) => x.usage.includes('case')), tags: (await S.list('tags')).map(tagOut) };
@@ -2311,21 +2313,22 @@ const CASES = {
     const meta = c.meta || (c.meta = {});
     CASE_PRIVATE.forEach((k) => delete meta[k]);      // Return ID、帳號只存在 private
     (c.prev || []).forEach((p) => delete p.rid);
+    if (c.i18n) delete c.i18n.tx;                      // 英文另存在 tx 欄位（排程寫），不放 body
     const title = String(b.title || '').trim().slice(0, 120);
     const chk = caseCheck(c, title);
     const status = cur.status === 'approved' && chk.errors.length ? 'pending' : (cur.status || 'pending');
     const t = now(), rev = (cur.rev || 0) + 1, body = JSON.stringify(c);
     if (body.length > 950000) fail('案件內容太大，無法儲存（請刪掉部分訊息或欄位） / Case is too large');
-    const st = caseStats(c);
+    const st = caseStats(c), txState = txNext(meta, status);       // 核准後又修改：TW＋BPO 的案件重新排翻譯
     await S.batch([
-      { op: 'update', path, data: { body, title, status, rev, updatedAt: t, updatedBy: m.email } },
-      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.title']: title, ['items.' + b.caseId + '.status']: status,
+      { op: 'update', path, data: { body, title, status, rev, txState, updatedAt: t, updatedBy: m.email } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.title']: title, ['items.' + b.caseId + '.status']: status, ['items.' + b.caseId + '.tx']: txState,
         ['items.' + b.caseId + '.usage']: meta.usage || 'practice', ['items.' + b.caseId + '.twOnly']: meta.twOnly !== false,
         ['items.' + b.caseId + '.questions']: st.questions, ['items.' + b.caseId + '.points']: st.points,
         ['items.' + b.caseId + '.groups']: meta.groups || [], ['items.' + b.caseId + '.topics']: meta.topics || [], ['items.' + b.caseId + '.tags']: meta.tags || [],
         ['items.' + b.caseId + '.updatedAt']: t, ['items.' + b.caseId + '.updatedBy']: m.email } },
     ]);
-    return { rev, status, check: chk, demoted: status !== (cur.status || 'pending') };
+    return { rev, status, txState, check: chk, demoted: status !== (cur.status || 'pending') };
   },
 
   c_approve: async (b) => {
@@ -2333,15 +2336,15 @@ const CASES = {
     const path = 'v3cases/' + b.caseId;
     const cur = await S.get(path) || fail('找不到案件 / Case not found');
     if ((cur.rev || 0) !== (b.rev || 0)) fail('案件有更新，請重新整理後再核准 / Reload first');
-    const chk = caseCheck(JSON.parse(cur.body || '{}'), cur.title);
+    const body = JSON.parse(cur.body || '{}'), chk = caseCheck(body, cur.title);
     if (chk.errors.length) fail('還不能核准：' + chk.errors.join('；'));
-    const t = now();
+    const t = now(), txState = txNext(body.meta, 'approved');
     await S.batch([
-      { op: 'update', path, data: { status: 'approved', approvedBy: m.email, approvedAt: t, updatedAt: t } },
+      { op: 'update', path, data: { status: 'approved', approvedBy: m.email, approvedAt: t, updatedAt: t, txState } },
       { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'approved', ['items.' + b.caseId + '.approvedBy']: m.email,
-        ['items.' + b.caseId + '.updatedAt']: t } },
+        ['items.' + b.caseId + '.tx']: txState, ['items.' + b.caseId + '.updatedAt']: t } },
     ]);
-    return { status: 'approved' };
+    return { status: 'approved', txState };
   },
   c_unapprove: async (b) => {
     await needTW();
@@ -2508,6 +2511,13 @@ function caseAgentView(src) {
   }
   return c;
 }
+/**
+ * 英文翻譯狀態（2026-11-22 Chris 定案）：講師選使用對象「TW」或「TW＋BPO」（meta.twOnly；false＝TW＋BPO）。
+ * TW＋BPO 的案件核准後排進翻譯佇列（txState = queued），排程翻好存在案件的 tx 欄位（JSON：原文 → 英文）、txState 改成 done／partial。
+ * 核准後又修改會再排一次。狀態：'' 不用翻（TW）、wait 核准後翻、queued 翻譯中、done 完成、partial 有句子沒翻到。
+ */
+const txNext = (meta, status) => ((meta || {}).twOnly !== false ? '' : status === 'approved' ? 'queued' : 'wait');
+const txMap = (d) => { try { return JSON.parse((d && d.tx) || '{}'); } catch (_) { return {}; } };
 const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop')
   // Firestore 不收 undefined：簡答題沒有 answer，一律給明確的值
   // SOP 路徑：解答（標準路線、講師示範的操作、節點快照…）由 x_create 另外放進 sop（JSON 字串）
@@ -2800,7 +2810,8 @@ const EXAM = {
     docs.forEach((d, i) => {
       if (!d) fail('找不到案件 / Case not found: ' + ids[i]);
       if (d.status !== 'approved') fail(ids[i] + ' 還沒核准 / is not approved');
-      const body = JSON.parse(d.body || '{}');
+      const body = JSON.parse(d.body || '{}'), txAll = Object.assign({}, (body.i18n || {}).tx, txMap(d));
+      body.i18n = Object.assign({}, body.i18n, { tx: txAll });          // caseAgentView 只留專員版畫面上有的字
       if (mode === 'exam' && (body.meta || {}).usage !== 'exam') fail(ids[i] + ' 是練習用案件，不能放進考試 / is for practice only');
       (body.modules || []).forEach((md) => (md.images || []).forEach((r) => { if (/^v3img:/.test(r)) refs.add(r.slice(6)); }));
       // 案件分數（講師在組卷時設定）× 題目百分比 ＝ 題目的實際分數；試卷、批改、AI 批改都用實際分數
@@ -2820,7 +2831,8 @@ const EXAM = {
           stopAfter: sp.stopAfter, flows: sp.flows, finals: sp.finals });
       });
       pub.push({ caseId: ids[i], body: JSON.stringify(av) });
-      key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods });   // topics：AI 批改用主題的批改原則
+      const keyTxt = JSON.stringify(mods.map((x) => [x.explain, x.standard])), keyTx = Object.fromEntries(Object.entries(txAll).filter(([k]) => keyTxt.includes(JSON.stringify(k))));
+      key.push({ caseId: ids[i], title: d.title || '', topics: (body.meta || {}).topics || [], weight: r2(w), mods, tx: JSON.stringify(keyTx) });   // topics：AI 批改用主題的批改原則；tx：詳解、參考答案的英文
     });
     const size = pub.reduce((n, c) => n + c.body.length, 0);
     if (size > 900000) fail('案件內容太多，超過一份試卷的上限，請減少案件 / Too much content for one quiz');

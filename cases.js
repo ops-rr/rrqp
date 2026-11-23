@@ -69,11 +69,11 @@
   // 作答畫面的介面文字（2026-11-21 BPO）：跟右上角「中文／EN」一起切換；中文、英文寫在同一處，只用在專員看得到的地方
   const U = (zh, en) => (dmsLang() === 'en' ? en : zh);
   // BPO 翻譯（2026-11-21）：使用者打的中文（聊聊、Discuss、Operation History、Remark 類欄位），匯入時用 DMS 的翻譯服務翻好存在 i18n.tx。
-  // EN 時顯示英文，旁邊可以點「Original」看原文（跟 DMS 一樣）；沒有翻譯就照原本的 T()。回傳 HTML。
+  // EN 時照 DMS：英文、下面灰字原文、再下一行藍色「Hide Original」（原文預設顯示，2026-11-21 Chris 對過 DMS 畫面）；沒有翻譯就照原本的 T()。回傳 HTML。
   function TX(s) {
     const m = (MAIN && MAIN.i18n) || {}, en = s && dmsLang() === 'en' && m.tx && m.tx[s];
     if (!en) return esc(T(s));
-    return `<span class="tx">${esc(en)} <a class="tx-o" onclick="CQ.txOrig(this)">Original</a><span class="tx-src" hidden>${esc(s)}</span></span>`;
+    return `<span class="tx">${esc(en)}<span class="tx-src">${esc(s)}</span><a class="tx-o" onclick="CQ.txOrig(this)">Hide Original</a></span>`;
   }
   // SOP 節點的字：排程翻好存在 SOP 的 tx；EN 時換成英文（只用在顯示，比對答案一律用節點編號）
   function ST(s) {
@@ -81,6 +81,20 @@
     const p = (EX ? EX.sops : SOPS) || {};
     for (const k in p) { const t = p[k] && p[k].tx; if (t && t[s]) return t[s]; }
     return s;
+  }
+  // 使用對象標籤（2026-11-22 Chris）：TW／TW＋BPO（＋翻譯狀態）；案件清單、編輯畫面、發佈表單共用。c：{ twOnly, tx, txMissed, status }
+  function langChip(c) {
+    if (c.twOnly !== false) return '<span class="chip">TW</span>';
+    const n = Number(c.txMissed) || 0;
+    if (c.tx === 'done') return '<span class="chip ok">TW＋BPO</span>';
+    if (c.tx === 'queued') return '<span class="chip info" title="排程翻譯完成後，BPO 專員才看得到英文">TW＋BPO・翻譯中</span>';
+    if (c.tx === 'partial') return `<span class="chip warn" title="這些句子 BPO 專員會看到中文">TW＋BPO・${n} 句沒翻到</span>`;
+    return `<span class="chip warn" title="核准後自動翻成英文">TW＋BPO・${c.status === 'approved' ? '尚未翻譯' : '核准後翻譯'}</span>`;
+  }
+  // 講師寫的字（題目、選項、情境說明）：EN 時只顯示英文；詳解、參考答案用 TX（附原文）
+  function TE(s) {
+    const m = (MAIN && MAIN.i18n) || {}, en = s && dmsLang() === 'en' && m.tx && m.tx[s];
+    return esc(en || s);
   }
   // SOP 節點的 HTML（問題、訊息，含講義連結；2026-11-21 Chris：保留）：只留格式標籤與 http(s) 連結，其他標籤拿掉、保留文字
   const SAFE_TAGS = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'OL', 'UL', 'LI', 'A', 'SPAN', 'DIV', 'BLOCKQUOTE', 'CODE', 'H1', 'H2', 'H3', 'H4']);
@@ -164,12 +178,12 @@
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
-          <th>案件</th><th>標題</th><th>分類</th><th style="white-space:nowrap">用途</th><th style="white-space:nowrap">作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
+          <th>案件</th><th>標題</th><th>分類</th><th style="white-space:nowrap">用途</th><th style="white-space:nowrap">對象</th><th style="white-space:nowrap">作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}${c.copyOf ? `<div class="soft small" style="white-space:nowrap">複製自 ${esc(c.copyOf)}</div>` : ''}</td>
           <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
-          <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).concat(c.twOnly ? ['<span class="chip">只限 TW</span>'] : []).join(' ')}
+          <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
-          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${c.questions} 題</td>
+          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${langChip(c)}</td><td style="white-space:nowrap">${c.questions} 題</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
           ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
           <td class="small">${esc(fmtTime(c.updatedAt))}<div class="soft">${esc(c.updatedBy || '')}</div></td>
@@ -191,6 +205,7 @@
     try { d = await X.api('c_get', { caseId: id }); } catch (e) { X.showError(e, main); return; }
     if (d.status === 'approved' || X.me.role !== 'tw') main = X.shell('bank', '');      // 導覽列亮在案件所在的頁面
     CUR = { caseId: d.caseId, copyOf: d.copyOf || '', status: d.status, title: d.title, rev: d.rev, notes: d.notes, priv: d.private || {}, canEdit: d.canEdit, canDelete: d.canDelete,
+      tx: Object.assign({ state: '', missed: [] }, d.tx),
       updatedAt: d.updatedAt, updatedBy: d.updatedBy, approvedBy: d.approvedBy, groups: d.groups || [], topics: d.topics || [], tags: d.tags || [] };
     C = d.case;
     C.meta = Object.assign({ usage: 'practice', twOnly: true, mask: { id: true, account: true } }, C.meta || {});
@@ -265,7 +280,7 @@
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
     $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '待審 DMS 考題'}</a>
-      <span class="cid">${esc(CUR.caseId)}</span>${CUR.copyOf ? `<a class="soft small" href="#/case/${esc(CUR.copyOf)}">複製自 ${esc(CUR.copyOf)}</a>` : ''}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>
+      <span class="cid">${esc(CUR.caseId)}</span>${CUR.copyOf ? `<a class="soft small" href="#/case/${esc(CUR.copyOf)}">複製自 ${esc(CUR.copyOf)}</a>` : ''}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}
       ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
       ${CUR.canEdit ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
@@ -274,6 +289,12 @@
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
       ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件待審）">複製</button>' : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
+  }
+
+  // 編輯畫面的翻譯狀態；有句子沒翻到時，滑過去列出來
+  function txChip() {
+    const ms = (CUR.tx || {}).missed || [], h = langChip({ twOnly: C.meta.twOnly, tx: (CUR.tx || {}).state, txMissed: ms.length, status: CUR.status });
+    return ms.length && CUR.tx.state === 'partial' ? h.replace(/title="[^"]*"/, `title="${esc('這些句子 BPO 專員會看到中文：\n' + ms.join('\n'))}"`) : h;
   }
 
   // ───────── 本次／前幾次申退切換（方案 A：整頁切換，考題固定在右側） ─────────
@@ -329,7 +350,9 @@
           <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
             <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
             <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
-          <label><input type="checkbox" ${m.twOnly ? 'checked' : ''} onchange="CQ.setMeta('twOnly',this.checked)"> 只限 TW（不送翻譯）</label>
+          <label>使用對象 <select style="width:auto" onchange="CQ.setMeta('twOnly',this.value==='tw')" title="TW＋BPO：核准後自動翻成英文，翻好後 BPO 專員也能用">
+            <option value="tw" ${m.twOnly !== false ? 'selected' : ''}>TW</option>
+            <option value="bpo" ${m.twOnly === false ? 'selected' : ''}>TW＋BPO（核准後翻成英文）</option></select></label>
           <label title="User ID、Shop ID、物流單號、Transaction ID"><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號</label>
           <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
         </div>
@@ -458,7 +481,7 @@
       if (!CUR || CUR.caseId !== caseId) return true;
       CUR.rev = r.rev; CUR.updatedAt = Date.now(); CUR.pctFixed = false;
       if (r.demoted) X.toast('案件內容不符合核准條件，已退回待審', 5000);
-      CUR.status = r.status;
+      CUR.status = r.status; CUR.tx.state = r.txState || '';
       if (!$('#cqSettings').contains(document.activeElement)) renderSettings();
     } catch (e) {
       dirty = true; saveErr = e.message || String(e);
@@ -479,7 +502,8 @@
     if (leaks.length && !(await X.confirmBox(`專員看得到、可能洩漏結果的內容共 ${leaks.length} 處，若沒問題請點選核准`, '核准'))) return;
     try {
       const r = await X.api('c_approve', { caseId: CUR.caseId, rev: CUR.rev });
-      CUR.status = r.status; X.toast('已核准'); renderAll();
+      CUR.status = r.status; CUR.tx.state = r.txState || '';
+      X.toast(r.txState === 'queued' ? '已核准，排程會翻成英文（翻好後 BPO 專員才能用）' : '已核准', 5000); renderAll();
     } catch (e) { X.toast(e.message, 6000); }
   }
   async function unapprove() {
@@ -1009,7 +1033,7 @@
     let html = EX ? exResultHtml() : A.submitted ? resultHtml() : '';
     C.modules.forEach(md => {
       if (md.type === 'note') {
-        html += `<div class="mod note"><div class="mh">${U('情境說明', 'Scenario')}</div><div style="white-space:pre-wrap">${esc(md.text)}</div></div>`;
+        html += `<div class="mod note"><div class="mh">${U('情境說明', 'Scenario')}</div><div style="white-space:pre-wrap">${TE(md.text)}</div></div>`;
       }
       if (md.type === 'image' && md.images.length) {
         html += `<div class="mod"><div class="mh">${U('補充資訊', 'Additional information')}</div>${mediaHtml(md.images.map(s => ({ type: 'image', src: imgSrc(s), k: s })), '')}
@@ -1019,9 +1043,9 @@
       if (md.type === 'sop') html += sopAgentHtml(md, C.modules.indexOf(md), qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">${U(`說明第 ${qn[md.bindTo]} 題的選擇`, `Explain your answer to question ${qn[md.bindTo]}`)}</div>` : '';
-        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
+        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${TE(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
           <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)" onpaste="CQ.paste('${md.id}',event)">${esc(A.short[md.id] || '')}</textarea>
-          ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>${U('參考答案：', 'Reference answer: ')}</b>${esc(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
+          ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>${U('參考答案：', 'Reference answer: ')}</b>${TX(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
       }
     });
     return html || `<div class="hint">${U('講師還沒有設定考題', 'No questions have been set yet')}</div>`;
@@ -1035,10 +1059,10 @@
       if (pick === i) cls += ' sel';
       if (showAns && i === md.answer) cls += ' right';
       if (showAns && pick === i && i !== md.answer) cls += ' wrong';
-      return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i})"><span class="l">${LETTERS[i]}</span><span>${esc(o)}</span></div>`;
+      return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i})"><span class="l">${LETTERS[i]}</span><span>${TE(o)}</span></div>`;
     }).join('');
-    return `<div class="mod qmod"><div class="mh">${no}. ${esc(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${opts}
-      ${showAns && md.explain ? `<div class="explain"><b>${U('詳解：', 'Explanation: ')}</b>${esc(md.explain)}</div>` : ''}</div>`;
+    return `<div class="mod qmod"><div class="mh">${no}. ${TE(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${opts}
+      ${showAns && md.explain ? `<div class="explain"><b>${U('詳解：', 'Explanation: ')}</b>${TX(md.explain)}</div>` : ''}</div>`;
   }
 
   function pickMc(id, i) {
@@ -1977,6 +2001,11 @@
       const md = (cases[i] || { modules: [] }).modules.find((x) => x.id === k.id);
       if (md) Object.assign(md, { answer: k.answer, standard: k.standard, explain: k.explain }, k.sop ? { keySop: k.sop } : {});
     }));
+    if (d.key) (d.key.cases || []).forEach((kc, i) => {       // 詳解、參考答案的英文（在解答卷，公布後才拿得到）
+      let tx = {};
+      try { tx = JSON.parse(kc.tx || '{}'); } catch (_) { /* 舊的解答卷沒有 */ }
+      if (cases[i] && Object.keys(tx).length) cases[i].i18n = Object.assign({}, cases[i].i18n, { tx: Object.assign({}, (cases[i].i18n || {}).tx, tx) });
+    });
     const readOnly = !!opt.result;
     if (EX && EX.tick) clearInterval(EX.tick);
     EX = { sid: d.session.sessionId, session: d.session, cases, idx: 0, readOnly, reveal: readOnly && !!d.key, result: d.result || null,
@@ -2263,7 +2292,7 @@
 
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
-    txOrig(a) { const src = a.nextElementSibling; src.hidden = !src.hidden; a.textContent = src.hidden ? 'Original' : 'Hide original'; },
+    txOrig(a) { const src = a.previousElementSibling; src.hidden = !src.hidden; a.textContent = src.hidden ? 'Show Original' : 'Hide Original'; },
     dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
@@ -2281,5 +2310,5 @@
   }
   // 網站切換語言時：作答中只重畫 DMS 畫面（app.js 的 setLang 會先問 examActive）
   const examActive = () => !!(EX && !EX.readOnly && $('#cq'));
-  window.RRQP_CASES = { route, list, take, footprint, leaveSummary, mediaOf, examActive, relang: () => renderAll(), sopReview: (k, a, pool) => sopReviewHtml(k, a, pool, { teacher: true }) };
+  window.RRQP_CASES = { langChip, route, list, take, footprint, leaveSummary, mediaOf, examActive, relang: () => renderAll(), sopReview: (k, a, pool) => sopReviewHtml(k, a, pool, { teacher: true }) };
 })();
