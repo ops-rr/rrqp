@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-23g';
+const VERSION = 'V2-2026-11-23i';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -294,7 +294,7 @@ function groupErrors(g) {
     if (ids.has(x.id)) errs.push(p + '：代碼重複 / duplicated id ' + x.id); ids.add(x.id);
     if (!x.text.zh || !x.text.en) errs.push(p + '：問句需要中英文 / text needs zh and en');
     const real = x.options.filter((o) => o.id !== 'na');
-    if (real.length < 2 || real.length > 8) errs.push(p + '：需要 2–8 個選項（不含不適用） / 2–8 options');
+    if (real.length < 2 || real.length > 10) errs.push(p + '：需要 2–10 個選項（不含不適用） / 2–10 options');
     if (real.some((o) => !o.text.zh || !o.text.en)) errs.push(p + '：選項需要中英文 / options need zh and en');
   });
   return errs;
@@ -422,7 +422,7 @@ function checkQuestion(q, reasons, opt = {}) {
   else if (fo.solution !== r.solution || fo.amount !== r.amount) errs.push('drc.buyer first offer (' + fo.solution + ' $' + fo.amount + ') must equal request (' + r.solution + ' $' + r.amount + ')');
   if (q.type === 'A' || q.type === 'B') {
     const opts = Array.isArray(q.options) ? q.options : [];
-    need(opts.length >= 2 && opts.length <= 8, 'options must have 2–8 items');
+    need(opts.length >= 2 && opts.length <= 10, 'options must have 2–10 items');
     opts.forEach((o, j) => { need(o && o.id, 'options[' + j + '].id missing'); if (o) bi(o.text, 'options[' + j + '].text'); });
     need(opts.some((o) => o && o.id === q.answer), 'answer must be one of the option ids');
   }
@@ -1153,7 +1153,7 @@ const ACTIONS = {
     (d.optionSets || []).forEach((o) => {
       const ex = sets.find((y) => y.id === o.setId);
       const opts = (o.options || []).map((x, i) => ({ id: String.fromCharCode(97 + i), text: { zh: String(x.text?.zh || '').trim(), en: String(x.text?.en || '').trim() } }));
-      if (opts.length < 2 || opts.length > 8 || opts.some((x) => !x.text.zh || !x.text.en)) fail('選項範本 ' + o.setId + '：需要 2–8 個中英文選項 / 2–8 options with zh and en');
+      if (opts.length < 2 || opts.length > 10 || opts.some((x) => !x.text.zh || !x.text.en)) fail('選項範本 ' + o.setId + '：需要 2–10 個中英文選項 / 2–10 options with zh and en');
       if (ex) { if (JSON.stringify(ex.options) !== JSON.stringify(opts)) fail('選項範本代碼已被使用且內容不同 / Option set id already used: ' + o.setId); return; }
       ops.push({ op: 'set', path: 'optionSets/' + o.setId, data: { name: o.name, options: opts, updatedAt: t, updatedBy: m.email } });
     });
@@ -1211,6 +1211,7 @@ const ACTIONS = {
     if (!name.zh || !name.en) fail('範本名稱需要中英文 / Name needs both languages');
     const opts = (b.options || []).map((o, i) => ({ id: String.fromCharCode(97 + i), text: { zh: String(o.text?.zh || '').trim(), en: String(o.text?.en || '').trim() } }));
     if (opts.length < 2) fail('至少需要 2 個選項 / At least 2 options');
+    if (opts.length > 10) fail('最多 10 個選項 / At most 10 options');
     if (opts.some((o) => !o.text.zh || !o.text.en)) fail('每個選項都要有中英文 / Every option needs both languages');
     let setId = b.setId;
     if (!setId) {

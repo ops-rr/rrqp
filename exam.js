@@ -171,7 +171,7 @@
     try { d = await X.api('x_get', { sessionId: id }); } catch (e) { X.showError(e, main); return; }
     const s = d.session, sub = d.roster.filter((r) => r.status === 'submitted').length;
     const exam = s.mode === 'exam';
-    main.innerHTML = `<div class="row"><a href="#/sessions?tab=cases">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
+    main.innerHTML = `<div class="row"><a href="#/sessions">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
         ${s.answersOpen ? '<span class="chip ok">已公布解答</span>' : ''}<span class="spacer"></span>
         <button class="btn icon" id="xr" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button>
         ${!s.released ? '<button class="btn" id="xAdd">加入專員</button><button class="btn" id="xMin">延長作答時間</button><button class="btn" id="xExt">延長結束時間</button>' : ''}
@@ -208,7 +208,7 @@
     });
     act('#xDel', async () => {
       if (!(await X.confirmBox(`刪除 ${s.sessionId}？作答、給分、成績都會刪除，不能復原。`, '刪除', undefined, true))) return;
-      try { await X.api('x_delete', { sessionId: s.sessionId }); X.toast('已刪除'); location.hash = '#/sessions?tab=cases'; } catch (e) { X.toast(e.message, 5000); }
+      try { await X.api('x_delete', { sessionId: s.sessionId }); X.toast('已刪除'); location.hash = '#/sessions'; } catch (e) { X.toast(e.message, 5000); }
     });
     async function run(action, extra) {
       try { await X.api(action, Object.assign({ sessionId: s.sessionId }, extra || {})); X.toast('完成'); session(id, ctx); } catch (e) { X.toast(e.message, 6000); }
@@ -549,5 +549,6 @@
     };
   }
 
-  window.RRQP_EXAM = { sessions, session, cards, entry, gradingList, resultsSessions, results, CSV_HEAD, csvRow };
+  window.RRQP_EXAM = { sessions, session, cards, entry, gradingList, resultsSessions, results, CSV_HEAD, csvRow,
+    modeTxt: MODE, pctTxt, rateTxt, newForm: (box, ctx) => { X = ctx; return createForm(box); } };
 })();

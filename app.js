@@ -663,7 +663,7 @@
     const qPartHtml = () => {
       let h = '';
       if (q.type === 'A' || q.type === 'B') h += `<h4>${esc(t('options'))} <span class="soft">· ${esc(t('answerHint'))}</span></h4>${(q.options || []).map((o, i) => `<div class="row ce-opt"><input type="radio" name="ce_ans" data-ans="${esc(o.id)}" ${o.id === q.answer ? 'checked' : ''} title="${esc(t('correct'))}"><b class="mono">${esc(o.id)}.</b>${fz(`options.${i}.text`, t('ceOptPh'))}${(q.options || []).length > 2 ? tools('options', i, q.options.length, false) : ''}</div>`).join('')}
-        ${(q.options || []).length < 8 ? `<button type="button" class="ce-ins" data-act="add" data-arr="options">${esc(t('ceAddOpt'))}</button>` : ''}`;
+        ${(q.options || []).length < 10 ? `<button type="button" class="ce-ins" data-act="add" data-arr="options">${esc(t('ceAddOpt'))}</button>` : ''}`;
       if (q.type === 'G') h += `<div class="small muted" style="margin-top:10px">${esc(t('ceGrpNote'))}</div>`;
       if (opts.point) h += `<h4>${esc(t('point'))}</h4>${fz('point', '', 2)}`;
       if (q.type === 'B' || q.type === 'C') h += `<h4>${esc(t('modelAnswer'))}</h4>${fz('modelAnswer', '', 3)}<h4>${esc(t('rubric'))}</h4>${fz('rubric', '', 3)}`;
@@ -1156,6 +1156,7 @@
     assignees: '受測者 Email（每行一個，可從 Excel 貼上）', validN: '{a} 個有效帳號 · {b} 個格式錯誤', publish: '發佈並產生測驗連結', published: '測驗 {id} 已發佈',
     linkHint: '把連結傳給受測者；他們用公司 Google 帳號登入後就能作答。', copyLink: '複製連結', goSession: '查看進度', publishDraft: '發佈測驗',
     colSession: '測驗', colWindow: '期間', colMinutes: '時限', colSubmitted: '交卷', noSessions: '還沒有發佈的測驗。',
+    colKind: '類型', typeVariant: '變化題', typeCases: 'DMS 考題', newSession2: '新增測驗', newWhich: '要用哪種題目？', newVariantHint: '從可用題庫的變化題組卷', newCasesHint: '挑已上架的 DMS 考題案件',
     s_scheduled: '尚未開始', s_open: '進行中', s_closed: '已結束', s_released: '成績已公布',
     a_not_started: '未開始', a_in_progress: '作答中', a_submitted: '已交卷', a_expired: '逾時未交', autoSub: '自動交卷',
     submittedN: '{a} / {b} 已交卷', archive: '封存', unarchive: '取消封存', archivedChip: '已封存', archivedDone: '已封存', unarchived: '已取消封存',
@@ -1186,6 +1187,7 @@
     assignees: 'Emails (one per line, paste from Excel)', validN: '{a} valid · {b} invalid', publish: 'Publish and create link', published: 'Quiz {id} published',
     linkHint: 'Send this link to the assignees. They sign in with their company Google account to answer.', copyLink: 'Copy link', goSession: 'View progress', publishDraft: 'Publish quiz',
     colSession: 'Quiz', colWindow: 'Window', colMinutes: 'Limit', colSubmitted: 'Submitted', noSessions: 'No quizzes published yet.',
+    colKind: 'Type', typeVariant: 'Variant', typeCases: 'DMS questions', newSession2: 'New quiz', newWhich: 'Which questions?', newVariantHint: 'Build from variant questions in the bank', newCasesHint: 'Pick listed DMS question cases',
     s_scheduled: 'Scheduled', s_open: 'Open now', s_closed: 'Closed', s_released: 'Results released',
     a_not_started: 'Not started', a_in_progress: 'In progress', a_submitted: 'Submitted', a_expired: 'Not submitted', autoSub: 'Auto-submitted',
     submittedN: '{a} / {b} submitted', archive: 'Archive', unarchive: 'Unarchive', archivedChip: 'Archived', archivedDone: 'Archived', unarchived: 'Unarchived',
@@ -1234,41 +1236,54 @@
     return { html: n ? `<div class="row" style="padding:10px 14px"><span class="spacer"></span><button class="btn sm ghost" data-arch-tog>${esc(t(on ? 'archHide' : 'archShow', { n }))}</button></div>` : '',
       bind: (box) => { const b = $('[data-arch-tog]', box); if (b) b.onclick = cb; } };
   }
+  // 2026-11-23 Chris：變化題測驗和 DMS 考題測驗合在同一張表，講師不用先分是哪一種；「類型」欄標出來
+  async function allSessions(showArch) {
+    const X3 = window.RRQP_EXAM;
+    const [v, x] = await Promise.all([api('t_listSessions', { includeArchived: showArch }), X3 ? api('x_list') : { sessions: [] }]);
+    const rows = v.sessions.map((s) => ({ kind: 'q', s, id: s.sessionId, title: L(s.title), startAt: s.startAt, state: s.state, href: '#/session/' + s.sessionId, gradeHref: '#/grading/' + s.sessionId,
+        type: t('typeVariant'), sub: `${s.draftId && s.draftId !== 'BANK' ? esc(s.draftId) + ' · ' : ''}${esc(t('qUnit', { n: s.questionCount }))}` }))
+      .concat(x.sessions.map((s) => ({ kind: 'x', s, id: s.sessionId, title: s.title, startAt: s.startAt, state: s.state, href: '#/xsession/' + s.sessionId, gradeHref: '#/xsession/' + s.sessionId,
+        type: `${t('typeCases')}・${X3.modeTxt(s)}`, sub: esc(lang === 'zh' ? `${s.caseCount} 個案件・${s.questionCount} 題` : `${s.caseCount} cases · ${s.questionCount} questions`) })));
+    rows.sort((a, b) => (b.startAt || 0) - (a.startAt || 0) || String(b.id).localeCompare(String(a.id)));
+    return { rows, archivedCount: v.archivedCount || 0 };
+  }
+  const rowChips = (r) => sessChip(r.state) + (r.s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : '') + (r.s.answersOpen ? ` <span class="chip">${lang === 'zh' ? '已公布解答' : 'Answers shown'}</span>` : '');
   async function viewSessions() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    // V3：分頁「變化題測驗｜DMS 考題測驗」
-    const sessTabs = window.RRQP_EXAM ? `<div class="tabs"><a class="tab ${params.get('tab') !== 'cases' ? 'on' : ''}" href="#/sessions">${esc(t('sessTabQ'))}</a><a class="tab ${params.get('tab') === 'cases' ? 'on' : ''}" href="#/sessions?tab=cases">${esc(t('sessTabCases'))}</a></div>` : '';
-    if (window.RRQP_EXAM && params.get('tab') === 'cases') {
-      shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1></div>${sessTabs}<div id="xBox"></div>`);
-      return window.RRQP_EXAM.sessions($('#xBox'), caseCtx());
-    }
     const main = shell('sessions', `<div class="row"><h1>${esc(t('sessions'))}</h1><span class="spacer"></span>
-        ${refreshBtn('refresh')}<button class="btn brand" id="newBtn">+ ${esc(t('newSession'))}</button></div>${sessTabs}
-      <div id="createBox"></div><div id="doneBox"></div>
+        ${refreshBtn('refresh')}<button class="btn brand" id="newBtn">+ ${esc(t('newSession2'))}</button></div>
+      <div id="createBox" style="display:contents"></div><div id="doneBox" style="display:contents"></div>
       <div class="card scroll-x" id="listBox"><div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div></div>`);
     let showArch = params.get('archived') === '1';
     async function loadList() {
       try {
-        const { sessions, archivedCount } = await api('t_listSessions', { includeArchived: showArch });
+        const { rows, archivedCount } = await allSessions(showArch);
         const box = $('#listBox'); if (!box) return;
         const tog = archToggle(archivedCount, showArch, () => { showArch = !showArch; loadList(); });
-        if (!sessions.length) { box.innerHTML = `<div class="empty-state">${esc(t('noSessions'))}</div>${tog.html}`; tog.bind(box); return; }
-        box.innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th class="hide-sm">${esc(t('colMinutes'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
-          sessions.map((s) => {
-            const pct = s.assigned ? Math.round((s.submitted / s.assigned) * 100) : 0;
-            return `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}<div class="small soft">${s.draftId && s.draftId !== 'BANK' ? esc(s.draftId) + ' · ' : ''}${esc(t('qUnit', { n: s.questionCount }))}</div></td>
+        if (!rows.length) { box.innerHTML = `<div class="empty-state">${esc(t('noSessions'))}</div>${tog.html}`; tog.bind(box); return; }
+        box.innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colKind'))}</th><th>${esc(t('colWindow'))}</th><th class="hide-sm">${esc(t('colMinutes'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
+          rows.map((r) => {
+            const s = r.s, pct = s.assigned ? Math.round((s.submitted / s.assigned) * 100) : 0;
+            return `<tr class="click" data-href="${esc(r.href)}"><td><b>${esc(r.id)}</b> ${esc(r.title)}<div class="small soft">${r.sub}</div></td><td class="small">${esc(r.type)}</td>
               <td class="small">${esc(fmtDT(s.startAt))}<br>– ${esc(fmtDT(s.endAt))}</td><td class="hide-sm small">${esc(t('minUnit', { n: s.minutes }))}</td>
               <td><div class="bar ok"><i style="width:${pct}%"></i></div><div class="small muted">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</div></td>
-              <td>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`;
+              <td>${rowChips(r)}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`;
           }).join('')}</tbody></table>${tog.html}`;
         tog.bind(box);
-        $$('[data-open]', box).forEach((r) => r.addEventListener('click', () => { location.hash = '#/session/' + r.dataset.open; }));
+        $$('[data-href]', box).forEach((r) => r.addEventListener('click', () => { location.hash = r.dataset.href; }));
       } catch (e) { showError(e, $('#listBox')); }
     }
-    async function openCreate() {
+    // 新增：先選題目來源，再顯示對應的表單
+    function openCreate(kind) {
       const box = $('#createBox');
-      if (box.innerHTML) { box.innerHTML = ''; return; }
-      composeForm(box, (r) => {
+      if (!kind && box.innerHTML) { box.innerHTML = ''; return; }
+      const pick = (k) => `<button class="btn ${kind === k ? 'brand' : ''}" data-kind="${k}" type="button">${esc(t(k === 'q' ? 'typeVariant' : 'typeCases'))}</button>`;
+      box.innerHTML = `<div class="card pad row" style="gap:10px"><b>${esc(t('newWhich'))}</b>${pick('q')}${window.RRQP_EXAM ? pick('x') : ''}
+        <span class="small muted">${esc(kind === 'x' ? t('newCasesHint') : kind === 'q' ? t('newVariantHint') : '')}</span></div><div id="createForm" style="display:contents"></div>`;
+      $$('[data-kind]', box).forEach((b) => { b.onclick = () => openCreate(b.dataset.kind); });
+      const f = $('#createForm');
+      if (kind === 'x') return window.RRQP_EXAM.newForm(f, caseCtx());
+      if (kind === 'q') composeForm(f, (r) => {
         box.innerHTML = '';
         const link = quizLink(r.sessionId);
         $('#doneBox').innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:10px"><div><b>${esc(t('published', { id: r.sessionId }))}</b> <span class="muted">${esc(t('linkHint'))}</span></div>
@@ -1280,7 +1295,8 @@
     $('#refresh').onclick = loadList;
     $('#newBtn').onclick = () => openCreate();
     loadList();
-    if (params.get('new')) openCreate();
+    // 舊連結：?new=1 → 變化題；?tab=cases&new=1 → DMS 考題
+    if (params.get('new')) openCreate(params.get('tab') === 'cases' ? 'x' : 'q');
   }
 
   async function viewSession(id) {
@@ -1548,19 +1564,18 @@
   const isText = (t) => t === 'B' || t === 'C';
 
   async function viewGradingList() {
-    const main = shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1><span class="spacer"></span>${refreshBtn()}</div><h2 style="margin:6px 0 8px">變化題測驗</h2><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div><div id="xgl"></div>`);
-    if (window.RRQP_EXAM) window.RRQP_EXAM.gradingList($('#xgl'), caseCtx());     // V3 DMS 考題測驗
+    shell('grading', `<div class="row"><h1>${esc(t('grading'))}</h1><span class="spacer"></span>${refreshBtn()}</div><div class="card scroll-x" id="gl"><div class="empty-state"><span class="spin"></span></div></div>`);
     let showArch = false;
     async function load() { try {
-      const { sessions, archivedCount } = await api('t_listSessions', { includeArchived: showArch });
-      const list = sessions.filter((s) => s.state === 'closed' || s.state === 'released');
+      const { rows, archivedCount } = await allSessions(showArch);
+      const list = rows.filter((r) => r.state === 'closed' || r.state === 'released');
       const tog = archToggle(archivedCount, showArch, () => { showArch = !showArch; load(); });
       if (!list.length) { $('#gl').innerHTML = `<div class="empty-state">${esc(t('noGradable'))}</div>${tog.html}`; tog.bind($('#gl')); return; }
-      $('#gl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colWindow'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
-        list.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}</td><td class="small">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</td>
-          <td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('goGrading'))}</button></td></tr>`).join('')}</tbody></table>${tog.html}`;
+      $('#gl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colKind'))}</th><th>${esc(t('colWindow'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('colStatus'))}</th><th></th></tr></thead><tbody>${
+        list.map((r) => `<tr class="click" data-href="${esc(r.gradeHref)}"><td><b>${esc(r.id)}</b> ${esc(r.title)}</td><td class="small">${esc(r.type)}</td><td class="small">${esc(fmtDT(r.s.startAt))} – ${esc(fmtDT(r.s.endAt))}</td>
+          <td class="small">${esc(t('submittedN', { a: r.s.submitted, b: r.s.assigned }))}</td><td>${rowChips(r)}</td><td style="text-align:right"><button class="btn sm">${esc(t('goGrading'))}</button></td></tr>`).join('')}</tbody></table>${tog.html}`;
       tog.bind($('#gl'));
-      $$('[data-open]', $('#gl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/grading/' + r.dataset.open; }));
+      $$('[data-href]', $('#gl')).forEach((r) => r.addEventListener('click', () => { location.hash = r.dataset.href; }));
     } catch (e) { showError(e, $('#gl')); } }
     await load();
   }
@@ -1728,7 +1743,7 @@
     autoN: '自動交卷', peopleN: '{n} 人', qRates: '各題得分率', qRatesNote: 'A 題以答對率、B / C 題以得分率計算；低於 60% 以紅色標示。',
     colScore: '分數', colWrong: '錯題', needCoach: '需輔導', detail: '明細', exportCsv: '匯出 CSV', makeupForChecked: '為勾選者建立補考',
     showingN: '共 {n} 人 · 依分數由低到高', noResults: '還沒有已結束的測驗。', partial: '部分', makeupOf: '補考自 {id}',
-    colTaken: '測驗次數', colAvg: '平均', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
+    colTaken: '測驗次數', colAvg: '平均', colFlag: '需要留意', coachTip: '變化題低於 {a} 分、DMS 考題低於 {b}%', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
     wrongPoints: '錯誤重點', notReleasedChip: '成績未公布',
     makeupTitle: '建立補考', makeupNote: '補考沿用原測驗的題目與配分，會建立一個新的測驗場次與連結。', create2: '建立補考', makeupDone: '補考 {id} 已建立',
     returnBtn: '退回', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會另外保存但不再計分，專員可以在測驗開放期間重新作答。', returnReason: '原因（選填，例如網路中斷）', returnDone: '已退回',
@@ -1740,7 +1755,7 @@
     autoN: 'Auto-submitted', peopleN: '{n}', qRates: 'Score rate by question', qRatesNote: 'A: correct rate. B / C: share of points earned. Below 60% is shown in red.',
     colScore: 'Score', colWrong: 'Missed', needCoach: 'Needs coaching', detail: 'Details', exportCsv: 'Export CSV', makeupForChecked: 'Makeup for selected',
     showingN: '{n} people · lowest score first', noResults: 'No closed quizzes yet.', partial: 'partial', makeupOf: 'Makeup of {id}',
-    colTaken: 'Quizzes', colAvg: 'Average', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
+    colTaken: 'Quizzes', colAvg: 'Average', colFlag: 'Needs attention', coachTip: 'Variant below {a} points; DMS questions below {b}%', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
     wrongPoints: 'Missed points', notReleasedChip: 'Not released',
     makeupTitle: 'Create a makeup quiz', makeupNote: 'The makeup reuses the original questions and points, with a new session and link.', create2: 'Create makeup', makeupDone: 'Makeup {id} created',
     returnBtn: 'Return', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers are kept on file but no longer count. The agent can answer again while the quiz is open.', returnReason: 'Reason (optional, e.g. connection lost)', returnDone: 'Returned',
@@ -1768,17 +1783,26 @@
     const tab = params.get('tab') === 'agent' ? 'agent' : 'session';
     const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1><span class="spacer"></span>${refreshBtn()}</div>
       <div class="tabs"><a class="tab ${tab === 'session' ? 'on' : ''}" href="#/results">${esc(t('bySession'))}</a><a class="tab ${tab === 'agent' ? 'on' : ''}" href="#/results?tab=agent">${esc(t('byAgent'))}</a></div>
-      ${tab === 'session' ? '<h2 style="margin:6px 0 8px">變化題測驗</h2>' : ''}<div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div><div id="xrl"></div>`);
+      <div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div>`);
     let d, x;
     try { [d, x] = await Promise.all([api('t_resultsIndex'), window.RRQP_EXAM ? api('x_resultsIndex') : { sessions: [], rows: [] }]); } catch (e) { showError(e, $('#rl')); return; }
     if (tab === 'session') {
-      if (window.RRQP_EXAM) window.RRQP_EXAM.resultsSessions($('#xrl'), x);      // V3 DMS 考題測驗
-      if (!d.sessions.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noResults'))}</div>`; return; }
-      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th><th>${esc(t('belowLine', { n: d.coachLine }))}</th><th></th></tr></thead><tbody>${
-        d.sessions.map((s) => `<tr class="click" data-open="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(L(s.title))}${s.parentSession ? `<div class="small soft">${esc(t('makeupOf', { id: s.parentSession }))}</div>` : ''}<div class="small soft">${esc(fmtDT(s.startAt))} – ${esc(fmtDT(s.endAt))}</div></td>
-          <td>${sessChip(s.state)}</td><td class="small">${esc(t('submittedN', { a: s.submitted, b: s.assigned }))}</td><td><b>${s.avg === null ? t('none') : r2(s.avg)}</b></td>
-          <td>${s.coaching ? `<span class="cnt o">${s.coaching}</span>` : s.submitted ? '<span class="dotok">✓</span>' : '-'}</td><td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
-      $$('[data-open]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/results/' + r.dataset.open; }));
+      const X3 = window.RRQP_EXAM, dash = '<span class="soft">-</span>';
+      const cnt = (n, sub) => (n ? `<span class="cnt o" title="${n}">${n}</span>` : sub ? '<span class="dotok">✓</span>' : dash);
+      const rows = d.sessions.map((s) => ({ s, href: '#/results/' + s.sessionId, type: t('typeVariant'), start: s.startAt,
+          avg: s.avg === null ? t('none') : `${r2(s.avg)} ${lang === 'zh' ? '分' : 'pts'}`, coach: cnt(s.coaching, s.submitted), flag: dash, title: L(s.title),
+          sub: s.parentSession ? esc(t('makeupOf', { id: s.parentSession })) + '・' : '' }))
+        .concat(x.sessions.map((s) => ({ s, href: '#/xresults/' + s.sessionId, type: `${t('typeCases')}・${X3.modeTxt(s)}`, start: s.startAt, title: s.title, sub: '',
+          avg: s.mode === 'practice' ? `${lang === 'zh' ? '答對率' : 'Correct'} ${X3.rateTxt(s.mcRate)}` : X3.pctTxt(s.avg),
+          coach: s.mode === 'practice' ? dash : cnt(s.coaching, s.submitted), flag: cnt(s.flagged, s.submitted) })))
+        .sort((a, b) => (b.start || 0) - (a.start || 0));
+      if (!rows.length) { $('#rl').innerHTML = `<div class="empty-state">${esc(t('noResults'))}</div>`; return; }
+      $('#rl').innerHTML = `<table class="list"><thead><tr><th>${esc(t('colSession'))}</th><th>${esc(t('colKind'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colSubmitted'))}</th><th>${esc(t('avgScore'))}</th>
+        <th title="${esc(t('coachTip', { a: d.coachLine, b: x.coachLine }))}">${esc(t('colCoach'))}</th>${x.sessions.length ? `<th>${esc(t('colFlag'))}</th>` : ''}<th></th></tr></thead><tbody>${
+        rows.map((r) => `<tr class="click" data-href="${esc(r.href)}"><td><b>${esc(r.s.sessionId)}</b> ${esc(r.title)}<div class="small soft">${r.sub}${esc(fmtDT(r.s.startAt))}${r.s.endAt ? ' – ' + esc(fmtDT(r.s.endAt)) : ''}</div></td>
+          <td class="small">${esc(r.type)}</td><td>${sessChip(r.s.state)}</td><td class="small">${esc(t('submittedN', { a: r.s.submitted, b: r.s.assigned }))}</td><td><b>${r.avg}</b></td>
+          <td>${r.coach}</td>${x.sessions.length ? `<td>${r.flag}</td>` : ''}<td style="text-align:right"><button class="btn sm">${esc(t('open'))}</button></td></tr>`).join('')}</tbody></table>`;
+      $$('[data-href]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = r.dataset.href; }));
     } else {
       // 依專員：變化題＋DMS 考題（考試看百分比、練習看單選答對率）
       const xa = {};
@@ -3099,7 +3123,7 @@
         $$('[data-rm]', el).forEach((b) => b.addEventListener('click', () => { opts.splice(+b.dataset.rm, 1); draw(); }));
       };
       draw();
-      $('#os_add', el).onclick = () => { if (opts.length < 8) { opts.push({ text: { zh: '', en: '' } }); draw(); } };
+      $('#os_add', el).onclick = () => { if (opts.length < 10) { opts.push({ text: { zh: '', en: '' } }); draw(); } };
       $('#os_ok', el).onclick = async () => {
         try { const r = await api('tw_saveOptionSet', { setId: set ? set.setId : '', name: { zh: $('#os_zh', el).value.trim(), en: $('#os_en', el).value.trim() }, options: opts }); toast(t('optSaved')); close(r); }
         catch (e) { toast(e.message, 4500); }

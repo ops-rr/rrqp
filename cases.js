@@ -1249,7 +1249,7 @@
           ${md.options.map((o, oi) => `<div class="erow"><input type="checkbox" ${key.includes(oi) ? 'checked' : ''} onchange="CQ.togAns(${i},${oi},this.checked)" title="正解">
             <b style="width:14px">${LETTERS[oi]}</b><input type="text" value="${esc(o)}" onchange="CQ.setOpt(${i},${oi},this.value)">
             <button class="mbtn del" onclick="CQ.delOpt(${i},${oi})">✕</button></div>`).join('')}
-          ${md.options.length < 8 ? `<button class="mbtn" onclick="CQ.addOpt(${i})">＋ 新增選項</button>` : ''}
+          ${md.options.length < 10 ? `<button class="mbtn" onclick="CQ.addOpt(${i})">＋ 新增選項</button>` : ''}
           ${(md.optionsEn || []).some(Boolean) ? `<div class="hint">選項套用自範本${(() => { const x = (Array.isArray(OPTSETS) ? OPTSETS : []).find((y) => y.setId === md.optSet); return x ? `「${esc((x.name || {}).zh || x.setId)}」` : ''; })()}：BPO 專員看到的英文直接用範本的；改了文字的選項會改成翻譯。</div>` : ''}
           ${pctInput(md, i)}
           <div class="lbl">詳解（練習模式交卷後顯示）</div><textarea onchange="CQ.setMod(${i},'explain',this.value)">${esc(md.explain || '')}</textarea>`;
