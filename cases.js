@@ -303,19 +303,21 @@
 
   // ───────── 本次／前幾次申退切換（方案 A：整頁切換，考題固定在右側） ─────────
   function prevLabel(i) {
-    const name = MAIN.prev.length === 1 ? '前一次申退' : `前 ${i + 1} 次申退`;
+    const name = MAIN.prev.length === 1 ? U('前一次申退', 'Previous request') : U(`前 ${i + 1} 次申退`, `Request -${i + 1}`);
     const rid = MAIN.prev[i].rid;
     const showRid = isEdit() ? rid : (MAIN.meta.mask.id ? '***' : rid);
     return name + (showRid ? `（${esc(showRid)}）` : '');
   }
   function renderViews() {
     const box = $('#cqViews');
+    // 黃色識別條先依目前狀態設定：沒有前次申退的案件會提早結束，2026-11-23 修正（原本從有前次申退的案件切過來，黃條會留著）
+    $('#cqWrap').classList.toggle('prev', VIEW >= 0);
     if (!MAIN.prev.length) { box.innerHTML = ''; box.className = ''; return; }
     box.className = 'views' + (VIEW >= 0 ? ' prev' : '');
-    box.innerHTML = `<button class="${VIEW < 0 ? 'on' : ''}" onclick="CQ.view(-1)">本次申退</button>
+    box.innerHTML = `<button class="${VIEW < 0 ? 'on' : ''}" onclick="CQ.view(-1)">${U('本次申退', 'Current request')}</button>
       ${MAIN.prev.map((p, i) => `<button class="${VIEW === i ? 'on' : ''}" onclick="CQ.view(${i})">${prevLabel(i)}</button>`).join('')}
-      <span class="hint">${VIEW >= 0 ? '正在看前一次申退的資料；右側「考題」仍是本次案件的題目' : '可以切換查看同一筆訂單之前的申退'}</span>`;
-    $('#cqWrap').classList.toggle('prev', VIEW >= 0);
+      <span class="hint">${VIEW >= 0 ? U('正在看前一次申退的資料；右側「考題」仍是本次案件的題目', "You're viewing a previous request; the Questions tab still belongs to the current case")
+        : U('可以切換查看同一筆訂單之前的申退', 'You can switch to earlier return requests for the same order')}</span>`;
   }
   function setView(i) {
     VIEW = i;
