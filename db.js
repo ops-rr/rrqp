@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-23a';
+const VERSION = 'V2-2026-11-23c';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1700,7 +1700,7 @@ function answerRows(qs, atts, g) {
       const gs = q.type === 'G' ? groupScore(q, x.subs, (q.points || {}).choice || 0) : null;
       out.push({ aid: aidOf(a.id, q.qid), email: a.id, qid: q.qid, choice: x.choice || '', text: x.text || '', subs: x.subs || {}, subOk: gs ? gs.ok : null, subN: gs ? gs.n : null,
         autoScore: gs ? gs.score : q.type === 'A' || q.type === 'B' ? (x.choice && x.choice === q.answer ? (q.points || {}).choice || 0 : 0) : null,
-        aiScore: blank && !ai ? 0 : ai ? ai.score : null, aiConfidence: blank && !ai ? 1 : ai ? ai.confidence : null, aiReason: blank && !ai ? '未作答 / No answer' : ai ? ai.reason : '',
+        aiScore: blank && !ai ? 0 : ai ? ai.score : null, aiConfidence: blank && !ai ? 1 : ai ? ai.confidence : null, aiReason: blank && !ai ? '未作答 / No answer' : ai ? ai.reason : '', aiZh: ai ? ai.zh || '' : '',   // aiZh：英文答案的中文翻譯（AI 批改時附）
         teacherScore: tc.score === undefined || tc.score === null ? null : tc.score, teacherComment: tc.comment || '', teacherBy: tc.by || '', teacherAt: tc.at || null });
     });
   });
@@ -2303,11 +2303,13 @@ const CASES = {
       groups: await loadGroups(), topics: (await S.list('topics')).map(topicOut).filter((x) => x.usage.includes('case')), tags: (await S.list('tags')).map(tagOut) };
   },
 
-  /** 儲存（TW 講師）：rev 不同代表別人改過，不覆蓋；已核准的案件改到不合格會退回待審 */
+  /** 儲存（TW 講師）：rev 不同代表別人改過，不覆蓋；已上架的案件要先下架才能改 */
   c_save: async (b) => {
     const m = await needTW();
     const path = 'v3cases/' + b.caseId;
     const cur = await S.get(path) || fail('找不到案件 / Case not found');
+    // 2026-11-23 Chris：已上架的案件不能直接改，要先「下架修改」（避免改到一半被拿去組卷）
+    if (cur.status === 'approved') fail('已上架的案件不能直接修改，請先按「下架修改」 / Unlist the case before editing');
     if ((cur.rev || 0) !== (b.rev || 0)) fail(`${cur.updatedBy || '別的講師'} 剛修改過這個案件，請重新整理後再改 / Someone else just saved this case. Reload first.`);
     const c = JSON.parse(JSON.stringify(b.case || {}));
     const meta = c.meta || (c.meta = {});
@@ -2335,10 +2337,10 @@ const CASES = {
     const m = await needTW();
     const path = 'v3cases/' + b.caseId;
     const cur = await S.get(path) || fail('找不到案件 / Case not found');
-    if ((cur.rev || 0) !== (b.rev || 0)) fail('案件有更新，請重新整理後再核准 / Reload first');
+    if ((cur.rev || 0) !== (b.rev || 0)) fail('案件有更新，請重新整理後再上架 / Reload first');
     const body = JSON.parse(cur.body || '{}'), chk = caseCheck(body, cur.title);
-    if (chk.errors.length) fail('還不能核准：' + chk.errors.join('；'));
-    const t = now(), txState = txNext(body.meta, 'approved');
+    if (chk.errors.length) fail('還不能上架：' + chk.errors.join('；'));
+    const t = now(), txState = txOnList(body, cur);
     await S.batch([
       { op: 'update', path, data: { status: 'approved', approvedBy: m.email, approvedAt: t, updatedAt: t, txState } },
       { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'approved', ['items.' + b.caseId + '.approvedBy']: m.email,
@@ -2346,16 +2348,17 @@ const CASES = {
     ]);
     return { status: 'approved', txState };
   },
-  c_unapprove: async (b) => {
+  c_unapprove: async (b) => {          // 下架修改：從可用題庫拿掉；已發佈的測驗用的是發佈當下的考卷，不受影響
     await needTW();
     const path = 'v3cases/' + b.caseId;
-    await S.get(path) || fail('找不到案件 / Case not found');
-    const t = now();
+    const cur = await S.get(path) || fail('找不到案件 / Case not found');
+    const t = now(), tx = txNext(JSON.parse(cur.body || '{}').meta, 'pending');    // TW＋BPO：上架後再判斷要不要翻
     await S.batch([
-      { op: 'update', path, data: { status: 'pending', approvedBy: '', updatedAt: t } },
-      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'pending', ['items.' + b.caseId + '.approvedBy']: '', ['items.' + b.caseId + '.updatedAt']: t } },
+      { op: 'update', path, data: { status: 'pending', approvedBy: '', updatedAt: t, txState: tx } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.status']: 'pending', ['items.' + b.caseId + '.approvedBy']: '', ['items.' + b.caseId + '.tx']: tx,
+        ['items.' + b.caseId + '.updatedAt']: t } },
     ]);
-    return { status: 'pending' };
+    return { status: 'pending', txState: tx };
   },
 
   /**
@@ -2513,11 +2516,39 @@ function caseAgentView(src) {
 }
 /**
  * 英文翻譯狀態（2026-11-22 Chris 定案）：講師選使用對象「TW」或「TW＋BPO」（meta.twOnly；false＝TW＋BPO）。
- * TW＋BPO 的案件核准後排進翻譯佇列（txState = queued），排程翻好存在案件的 tx 欄位（JSON：原文 → 英文）、txState 改成 done／partial。
- * 核准後又修改會再排一次。狀態：'' 不用翻（TW）、wait 核准後翻、queued 翻譯中、done 完成、partial 有句子沒翻到。
+ * TW＋BPO 的案件上架時（c_approve）比對：有新的中文句子才排進翻譯佇列（txState = queued），排程翻好存在案件的 tx 欄位（JSON：原文 → 英文）、
+ * txState 改成 done／partial；沒有新句子就直接 done。狀態：'' 不用翻（TW）、wait 上架後翻、queued 翻譯中、done 完成、partial 有句子沒翻到。
  */
 const txNext = (meta, status) => ((meta || {}).twOnly !== false ? '' : status === 'approved' ? 'queued' : 'wait');
 const txMap = (d) => { try { return JSON.parse((d && d.tx) || '{}'); } catch (_) { return {}; } };
+// 要翻譯的句子：範圍必須和排程 rrqp_cases.py 的 case_free_texts()＋case_teacher_texts()、
+// rrqp_samples.py 的 dms_translate_cached()（有中文、3000 字以內）一模一樣，改一邊要一起改另一邊
+const CASE_FREE_TEXT = new Set(['Remark', 'Return Reason Remark', 'Dispute Reason Remark', 'Judging Reason', 'Checkout Remarks', 'Close Reason',
+  'Blacklist Reason', 'DS Model Route to Agent Reason']);
+function caseTxTexts(c) {
+  const out = [];
+  const msgs = (l) => (l || []).forEach((m) => { if (m.type === 'text') out.push(m.text); if (m.note) out.push(m.note); });
+  const one = (x) => {
+    (x.blocks || []).forEach((b) => (b.fields || []).forEach((f) => { if (CASE_FREE_TEXT.has(f.k)) out.push(f.v); }));
+    (x.ops || []).forEach((n) => (n.kv || []).forEach((kv) => { if (kv.length > 1 && !(kv.length > 2 && kv[2] === 'id')) out.push(kv[1]); }));
+    msgs(x.chat);
+    Object.values(x.drc || {}).forEach(msgs);
+  };
+  one(c);
+  (c.prev || []).forEach(one);
+  (c.modules || []).forEach((md) => {
+    if (md.type === 'note') out.push(md.text);
+    else if (md.type === 'mc') out.push(md.q, md.explain, ...(md.options || []));
+    else if (md.type === 'short') out.push(md.q, md.standard);
+  });
+  return [...new Set(out.filter((t) => typeof t === 'string' && t.trim() && /[\u3400-\u9fff]/.test(t) && t.length <= 3000))];
+}
+// 上架時：每一句都有英文＝done（不用等排程）；沒英文的都是之前翻不出來的＝partial；有新的中文才排翻譯
+function txOnList(body, d) {
+  if ((body.meta || {}).twOnly !== false) return '';
+  const have = txMap(d), missed = new Set((d && d.txMissed) || []), todo = caseTxTexts(body).filter((t) => !have[t]);
+  return !todo.length ? 'done' : todo.every((t) => missed.has(t)) ? 'partial' : 'queued';
+}
 const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop')
   // Firestore 不收 undefined：簡答題沒有 answer，一律給明確的值
   // SOP 路徑：解答（標準路線、講師示範的操作、節點快照…）由 x_create 另外放進 sop（JSON 字串）
@@ -2809,7 +2840,7 @@ const EXAM = {
     const sopP = sopList.length ? await sopPack(sopList) : { mods: {}, docs: [] };
     docs.forEach((d, i) => {
       if (!d) fail('找不到案件 / Case not found: ' + ids[i]);
-      if (d.status !== 'approved') fail(ids[i] + ' 還沒核准 / is not approved');
+      if (d.status !== 'approved') fail(ids[i] + ' 還沒上架 / is not listed');
       const body = JSON.parse(d.body || '{}'), txAll = Object.assign({}, (body.i18n || {}).tx, txMap(d));
       body.i18n = Object.assign({}, body.i18n, { tx: txAll });          // caseAgentView 只留專員版畫面上有的字
       if (mode === 'exam' && (body.meta || {}).usage !== 'exam') fail(ids[i] + ' 是練習用案件，不能放進考試 / is for practice only');

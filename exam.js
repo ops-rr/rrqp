@@ -29,7 +29,7 @@
   // ═════════════════════════════ 測驗管理：列表＋新增 ═════════════════════════════
   async function sessions(box, ctx) {
     X = ctx;
-    box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="small muted">從「可用題庫 → DMS 考題」挑已核准的案件組成一場測驗。</span><span class="spacer"></span>
+    box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="small muted">從「可用題庫 → DMS 考題」挑已上架的案件組成一場測驗。</span><span class="spacer"></span>
       <button class="btn brand" id="xNew" type="button">＋ DMS 考題測驗</button></div><div id="xCreate"></div>
       <div class="card scroll-x" id="xList"><div class="empty-state"><span class="spin"></span></div></div>`;
     $('#xNew').onclick = () => { const c = $('#xCreate'); if (c.innerHTML) c.innerHTML = ''; else createForm(c); };
@@ -91,7 +91,7 @@
           <input type="checkbox" data-c="${esc(c.caseId)}" ${on ? 'checked' : ''} ${no ? 'disabled' : ''}>
           <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
           ${window.RRQP_CASES.langChip(c)}${st.seen[c.caseId] ? `<span class="chip warn">${st.seen[c.caseId]} 人做過</span>` : ''}${no ? '<span class="small soft">練習用，不能放進考試</span>' : ''}</label>`;
-      }).join('') : '<div class="empty-state">沒有符合的已核准案件</div>';
+      }).join('') : '<div class="empty-state">沒有符合的已上架案件</div>';
       $$('#x_pool [data-c]').forEach((cb) => cb.addEventListener('change', () => {
         const id = cb.dataset.c;
         st.picked = cb.checked ? st.picked.concat(id) : st.picked.filter((x) => x !== id);
@@ -428,7 +428,7 @@
         <thead><tr><th>專員</th>${bound ? `<th>${q.i + 1}-${bound.qi + 1} 選了</th>` : ''}<th>答案</th><th>AI 建議</th><th>給分</th></tr></thead><tbody>
         ${done.map((r) => { const v = scoreOf(r, q.k); return `<tr class="xq"><td class="small" style="word-break:break-all">${esc(r.email)}</td>
           ${bound ? `<td class="small" data-l="${q.i + 1}-${bound.qi + 1} 選了">${pickTxt(bound, pickOf(r, q.i, bound.m.id))}</td>` : ''}
-          <td style="white-space:pre-wrap;word-break:break-word">${ansOf(r, q) ? esc(ansOf(r, q)) : '<span class="soft">（沒作答）</span>'}</td>
+          <td style="white-space:pre-wrap;word-break:break-word">${ansOf(r, q) ? esc(ansOf(r, q)) : '<span class="soft">（沒作答）</span>'}${((r.ai || {})[q.k] || {}).zh ? `<div class="soft small" style="margin-top:4px">中文（AI 翻譯）：${esc(r.ai[q.k].zh)}</div>` : ''}</td>
           <td>${aiTip((r.ai || {})[q.k], q.m.points, canGrade) || '<span class="small soft">—</span>'}</td>
           <td style="white-space:nowrap" data-l="給分">${canGrade ? `<input class="sc" type="number" min="0" max="${q.m.points}" step="any" style="width:56px" data-e="${esc(r.email)}" data-k="${q.k}" value="${v === null || v === undefined ? '' : v}"> / ${q.m.points}`
             : (v !== null && v !== undefined ? `${v} / ${q.m.points}` : '<span class="soft">-</span>')}</td></tr>`; }).join('')}</tbody></table></div>`;
