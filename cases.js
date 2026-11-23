@@ -1,5 +1,5 @@
 /* RR AI Quiz Platform — V3 DMS 考題：案件清單與案件編輯（#/case/Cxxx）
- * 清單畫在「案件匯入 → 待審 DMS 考題」與「可用題庫 → DMS 考題」：app.js 呼叫 window.RRQP_CASES.list(box, status, ctx)；
+ * 清單畫在「案件匯入 → 未上架 DMS 考題」與「可用題庫 → DMS 考題」：app.js 呼叫 window.RRQP_CASES.list(box, status, ctx)；
  * 編輯頁：app.js 的 route() 呼叫 window.RRQP_CASES.route('case', caseId, ctx)。資料一律走 db.js 的 api（c_* 動作）。
  * 案件編輯的畫面沿用 dev/case-quiz 原型：中間 DMS 區塊、右側 考題／Operation History／Chat History／Discuss。
  * 畫面上的按鈕呼叫 window.CQ.xxx(...)。
@@ -29,7 +29,9 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
   function src(path) { return /^(data|blob):/.test(String(path)) ? esc(path) : esc(encodeURI(path)); }
-  const isEdit = () => mode === 'edit' && !!(CUR && CUR.canEdit);
+  // 2026-11-23 Chris：已上架的案件不能直接改，要先「下架修改」
+  const canMod = () => !!(CUR && CUR.canEdit && CUR.status !== 'approved');
+  const isEdit = () => mode === 'edit' && canMod();
   const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString('sv-SE').slice(0, 16) : '-');
 
   // 黏在上方的高度：V2 頂部列＋案件工具列（左側導覽、右側面板從這裡開始）
@@ -48,7 +50,7 @@
   }
 
   // ═════════════════════════════ 案件清單 ═════════════════════════════
-  const STATUS = { pending: '待審', approved: '已核准' };
+  const STATUS = { pending: '未上架', approved: '已上架' };
 
   // DMS 畫面的中文／英文：跟網站右上角的「中文／EN」一起切換。匯入時存了 i18n（英文 → 中文），中文時查表，查不到就顯示英文。
   // 頁籤、篩選、角色這些 DMS 前端寫死的英文，DMS 切成中文也不變，所以不翻（2026-11-19 Chris 對過）。編輯中的欄位一律顯示原文（避免把中文存回去）。
@@ -89,7 +91,7 @@
     if (c.tx === 'done') return '<span class="chip ok">TW＋BPO</span>';
     if (c.tx === 'queued') return '<span class="chip info" title="排程翻譯完成後，BPO 專員才看得到英文">TW＋BPO・翻譯中</span>';
     if (c.tx === 'partial') return `<span class="chip warn" title="這些句子 BPO 專員會看到中文">TW＋BPO・${n} 句沒翻到</span>`;
-    return `<span class="chip warn" title="核准後自動翻成英文">TW＋BPO・${c.status === 'approved' ? '尚未翻譯' : '核准後翻譯'}</span>`;
+    return `<span class="chip warn" title="上架時有新的中文才送翻譯">TW＋BPO・${c.status === 'approved' ? '尚未翻譯' : '上架後翻譯'}</span>`;
   }
   // 講師寫的字（題目、選項、情境說明）：EN 時只顯示英文；詳解、參考答案用 TX（附原文）
   function TE(s) {
@@ -114,11 +116,11 @@
     walk(tpl.content);
     return tpl.innerHTML;
   }
-  const filt = { tab: 'pending', q: '', usage: '', kind: '', id: '' };     // kind：group / topic / tag
+  const filt = { tab: 'pending', q: '', usage: '', lang: '', kind: '', id: '' };     // kind：group / topic / tag；lang：tw / bpo（使用對象）
   const backOf = (status) => (status === 'approved' ? '#/bank?tab=cases' : '#/library?tab=cases');
   const L = (n) => (n && typeof n === 'object' ? n.zh || n.en || '' : String(n || ''));
 
-  /** 案件清單畫進 box：status = pending（案件匯入 → 待審 DMS 考題）或 approved（可用題庫 → DMS 考題） */
+  /** 案件清單畫進 box：status = pending（案件匯入 → 未上架 DMS 考題）或 approved（可用題庫 → DMS 考題） */
   async function list(box, status, ctx) {
     if (EX) { clearInterval(EX.tick); EX = null; }
     X = ctx; CUR = null; MAIN = null; C = null;
@@ -140,12 +142,12 @@
 
   function drawCases(d, box) {
     const pend = d.cases.filter((c) => c.status !== 'approved'), appr = d.cases.filter((c) => c.status === 'approved');
-    if ($('#cqNP')) $('#cqNP').innerHTML = pend.length ? `<span class="cnt g" title="待審 ${pend.length}">${pend.length}</span>` : '';
+    if ($('#cqNP')) $('#cqNP').innerHTML = pend.length ? `<span class="cnt g" title="未上架 ${pend.length}">${pend.length}</span>` : '';
     if ($('#cqNA')) $('#cqNA').textContent = appr.length ? `(${appr.length})` : '';
     const all = filt.tab === 'approved' ? appr : pend;
     if (!box || !document.body.contains(box)) return;
     if (!all.length) {
-      box.innerHTML = `<div class="card empty-state">${filt.tab === 'approved' ? '還沒有核准的 DMS 考題' : '沒有待審的 DMS 考題。到「申請匯入」勾選「DMS 考題」申請。'}</div>`;
+      box.innerHTML = `<div class="card empty-state">${filt.tab === 'approved' ? '還沒有上架的 DMS 考題' : '沒有未上架的 DMS 考題。到「申請匯入」勾選「DMS 考題」申請。'}</div>`;
       return;
     }
     const gName = (id) => (d.groups.find((x) => x.id === id) || {}).name || id;
@@ -155,6 +157,7 @@
       <div class="lib-main"><div class="cql-filter">
         <input type="search" id="cqQ" placeholder="搜尋案件編號、標題、Return ID、講師" value="${esc(filt.q)}">
         <select id="cqU"><option value="">練習＋考試</option><option value="practice" ${filt.usage === 'practice' ? 'selected' : ''}>練習用</option><option value="exam" ${filt.usage === 'exam' ? 'selected' : ''}>考試用</option></select>
+        <select id="cqL"><option value="">全部對象</option><option value="tw" ${filt.lang === 'tw' ? 'selected' : ''}>TW</option><option value="bpo" ${filt.lang === 'bpo' ? 'selected' : ''}>TW＋BPO</option></select>
         <span class="small muted" id="cqC"></span></div><div id="cqRows"></div></div></div>`;
     const inF = (c) => !filt.kind || (filt.kind === 'none' ? !(c.groups || []).length
       : (filt.kind === 'group' ? c.groups : filt.kind === 'topic' ? c.topics : c.tags || []).includes(filt.id));
@@ -174,7 +177,7 @@
     const draw = () => {
       const q = filt.q.trim().toLowerCase();
       const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示匯入提醒與狀態
-      const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage)
+      const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
@@ -193,6 +196,7 @@
     };
     $('#cqQ').oninput = (e) => { filt.q = e.target.value; draw(); };
     $('#cqU').onchange = (e) => { filt.usage = e.target.value; draw(); };
+    $('#cqL').onchange = (e) => { filt.lang = e.target.value; draw(); };
     drawSide();
     draw();
   }
@@ -222,7 +226,7 @@
     C.prev = (C.prev || []).map((p) => Object.assign({ blocks: [], ops: [], drc: { buyer: [], seller: [] } }, p));
     MAIN = C; VIEW = -1;
     A = newAnswer();
-    mode = CUR.canEdit ? 'edit' : 'agent';
+    mode = canMod() ? 'edit' : 'agent';
     sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
     PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false; ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
     main.classList.add('cq-full');
@@ -279,15 +283,15 @@
       : saving ? `<span class="sv">${U('儲存中…', 'Saving…')}</span>`
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
-    $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '待審 DMS 考題'}</a>
+    $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '未上架 DMS 考題'}</a>
       <span class="cid">${esc(CUR.caseId)}</span>${CUR.copyOf ? `<a class="soft small" href="#/case/${esc(CUR.copyOf)}">複製自 ${esc(CUR.copyOf)}</a>` : ''}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}
-      ${CUR.canEdit ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
+      ${canMod() ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
-      ${CUR.canEdit ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
+      ${canMod() ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
       <span style="flex:1"></span>
-      ${CUR.canEdit ? sv : ''}
-      ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()">退回待審</button>' : '<button class="cbtn ok" onclick="CQ.approve()">核准</button>') : ''}
-      ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件待審）">複製</button>' : ''}
+      ${canMod() ? sv : ''}
+      ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()" title="從可用題庫拿掉，改完再上架；已發佈的測驗不受影響">下架修改</button>' : '<button class="cbtn ok" onclick="CQ.approve()">上架到題庫</button>') : ''}
+      ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件未上架）">複製</button>' : ''}
       ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
   }
 
@@ -334,7 +338,7 @@
     if (EX) return exNotice(box);
     if (!isEdit()) {
       box.className = 'pv';
-      box.innerHTML = `<span>${CUR.canEdit ? '專員預覽：已套用遮蔽與隱藏，畫面和專員作答時相同。' : '只有 TW 講師可以編輯案件；這裡是專員看到的畫面。'}作答不會記錄。</span>
+      box.innerHTML = `<span>${canMod() ? '專員預覽：已套用遮蔽與隱藏，畫面和專員作答時相同。' : CUR.canEdit ? '已上架：這裡是專員看到的畫面，要修改請按右上角「下架修改」。' : '只有 TW 講師可以編輯案件；這裡是專員看到的畫面。'}作答不會記錄。</span>
         <span style="flex:1"></span>${A.submitted ? '<button onclick="CQ.retry()">重新作答</button>' : '<button class="solid" onclick="CQ.submitAnswer()">交卷看結果</button>'}`;
       return;
     }
@@ -350,9 +354,9 @@
           <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
             <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
             <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
-          <label>使用對象 <select style="width:auto" onchange="CQ.setMeta('twOnly',this.value==='tw')" title="TW＋BPO：核准後自動翻成英文，翻好後 BPO 專員也能用">
+          <label>使用對象 <select style="width:auto" onchange="CQ.setMeta('twOnly',this.value==='tw')" title="TW＋BPO：上架時有新的中文就翻成英文，翻好後 BPO 專員也能用">
             <option value="tw" ${m.twOnly !== false ? 'selected' : ''}>TW</option>
-            <option value="bpo" ${m.twOnly === false ? 'selected' : ''}>TW＋BPO（核准後翻成英文）</option></select></label>
+            <option value="bpo" ${m.twOnly === false ? 'selected' : ''}>TW＋BPO（上架時翻成英文）</option></select></label>
           <label title="User ID、Shop ID、物流單號、Transaction ID"><input type="checkbox" ${m.mask.id ? 'checked' : ''} onchange="CQ.setMask('id',this.checked)"> 遮蔽編號</label>
           <label><input type="checkbox" ${m.mask.account ? 'checked' : ''} onchange="CQ.setMask('account',this.checked)"> 遮蔽帳號</label>
         </div>
@@ -410,8 +414,8 @@
       : LEAK_I >= 0 ? `第 ${LEAK_I + 1} / ${leaks.length} 處：${esc(leaks[LEAK_I].label)}` : '專員看得到，請確認不會透露答案';
     const chk = (X.DB().caseCheck || (() => ({ errors: [], warns: [] })))(MAIN, CUR.title);
     const notes = (CUR.notes || []).map((n) => n.text || n).filter((n) => !PII_NOTE.test(n));
-    const items = [...chk.errors.map((x) => ['err', '核准前要完成：' + x]), ...chk.warns.map((x) => ['warn', x]), ...notes.map((x) => ['note', x])];
-    const impS = chk.errors.length ? `<span class="bad">核准前要完成：${esc(chk.errors[0])}</span>` : items.length ? esc(items[0][1]) : '沒有提醒';
+    const items = [...chk.errors.map((x) => ['err', '上架前要完成：' + x]), ...chk.warns.map((x) => ['warn', x]), ...notes.map((x) => ['note', x])];
+    const impS = chk.errors.length ? `<span class="bad">上架前要完成：${esc(chk.errors[0])}</span>` : items.length ? esc(items[0][1]) : '沒有提醒';
     return `<div class="al pii ${done ? 'done' : ''}" onclick="CQ.piiNext()">
         <div class="t">個資檢查<span>${p.total}</span></div><div class="s">${piiS}</div>
         <div class="h">${!p.total ? '' : p.old ? '舊版匯入沒有位置資料，重新匯入後可以逐處跳轉' : '點選框框逐處查看'}</div></div>
@@ -463,7 +467,7 @@
 
   // ───────── 儲存：改了就排程，停 1.2 秒後送出；同時只送一次 ─────────
   function saveCase() {
-    if (!CUR || !CUR.canEdit) return;
+    if (!canMod()) return;
     dirty = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(doSave, 1200);
@@ -480,7 +484,7 @@
       const r = await X.api('c_save', { caseId, rev: CUR.rev, title: CUR.title, case: MAIN });
       if (!CUR || CUR.caseId !== caseId) return true;
       CUR.rev = r.rev; CUR.updatedAt = Date.now(); CUR.pctFixed = false;
-      if (r.demoted) X.toast('案件內容不符合核准條件，已退回待審', 5000);
+      if (r.demoted) X.toast('案件內容不符合上架條件，已移到未上架', 5000);
       CUR.status = r.status; CUR.tx.state = r.txState || '';
       if (!$('#cqSettings').contains(document.activeElement)) renderSettings();
     } catch (e) {
@@ -495,24 +499,25 @@
   async function approve() {
     if (dirty || saving || CUR.pctFixed) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
     const chk = X.DB().caseCheck(MAIN, CUR.title);
-    if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能核准：' + chk.errors.join('；'), 6000); }
-    if (!piiDone()) { refreshAlerts(); return X.toast('還不能核准：個資檢查還沒逐處看完，請點右上角「個資檢查」框', 6000); }
+    if (chk.errors.length) { renderSettings(); layout(); return X.toast('還不能上架：' + chk.errors.join('；'), 6000); }
+    if (!piiDone()) { refreshAlerts(); return X.toast('還不能上架：個資檢查還沒逐處看完，請點右上角「個資檢查」框', 6000); }
     const leaks = findLeaks();
     // 明細在案件頁上方的「可能洩漏結果」按鈕裡，這裡只提醒處數
-    if (leaks.length && !(await X.confirmBox(`專員看得到、可能洩漏結果的內容共 ${leaks.length} 處，若沒問題請點選核准`, '核准'))) return;
+    if (leaks.length && !(await X.confirmBox(`專員看得到、可能洩漏結果的內容共 ${leaks.length} 處，若沒問題請點選上架`, '上架到題庫'))) return;
     try {
       const r = await X.api('c_approve', { caseId: CUR.caseId, rev: CUR.rev });
       CUR.status = r.status; CUR.tx.state = r.txState || '';
-      X.toast(r.txState === 'queued' ? '已核准，排程會翻成英文（翻好後 BPO 專員才能用）' : '已核准', 5000); renderAll();
+      mode = 'agent';
+      X.toast(r.txState === 'queued' ? '已上架，有新的中文要翻成英文（排程翻好後 BPO 專員才能用）' : '已上架', 5000); renderAll();
     } catch (e) { X.toast(e.message, 6000); }
   }
   async function unapprove() {
-    if (!(await X.confirmBox('退回待審？退回後不能用來組卷，直到再次核准。', '退回待審'))) return;
-    try { const r = await X.api('c_unapprove', { caseId: CUR.caseId }); CUR.status = r.status; renderAll(); } catch (e) { X.toast(e.message, 6000); }
+    if (!(await X.confirmBox('下架修改？案件會從可用題庫拿掉、回到「未上架 DMS 考題」，改完再上架。已發佈的測驗不受影響。', '下架修改'))) return;
+    try { const r = await X.api('c_unapprove', { caseId: CUR.caseId }); CUR.status = r.status; CUR.tx.state = r.txState || ''; mode = 'edit'; renderAll(); } catch (e) { X.toast(e.message, 6000); }
   }
   async function copy() {
     if (dirty || saving) { if (!(await saveNow())) return X.toast('請先處理儲存失敗的問題', 5000); }
-    if (!(await X.confirmBox(`複製 ${CUR.caseId} 成新的案件？\n案件內容、考題、補充資訊圖片都會複製一份，新案件是「待審」，改好後要再核准。兩個案件之後各改各的，互不影響。`, '複製'))) return;
+    if (!(await X.confirmBox(`複製 ${CUR.caseId} 成新的案件？\n案件內容、考題、補充資訊圖片都會複製一份，新案件是「未上架」，改好後要再核准。兩個案件之後各改各的，互不影響。`, '複製'))) return;
     try {
       const r = await X.api('c_copy', { caseId: CUR.caseId });
       X.toast('已複製成 ' + r.caseId);
@@ -1122,7 +1127,7 @@
     if (C.modules.some(isQ)) {
       const sum = pctSum(C.modules), ok = Math.abs(sum - 100) < 0.01;
       html += `<div class="hint" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span>作答題配分合計 <b style="color:${ok ? 'var(--ok,#16a34a)' : 'var(--bad,#dc2626)'}">${sum}%</b>${ok ? '' : '（要剛好 100% 才能核准）'}</span>
+        <span>作答題配分合計 <b style="color:${ok ? 'var(--ok,#16a34a)' : 'var(--bad,#dc2626)'}">${sum}%</b>${ok ? '' : '（要剛好 100% 才能上架）'}</span>
         <button class="mbtn" onclick="CQ.evenPct()">平均分配</button>
         <span>配分是這題佔本案件的比例；案件在整份試卷佔幾分，組卷發佈時再設定。</span></div>`;
     }
