@@ -237,6 +237,7 @@
     A = newAnswer();
     mode = canMod() ? 'edit' : 'agent';
     HIST = { undo: [], redo: [], last: histSnap() };
+    SET_OPEN = null; ALERT_OPEN = ''; MORE_OPEN = false;
     sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
     PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false; ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
     main.classList.add('cq-full');
@@ -286,25 +287,40 @@
   }
 
   // ───────── 工具列：返回、案件編號、標題、模式、儲存狀態、核准、刪除 ─────────
+  // 2026-11-23 Chris 選的版面（參考 Notion／Google 文件）：上方小字路徑；大字標題（點了才編輯）＋狀態＋儲存狀態；
+  // 右邊只有復原／重做圖示、編輯／預覽切換、一個主要按鈕，少用的（複製、Return ID、刪除）收進「⋯」選單
+  const ICON_UNDO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/></svg>';
+  const ICON_REDO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l4-4-4-4"/><path d="M19 10h-11a4 4 0 1 0 0 8h1"/></svg>';
+  let MORE_OPEN = false;
   function renderBar() {
     if (EX) return exBar();
-    const st = CUR.status === 'approved';
+    const st = CUR.status === 'approved', bar = $('#cqBar');
+    bar.className = 'cq-bar cqh';
     const sv = saveErr ? `<span class="sv err" title="${esc(saveErr)}">儲存失敗：${esc(saveErr.slice(0, 60))} ${/剛修改過/.test(saveErr) ? '<button class="cbtn" onclick="location.reload()">重新整理（放棄這次修改）</button>' : '<button class="cbtn" onclick="CQ.saveNow()">重試</button>'}</span>`
       : saving ? `<span class="sv">${U('儲存中…', 'Saving…')}</span>`
       : dirty ? '<span class="sv dirty">有修改，稍後自動儲存</span>'
       : `<span class="sv">已儲存 ${esc(fmtTime(CUR.updatedAt))}</span>`;
-    $('#cqBar').innerHTML = `<a class="cbtn" href="${backOf(CUR.status)}">← ${st ? '可用題庫' : '未上架 DMS 考題'}</a>
-      <span class="cid">${esc(CUR.caseId)}</span>${CUR.copyOf ? `<a class="soft small" href="#/case/${esc(CUR.copyOf)}">複製自 ${esc(CUR.copyOf)}</a>` : ''}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}
-      ${canMod() ? `<input type="text" class="ttl" id="cqTitle" placeholder="案件標題（專員看不到；例如：商品瑕疵＋賣家聊聊承諾補寄）" value="${esc(CUR.title)}" onchange="CQ.setTitle(this.value)">`
-        : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
-      ${canMod() ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
-      <span style="flex:1"></span>
-      ${canMod() ? `<button class="cbtn" onclick="CQ.undo()" ${HIST.undo.length ? '' : 'disabled'} title="復原上一步（Ctrl+Z）">復原</button><button class="cbtn" onclick="CQ.redo()" ${HIST.redo.length ? '' : 'disabled'} title="重做（Ctrl+Y）">重做</button>` : ''}
-      ${canMod() ? sv : ''}
-      ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()" title="從可用題庫拿掉，改完再上架；已發佈的測驗不受影響">下架修改</button>' : '<button class="cbtn ok" onclick="CQ.approve()">上架到題庫</button>') : ''}
-      ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件未上架）">複製</button>' : ''}
-      ${CUR.canDelete ? '<button class="cbtn del" onclick="CQ.del()">刪除</button>' : ''}`;
+    const tl = String(CUR.title || '');
+    const title = canMod()
+      ? `<input type="text" class="cqh-title" id="cqTitle" size="${Math.min(60, Math.max(16, tl.length * 2 + 2))}" placeholder="輸入案件標題（專員看不到）" title="案件標題：只有講師看得到" value="${esc(tl)}" onchange="CQ.setTitle(this.value)">`
+      : `<span class="cqh-title ro">${esc(tl || '（未命名）')}</span>`;
+    const rid = (C.meta || {}).rid || '';
+    const menu = [
+      CUR.canEdit ? '<button onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件未上架）">複製成新案件</button>' : '',
+      rid ? `<button class="rid" onclick="CQ.copyRid()" title="點一下複製">Return ID ${esc(rid)}${(CUR.priv.prevIds || []).length ? `<br>前幾次申退：${esc(CUR.priv.prevIds.join(', '))}` : ''}</button>` : '',
+      CUR.canDelete ? '<button class="del" onclick="CQ.del()">刪除案件</button>' : '',
+    ].join('');
+    bar.innerHTML = `<div class="cqh-crumb"><a href="${backOf(CUR.status)}">${st ? '可用題庫' : '未上架 DMS 考題'}</a> ／ <b>${esc(CUR.caseId)}</b>${CUR.copyOf ? `<span>・複製自 <a href="#/case/${esc(CUR.copyOf)}">${esc(CUR.copyOf)}</a></span>` : ''}</div>
+      <div class="cqh-row">${title}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}${canMod() ? sv : ''}
+        <span style="flex:1"></span>
+        ${canMod() ? `<button class="cqh-ib" onclick="CQ.undo()" ${HIST.undo.length ? '' : 'disabled'} title="復原（Ctrl+Z）" aria-label="復原">${ICON_UNDO}</button><button class="cqh-ib" onclick="CQ.redo()" ${HIST.redo.length ? '' : 'disabled'} title="重做（Ctrl+Y）" aria-label="重做">${ICON_REDO}</button>
+          <span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
+        ${CUR.canEdit ? (st ? '<button class="cbtn ok" onclick="CQ.unapprove()" title="從可用題庫拿掉，改完再上架；已發佈的測驗不受影響">下架修改</button>' : '<button class="cbtn ok" onclick="CQ.approve()">上架到題庫</button>') : ''}
+        ${menu ? `<span class="cqh-more"><button class="cbtn" onclick="event.stopPropagation();CQ.moreToggle()" aria-label="更多動作" title="更多動作">⋯</button>${MORE_OPEN ? `<div class="cqh-menu" onclick="event.stopPropagation()">${menu}</div>` : ''}</span>` : ''}</div>`;
   }
+  function moreToggle() { MORE_OPEN = !MORE_OPEN; renderBar(); }
+  document.addEventListener('click', () => { if (MORE_OPEN) { MORE_OPEN = false; if ($('#cqBar') && CUR && !EX) renderBar(); } });
+  function copyRid() { const r = (C.meta || {}).rid || ''; MORE_OPEN = false; renderBar(); if (r) navigator.clipboard.writeText(r).then(() => X.toast('已複製 Return ID')); }
 
   // 編輯畫面的翻譯狀態；有句子沒翻到時，滑過去列出來
   function txChip() {
@@ -375,15 +391,23 @@
         <span style="flex:1"></span>${A.submitted ? '<button onclick="CQ.retry()">重新作答</button>' : '<button class="solid" onclick="CQ.submitAnswer()">交卷看結果</button>'}`;
       return;
     }
-    box.className = 'ed';
+    box.className = 'ed2';
     const m = C.meta;
-    const prev = (CUR.priv.prevIds || []).join(', ');
     const groups = CUR.groups.filter((g) => g.active || m.groups.includes(g.id)).map((g) => [g.id, g.name]);
     const topics = CUR.topics.filter((x) => x.active || m.topics.includes(x.topicId)).map((x) => [x.topicId, L(x.name)]);
     const tags = CUR.tags.filter((x) => m.topics.includes(x.topicId) && (x.active || m.tags.includes(x.tagId))).map((x) => [x.tagId, L(x.name)]);
-    box.innerHTML = `<div class="cond">
+    // 平常只顯示一行摘要；還沒選組別或主題時預設展開（剛匯入要先設定）
+    if (SET_OPEN === null) SET_OPEN = !m.groups.length || !m.topics.length;
+    const nm = (list, id) => (list.find((x) => x[0] === id) || [id, id])[1];
+    const cls = [m.groups.map((id) => nm(groups, id)).join('、'), m.topics.map((id) => nm(topics, id)).join('、'), m.tags.map((id) => nm(tags, id)).join('、')].filter(Boolean);
+    const mask = [m.mask.id ? '編號' : '', m.mask.account ? '帳號' : ''].filter(Boolean);
+    const sum = `<div class="cqs-sum"><span class="k">設定</span><span>${m.usage === 'exam' ? '考試用' : '練習用'}・${m.twOnly === false ? 'TW＋BPO' : 'TW'}・${mask.length ? '遮蔽' + mask.join('、') : '不遮蔽'}</span>
+        <span class="k">｜分類</span><span>${cls.length ? esc(cls.join(' › ')) : '<span class="bad">還沒選組別、主題</span>'}</span>
+        <a class="cqs-link" onclick="CQ.setToggle()">${SET_OPEN ? '收起設定 ▴' : '編輯設定 ▾'}</a>
+        <span style="flex:1"></span><span id="cqAl" class="cqa">${alertBoxes()}</span></div>`;
+    if (!SET_OPEN) { box.innerHTML = sum + alertPop(); layout(); return; }
+    box.innerHTML = sum + alertPop() + `<div class="cond">
         <div class="r1">
-          <span class="rid">Return ID：${esc(m.rid || '-')}${prev ? `（前幾次申退：${esc(prev)}）` : ''}</span>
           <label>用途 <select style="width:auto" onchange="CQ.setMeta('usage',this.value)">
             <option value="practice" ${m.usage === 'practice' ? 'selected' : ''}>練習用</option>
             <option value="exam" ${m.usage === 'exam' ? 'selected' : ''}>考試用</option></select></label>
@@ -396,10 +420,11 @@
         <label>組別</label>${msBox('groups', groups, '請選擇')}
         <label>主題</label>${msBox('topics', topics, '請選擇')}
         <label>標籤</label>${msBox('tags', tags, m.topics.length ? (tags.length ? '請選擇' : '這個主題還沒有標籤') : '先選主題')}
-      </div>
-      <div class="als">${alertBoxes()}</div>`;
+      </div>`;
     layout();
   }
+  let SET_OPEN = null;      // 設定展開：null＝依案件決定（還沒分類就展開）
+  function setToggle() { SET_OPEN = !SET_OPEN; renderSettings(); }
 
   // 分類下拉（可複選，參考 DMS 的 Request Type）：選到的變成小標籤，× 可以拿掉；點開後勾選不會關，點外面才關
   let MS_OPEN = '';
@@ -449,25 +474,49 @@
     const notes = (CUR.notes || []).map((n) => n.text || n).filter((n) => !PII_NOTE.test(n));
     const items = [...chk.errors.map((x) => ['err', '上架前要完成：' + x]), ...chk.warns.map((x) => ['warn', x]), ...notes.map((x) => ['note', x])];
     const impS = chk.errors.length ? `<span class="bad">上架前要完成：${esc(chk.errors[0])}</span>` : items.length ? esc(items[0][1]) : '沒有提醒';
-    return `<div class="al pii ${done ? 'done' : ''}" onclick="CQ.piiNext()">
-        <div class="t">個資檢查<span>${p.total}</span></div><div class="s">${piiS}</div>
-        <div class="h">${!p.total ? '' : p.old ? '舊版匯入沒有位置資料，重新匯入後可以逐處跳轉' : '點選框框逐處查看'}</div></div>
-      <div class="al lk ${leaks.length ? '' : 'none'}" onclick="CQ.leakNext()">
-        <div class="t">可能洩漏結果<span>${leaks.length}</span></div><div class="s">${leakS}</div>
-        <div class="h">${leaks.length ? '點選框框逐處跳轉' : ''}</div></div>
-      <div class="al imp ${chk.errors.length ? 'err' : ''} ${OPEN.imp ? 'open' : ''}" onclick="CQ.impToggle(event)">
-        <div class="t">匯入提醒<span>${items.length}</span></div><div class="s">${impS}</div>
-        <div class="h">${items.length ? '點選框框展開全部' : ''}</div>
-        ${items.length ? `<ul>${items.map(([k, x]) => `<li class="${k}">${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
+    ALERT = { p, done, piiS, leaks, leakS, items, chk };
+    const piiLeft = p.old ? 1 : p.spots.length - PII_SEEN.size;
+    const chip = (k, cls, txt, title) => `<button class="cqa-c ${cls} ${ALERT_OPEN === k ? 'on' : ''}" onclick="event.stopPropagation();CQ.alertOpen('${k}')" title="${esc(title)}">${txt}</button>`;
+    return chip('pii', !p.total || done ? 'ok' : 'bd', !p.total ? '個資檢查 0' : done ? '個資檢查 已看完' : `個資檢查 還有 ${piiLeft} 處沒看`, '自動遮蔽的個資；上架前要逐處看過')
+      + chip('leak', leaks.length ? 'wn' : 'nt', `可能洩漏 ${leaks.length}`, '專員看得到、可能透露答案的內容')
+      + chip('imp', chk.errors.length ? 'bd' : 'nt', `匯入提醒 ${items.length}`, '上架前要完成的項目與匯入時的提醒');
   }
-  function refreshAlerts() { const b = $('#cqSettings .als'); if (b) b.innerHTML = alertBoxes(); }
-  function piiNext() {
+  // 點標籤：個資、洩漏逐處跳到畫面上的位置；下方小視窗顯示第幾處與說明
+  let ALERT = {}, ALERT_OPEN = '';
+  function alertOpen(k) {
+    if (k === 'imp') { ALERT_OPEN = ALERT_OPEN === 'imp' ? '' : 'imp'; return refreshAlerts(); }
+    ALERT_OPEN = k;
+    if (k === 'pii') piiNext(); else leakNext();
+    refreshAlerts();
+  }
+  function alertPop() {
+    const a = ALERT;
+    if (!ALERT_OPEN || !a.p) return '';
+    const nav = (k) => `<div class="cqa-nav"><button class="cbtn" onclick="CQ.alertStep('${k}',-1)">上一處</button><button class="cbtn" onclick="CQ.alertStep('${k}',1)">下一處</button><span style="flex:1"></span><a class="cqs-link" onclick="CQ.alertClose()">收起</a></div>`;
+    const close = '<div class="cqa-nav"><span style="flex:1"></span><a class="cqs-link" onclick="CQ.alertClose()">收起</a></div>';
+    let h = '';
+    if (ALERT_OPEN === 'pii') h = `<div class="h">個資檢查</div><div class="q">${a.piiS}</div>${!a.p.total ? close : a.p.old ? '<div class="q">舊版匯入沒有位置資料，重新匯入後可以逐處跳轉</div>' + close : nav('pii')}`;
+    if (ALERT_OPEN === 'leak') h = `<div class="h">可能洩漏結果</div><div class="q">${a.leakS}</div>${a.leaks.length ? nav('leak') : close}`;
+    if (ALERT_OPEN === 'imp') h = `<div class="h">匯入提醒</div>${a.items.length ? `<ul>${a.items.map(([k, x]) => `<li class="${k}">${esc(x)}</li>`).join('')}</ul>` : '<div class="q">沒有提醒</div>'}${close}`;
+    return `<div class="cqa-pop" id="cqAlPop" onclick="event.stopPropagation()">${h}</div>`;
+  }
+  function alertStep(k, d) { if (k === 'pii') piiNext(d); else leakNext(d); refreshAlerts(); }
+  function alertClose() { ALERT_OPEN = ''; refreshAlerts(); }
+  function refreshAlerts() {
+    const b = $('#cqAl');
+    if (!b) return;
+    b.innerHTML = alertBoxes();
+    const old = $('#cqAlPop'), html = alertPop();
+    if (old) old.outerHTML = html || '';
+    else if (html) $('#cqSettings .cqs-sum').insertAdjacentHTML('afterend', html);
+    layout();
+  }
+  function piiNext(d) {
     const p = piiInfo();
     if (!p.total) return;
-    if (p.old) { PII_SEEN.add(0); refreshAlerts(); return X.toast('這題是舊版匯入，畫面上 *** 的地方就是遮蔽處；重新匯入後可以逐處跳轉', 6000); }
-    PII_I = (PII_I + 1) % p.spots.length;
+    if (p.old) { PII_SEEN.add(0); return; }
+    PII_I = PII_I < 0 ? 0 : (PII_I + (d || 1) + p.spots.length) % p.spots.length;
     PII_SEEN.add(PII_I);
-    refreshAlerts();
     const sp = p.spots[PII_I];
     jumpTo(sp.go);
     setTimeout(() => flashMask(sp.go, sp.ctx), 350);
@@ -483,11 +532,10 @@
     hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
     hit.classList.remove('pii-flash'); void hit.offsetWidth; hit.classList.add('pii-flash');
   }
-  function leakNext() {
+  function leakNext(d) {
     const leaks = findLeaks();
     if (!leaks.length) return;
-    LEAK_I = (LEAK_I + 1) % leaks.length;
-    refreshAlerts();
+    LEAK_I = LEAK_I < 0 ? 0 : (LEAK_I + (d || 1) + leaks.length) % leaks.length;
     jumpTo(leaks[LEAK_I].go);
   }
   function impToggle(e) {
@@ -1200,9 +1248,9 @@
             ${sets.length ? `<select style="width:auto" onchange="CQ.applySet(${i},this.value);this.value=''"><option value="">套用選項範本…</option>${sets.map((x) => `<option value="${esc(x.setId)}">${esc((x.name || {}).zh || x.setId)}（${(x.options || []).length} 個）</option>`).join('')}</select>` : ''}</div>
           ${md.options.map((o, oi) => `<div class="erow"><input type="checkbox" ${key.includes(oi) ? 'checked' : ''} onchange="CQ.togAns(${i},${oi},this.checked)" title="正解">
             <b style="width:14px">${LETTERS[oi]}</b><input type="text" value="${esc(o)}" onchange="CQ.setOpt(${i},${oi},this.value)">
-            ${(md.optionsEn || [])[oi] ? `<span class="small soft" title="選項範本的英文（BPO 專員看到的）" style="white-space:nowrap;max-width:30%;overflow:hidden;text-overflow:ellipsis">${esc(md.optionsEn[oi])}</span>` : ''}
             <button class="mbtn del" onclick="CQ.delOpt(${i},${oi})">✕</button></div>`).join('')}
           ${md.options.length < 8 ? `<button class="mbtn" onclick="CQ.addOpt(${i})">＋ 新增選項</button>` : ''}
+          ${(md.optionsEn || []).some(Boolean) ? `<div class="hint">選項套用自範本${(() => { const x = (Array.isArray(OPTSETS) ? OPTSETS : []).find((y) => y.setId === md.optSet); return x ? `「${esc((x.name || {}).zh || x.setId)}」` : ''; })()}：BPO 專員看到的英文直接用範本的；改了文字的選項會改成翻譯。</div>` : ''}
           ${pctInput(md, i)}
           <div class="lbl">詳解（練習模式交卷後顯示）</div><textarea onchange="CQ.setMod(${i},'explain',this.value)">${esc(md.explain || '')}</textarea>`;
       }
@@ -2371,7 +2419,7 @@
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
-    pickMc, togAns, applySet, undo, redo, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
+    pickMc, togAns, applySet, undo, redo, moreToggle, copyRid, setToggle, alertOpen, alertStep, alertClose, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
     addMod, moveMod, delMod, setMod, cycleTag, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };

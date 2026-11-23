@@ -484,3 +484,50 @@ main.cq-full{max-width:none;padding:0;gap:0}
 /* 選擇題：複選標示（2026-11-23） */
 .mc-multi{display:inline-block;white-space:nowrap;margin-left:8px;padding:1px 8px;border-radius:10px;background:#fff3e0;color:#b45309;font-size:12px;font-weight:600;vertical-align:middle}
 .cq .copt.multi .l{border-radius:3px}
+
+/* 編輯畫面上方（2026-11-23 改版）：路徑＋大字標題、右邊精簡動作、設定摘要列＋提醒標籤 */
+.cq-bar.cqh{display:block;padding:8px 16px}
+.cqh-crumb{font-size:12px;color:var(--muted);line-height:18px}
+.cqh-crumb a{color:inherit;text-decoration:none}.cqh-crumb a:hover{text-decoration:underline;color:var(--ink)}
+.cqh-crumb b{color:#555;font-weight:600}
+.cqh-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.cq .cq-bar .cqh-title{width:auto;font-size:18px;font-weight:600;color:var(--ink);border:1px solid transparent;border-bottom:1px dashed #c8c8d0;border-radius:4px;padding:2px 6px;background:transparent;max-width:min(560px,45vw);box-sizing:border-box}
+.cq .cq-bar input.cqh-title:hover{border-color:#d0d0d8}
+.cq .cq-bar input.cqh-title:focus{border:1px solid var(--brand);outline:none}
+.cq-bar input.cqh-title::placeholder{color:#b0b0b8;font-weight:400}
+.cq .cq-bar .cqh-title.ro{border-color:transparent}
+.cq-bar .cqh-ib{width:32px;height:32px;border:0;background:transparent;border-radius:6px;color:#555;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.cq-bar .cqh-ib:hover{background:#f1f1f4}
+.cq-bar .cqh-ib:disabled{color:#c8c8d0;background:transparent;cursor:default}
+.cq-bar.cqh .seg button.on{background:#f1f1f4;color:var(--ink);font-weight:600}
+.cq-bar .cqh-more{position:relative}
+.cq-bar .cqh-menu{position:absolute;right:0;top:38px;z-index:40;min-width:230px;background:#fff;border:1px solid #e5e5ea;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:4px 0}
+.cq-bar .cqh-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 14px;font-size:13px;color:var(--text);cursor:pointer;white-space:nowrap}
+.cq-bar .cqh-menu button:hover{background:#f6f6f8}
+.cq-bar .cqh-menu .rid{color:var(--muted);font-size:12px}
+.cq-bar .cqh-menu .del{color:var(--bad);border-top:1px solid #eee}
+.cq #cqSettings.ed2{display:block;background:#fff;border-bottom:1px solid var(--line);padding:6px 16px}
+.cqs-sum{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#555;min-height:30px}
+.cqs-sum .k{color:#999}
+.cq .cqs-link{color:#2673dd;cursor:pointer;white-space:nowrap;margin-left:6px;text-decoration:none}
+.cq .cqs-link:hover{text-decoration:underline}
+.cq #cqSettings.ed2 .cond{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:6px 10px;align-items:center;padding:8px 0 4px;border-top:1px solid #f0f0f0;margin-top:6px}
+.cq #cqSettings.ed2 .cond>label{color:#666;white-space:nowrap}
+.cq #cqSettings.ed2 .r1{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px}
+.cq #cqSettings.ed2 .r1 label{white-space:nowrap}
+.cq #cqSettings.ed2 select{height:30px;box-sizing:border-box}
+.cqa{display:inline-flex;gap:6px;flex-wrap:wrap}
+.cq .cqa-c{font-size:12px;line-height:18px;padding:3px 10px;border-radius:6px;border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.cq .cqa-c.ok{background:#ecfdf3;color:#15803d}
+.cq .cqa-c.wn{background:#fff7ed;color:#b45309}
+.cq .cqa-c.bd{background:#fef2f2;color:#b91c1c}
+.cq .cqa-c.nt{background:#f1f1f4;color:#555}
+.cq .cqa-c.on{border-color:currentColor}
+.cq #cqSettings.ed2{position:sticky}
+.cq .cqa-pop{position:absolute;right:16px;top:calc(100% - 4px);z-index:30;width:420px;max-width:calc(100vw - 32px);box-sizing:border-box;background:#fff;border:1px solid #e5e5ea;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.10);padding:10px 12px;font-size:13px;line-height:1.6}
+.cq .cqa-pop .h{font-weight:600}
+.cq .cqa-pop .q{color:#555;margin:2px 0 8px}
+.cq .cqa-pop ul{margin:4px 0 8px;padding-left:18px;max-height:40vh;overflow:auto}
+.cq .cqa-pop li.err{color:var(--bad)}
+.cq .cqa-nav{display:flex;gap:6px;align-items:center}
+.cq .cqa-nav .cbtn{height:28px;padding:0 10px;border:1px solid #d0d0d8;border-radius:6px;background:#fff;font-size:12px;cursor:pointer}
