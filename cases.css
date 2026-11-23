@@ -480,3 +480,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .sopi-html p{margin:0 0 4px}.sopi-html ol,.sopi-html ul{margin:2px 0 4px;padding-left:20px}
 .sopi-html ol[data-bullet]{list-style:disc}
 .sopi-html a{color:var(--brand,#ee4d2d);text-decoration:underline}
+
+/* 選擇題：複選標示（2026-11-23） */
+.mc-multi{display:inline-block;white-space:nowrap;margin-left:8px;padding:1px 8px;border-radius:10px;background:#fff3e0;color:#b45309;font-size:12px;font-weight:600;vertical-align:middle}
+.cq .copt.multi .l{border-radius:3px}

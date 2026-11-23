@@ -11,6 +11,15 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const LETTERS = 'ABCDEFGH';
+  // 選擇題（2026-11-23）：answer 一個數字＝單選，兩個以上的清單＝複選；複選要和正解完全一樣才給分（規則同 db.js 的 mcOk）
+  const mcKey = (md) => (Array.isArray(md.answer) ? [...new Set(md.answer)].sort((a, b) => a - b) : Number.isInteger(md.answer) ? [md.answer] : []);
+  const mcMulti = (md) => !!md.multi || mcKey(md).length > 1;
+  const mcPicks = (p) => (Array.isArray(p) ? [...new Set(p)].sort((a, b) => a - b) : Number.isInteger(p) ? [p] : []);
+  const mcOk = (md, p) => { const k = mcKey(md), q = mcPicks(p); return k.length > 0 && k.length === q.length && k.every((x, i) => x === q[i]); };
+  let OPTSETS = null;    // 選項範本（主題設定裡的），編輯選擇題時才讀
+  // 復原／重做（2026-11-23）：每次修改前的內容存在記憶體（最多 50 步），不另外讀寫 Firebase；復原後照一般修改自動存檔
+  let HIST = { undo: [], redo: [], last: '' };
+  const histSnap = () => JSON.stringify({ c: MAIN, t: CUR ? CUR.title : '' });
 
   // ───────── 案件編輯的狀態 ─────────
   let CUR = null;        // { caseId, status, title, rev, notes, private, canEdit, canDelete }
@@ -227,6 +236,7 @@
     MAIN = C; VIEW = -1;
     A = newAnswer();
     mode = canMod() ? 'edit' : 'agent';
+    HIST = { undo: [], redo: [], last: histSnap() };
     sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
     PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false; ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
     main.classList.add('cq-full');
@@ -289,6 +299,7 @@
         : `<b style="flex:1">${esc(CUR.title || '（未命名）')}</b>`}
       ${canMod() ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">講師編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
       <span style="flex:1"></span>
+      ${canMod() ? `<button class="cbtn" onclick="CQ.undo()" ${HIST.undo.length ? '' : 'disabled'} title="復原上一步（Ctrl+Z）">復原</button><button class="cbtn" onclick="CQ.redo()" ${HIST.redo.length ? '' : 'disabled'} title="重做（Ctrl+Y）">重做</button>` : ''}
       ${canMod() ? sv : ''}
       ${CUR.canEdit ? (st ? '<button class="cbtn" onclick="CQ.unapprove()" title="從可用題庫拿掉，改完再上架；已發佈的測驗不受影響">下架修改</button>' : '<button class="cbtn ok" onclick="CQ.approve()">上架到題庫</button>') : ''}
       ${CUR.canEdit ? '<button class="cbtn" onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件未上架）">複製</button>' : ''}
@@ -300,6 +311,26 @@
     const ms = (CUR.tx || {}).missed || [], h = langChip({ twOnly: C.meta.twOnly, tx: (CUR.tx || {}).state, txMissed: ms.length, status: CUR.status });
     return ms.length && CUR.tx.state === 'partial' ? h.replace(/title="[^"]*"/, `title="${esc('這些句子 BPO 專員會看到中文：\n' + ms.join('\n'))}"`) : h;
   }
+
+  // ───────── 復原／重做 ─────────
+  function histGo(from, to) {
+    if (!canMod() || !from.length) return;
+    to.push(HIST.last);
+    const o = JSON.parse(from.pop());
+    MAIN = C = o.c; CUR.title = o.t; VIEW = -1; HIST.last = JSON.stringify(o);
+    dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(doSave, 1200);
+    sideDrawn = ''; renderAll();
+  }
+  const undo = () => histGo(HIST.undo, HIST.redo), redo = () => histGo(HIST.redo, HIST.undo);
+  // Ctrl+Z／Ctrl+Y（Ctrl+Shift+Z）：游標在輸入框裡時交給瀏覽器（輸入框自己的復原）
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || !CUR || EX || !isEdit() || !$('#cqBar')) return;
+    const t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+    const k = e.key.toLowerCase();
+    if (typing || !(k === 'z' || k === 'y')) return;
+    e.preventDefault();
+    if (k === 'y' || e.shiftKey) redo(); else undo();
+  });
 
   // ───────── 本次／前幾次申退切換（方案 A：整頁切換，考題固定在右側） ─────────
   function prevLabel(i) {
@@ -470,6 +501,12 @@
   // ───────── 儲存：改了就排程，停 1.2 秒後送出；同時只送一次 ─────────
   function saveCase() {
     if (!canMod()) return;
+    const now = histSnap();
+    if (now !== HIST.last) {
+      HIST.undo.push(HIST.last);
+      if (HIST.undo.length > 50) HIST.undo.shift();
+      HIST.redo = []; HIST.last = now;
+    }
     dirty = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(doSave, 1200);
@@ -1059,22 +1096,29 @@
   }
 
   function mcAgentHtml(md, no) {
-    const pick = A.mc[md.id];
+    const picks = mcPicks(A.mc[md.id]), key = mcKey(md), multi = mcMulti(md);
     const showAns = A.submitted && reveal();
     const opts = md.options.map((o, i) => {
-      let cls = 'copt';
-      if (pick === i) cls += ' sel';
-      if (showAns && i === md.answer) cls += ' right';
-      if (showAns && pick === i && i !== md.answer) cls += ' wrong';
-      return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i})"><span class="l">${LETTERS[i]}</span><span>${TE(o)}</span></div>`;
+      let cls = 'copt' + (multi ? ' multi' : '');
+      if (picks.includes(i)) cls += ' sel';
+      if (showAns && key.includes(i)) cls += ' right';
+      if (showAns && picks.includes(i) && !key.includes(i)) cls += ' wrong';
+      const en = dmsLang() === 'en' && (md.optionsEn || [])[i];        // 套用選項範本的選項：用範本裡人寫的英文
+      return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i},${multi ? 1 : 0})"><span class="l">${LETTERS[i]}</span><span>${en ? esc(en) : TE(o)}</span></div>`;
     }).join('');
-    return `<div class="mod qmod"><div class="mh">${no}. ${TE(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${opts}
+    return `<div class="mod qmod"><div class="mh">${no}. ${TE(md.q)}${multi ? `<span class="mc-multi">${U('複選', 'Multiple answers')}</span>` : ''}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>
+      ${multi && !A.submitted ? `<div class="hint">${U('選出所有正確的選項，全部選對才給分', 'Select all correct options; points are given only when all are correct')}</div>` : ''}${opts}
       ${showAns && md.explain ? `<div class="explain"><b>${U('詳解：', 'Explanation: ')}</b>${TX(md.explain)}</div>` : ''}</div>`;
   }
 
-  function pickMc(id, i) {
+  function pickMc(id, i, multi) {
     if (A.submitted) return;
-    A.mc[id] = i; exEdit(id); saveAnswer(); renderSide();
+    if (multi) {
+      const v = mcPicks(A.mc[id]);
+      const next = v.includes(i) ? v.filter((x) => x !== i) : v.concat(i).sort((a, b) => a - b);
+      if (next.length) A.mc[id] = next; else delete A.mc[id];
+    } else A.mc[id] = i;
+    exEdit(id); saveAnswer(); renderSide();
   }
   // 專員預覽：練習用顯示正解；測驗：依測驗設定（隨時檢討、公布解答、公布成績）
   const reveal = () => (EX ? EX.reveal : C.meta.usage === 'practice');
@@ -1094,7 +1138,7 @@
     let got = 0, mcTotal = 0, shortTotal = 0, sopTotal = 0, sopGot = 0, sopWait = 0;
     const notes = [];
     C.modules.forEach(md => {
-      if (md.type === 'mc') { mcTotal += md.points; if (A.mc[md.id] === md.answer) got += md.points; }
+      if (md.type === 'mc') { mcTotal += md.points; if (mcOk(md, A.mc[md.id])) got += md.points; }
       if (md.type === 'sop' && window.RRQP_DB && window.RRQP_DB.sopGrade) {
         sopTotal += md.points;
         const g = window.RRQP_DB.sopGrade(sopPreviewKey(md), agSt(md));
@@ -1103,13 +1147,13 @@
       if (md.type === 'short') {
         shortTotal += md.points;
         const bound = C.modules.find(x => x.id === md.bindTo);
-        if (bound && A.mc[bound.id] !== bound.answer) notes.push('有簡答題綁定的單選題答錯，依預設規則該簡答 0 分（講師可調整）');
+        if (bound && !mcOk(bound, A.mc[bound.id])) notes.push('有簡答題綁定的選擇題答錯，依預設規則該簡答 0 分（講師可調整）');
       }
     });
     const secs = Math.round(A.leaveMs / 1000);
     const isPractice = C.meta.usage === 'practice';
     return `<div class="cres">
-      ${mcTotal ? `<div>單選題答對 <b class="big">${got}%</b> / ${mcTotal}%（佔本案件）</div>` : ''}
+      ${mcTotal ? `<div>選擇題答對 <b class="big">${got}%</b> / ${mcTotal}%（佔本案件）</div>` : ''}
       ${sopTotal ? `<div>SOP 路徑自動判定 <b class="big">${Math.round(sopGot * 100) / 100}%</b> / ${sopTotal}%（佔本案件）${sopWait ? `，另有 ${sopWait}% 要講師給分` : ''}</div>` : ''}
       ${shortTotal ? `<div>簡答題 ${shortTotal}%：待 AI 預評分，再由講師確認</div>` : ''}
       ${notes.map(n => `<div class="hint">${esc(n)}</div>`).join('')}
@@ -1118,7 +1162,7 @@
   }
 
   // ===== 考題分頁：講師編輯 =====
-  const TYPE_NAME = { note: '情境說明', image: '補充資訊', mc: '單選題', short: '簡答題', sop: 'SOP 路徑' };
+  const TYPE_NAME = { note: '情境說明', image: '補充資訊', mc: '選擇題', short: '簡答題', sop: 'SOP 路徑' };
 
   const pctInput = (md, i) => `<div class="lbl">配分（佔本案件）</div><div class="erow" style="align-items:center"><input type="number" min="0" max="100" step="1" value="${md.points}" style="width:90px" onchange="CQ.setMod(${i},'points',+this.value)"> %</div>`;
 
@@ -1134,7 +1178,7 @@
         <span>配分是這題佔本案件的比例；案件在整份試卷佔幾分，組卷發佈時再設定。</span></div>`;
     }
     C.modules.forEach((md, i) => {
-      const head = `<div class="mh">${qn[md.id] ? qn[md.id] + '. ' : ''}${TYPE_NAME[md.type]}<span class="sp"></span>
+      const head = `<div class="mh">${qn[md.id] ? qn[md.id] + '. ' : ''}${TYPE_NAME[md.type]}${md.type === 'mc' && mcMulti(md) ? '<span class="mc-multi">複選</span>' : ''}<span class="sp"></span>
         <button class="mbtn" onclick="CQ.moveMod(${i},-1)">↑</button><button class="mbtn" onclick="CQ.moveMod(${i},1)">↓</button>
         <button class="mbtn del" onclick="CQ.delMod(${i})">✕</button></div>`;
       let body = '';
@@ -1149,10 +1193,14 @@
           <div class="hint">圖片原檔拆段存進 Firestore（太大才壓縮）。上傳前請確認圖片裡的帳號與浮水印。</div>`;
       }
       if (md.type === 'mc') {
+        if (OPTSETS === null) { OPTSETS = 'loading'; X.api('c_optionSets').then((r) => { OPTSETS = r.sets || []; renderSide(); }).catch(() => { OPTSETS = []; }); }
+        const key = mcKey(md), sets = Array.isArray(OPTSETS) ? OPTSETS : [];
         body = `<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
-          <div class="lbl">選項（點圓圈設定正解）</div>
-          ${md.options.map((o, oi) => `<div class="erow"><input type="radio" name="ans${md.id}" ${md.answer === oi ? 'checked' : ''} onchange="CQ.setMod(${i},'answer',${oi})">
+          <div class="lbl" style="display:flex;align-items:center;gap:8px">選項（勾選正解；勾兩個以上就是複選題，要全部選對才給分）<span class="sp" style="flex:1"></span>
+            ${sets.length ? `<select style="width:auto" onchange="CQ.applySet(${i},this.value);this.value=''"><option value="">套用選項範本…</option>${sets.map((x) => `<option value="${esc(x.setId)}">${esc((x.name || {}).zh || x.setId)}（${(x.options || []).length} 個）</option>`).join('')}</select>` : ''}</div>
+          ${md.options.map((o, oi) => `<div class="erow"><input type="checkbox" ${key.includes(oi) ? 'checked' : ''} onchange="CQ.togAns(${i},${oi},this.checked)" title="正解">
             <b style="width:14px">${LETTERS[oi]}</b><input type="text" value="${esc(o)}" onchange="CQ.setOpt(${i},${oi},this.value)">
+            ${(md.optionsEn || [])[oi] ? `<span class="small soft" title="選項範本的英文（BPO 專員看到的）" style="white-space:nowrap;max-width:30%;overflow:hidden;text-overflow:ellipsis">${esc(md.optionsEn[oi])}</span>` : ''}
             <button class="mbtn del" onclick="CQ.delOpt(${i},${oi})">✕</button></div>`).join('')}
           ${md.options.length < 8 ? `<button class="mbtn" onclick="CQ.addOpt(${i})">＋ 新增選項</button>` : ''}
           ${pctInput(md, i)}
@@ -1160,7 +1208,7 @@
       }
       if (md.type === 'short') {
         body = `<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
-          <div class="lbl">綁定單選題（選錯時這題預設 0 分）</div>
+          <div class="lbl">綁定選擇題（選錯時這題預設 0 分）</div>
           <select onchange="CQ.setMod(${i},'bindTo',this.value)"><option value="">不綁定</option>
             ${mcList.map(m => `<option value="${m.id}" ${md.bindTo === m.id ? 'selected' : ''}>第 ${qn[m.id]} 題：${esc(m.q)}</option>`).join('')}</select>
           <div class="lbl">標準答案（AI 預評分依據）</div><textarea onchange="CQ.setMod(${i},'standard',this.value)">${esc(md.standard || '')}</textarea>
@@ -1217,13 +1265,31 @@
     C.modules.forEach(m => { if (m.bindTo === id) m.bindTo = ''; });
     saveCase(); renderSide();
   }
-  function setOpt(i, oi, v) { C.modules[i].options[oi] = v; saveCase(); }
-  function addOpt(i) { C.modules[i].options.push(''); saveCase(); renderSide(); }
+  // 選項改了文字，範本的英文就不算數了（改走翻譯）
+  function setOpt(i, oi, v) { const md = C.modules[i]; md.options[oi] = v; if (md.optionsEn) md.optionsEn[oi] = ''; saveCase(); renderSide(); }
+  function addOpt(i) { const md = C.modules[i]; md.options.push(''); if (md.optionsEn) md.optionsEn.push(''); saveCase(); renderSide(); }
   function delOpt(i, oi) {
     const md = C.modules[i];
     if (md.options.length <= 2) return alert('至少要 2 個選項');
     md.options.splice(oi, 1);
-    if (md.answer >= md.options.length) md.answer = 0;
+    if (md.optionsEn) md.optionsEn.splice(oi, 1);
+    setKey(md, mcKey(md).filter((x) => x !== oi).map((x) => (x > oi ? x - 1 : x)));
+    saveCase(); renderSide();
+  }
+  // 正解：一個存數字（單選），兩個以上存清單（複選）
+  function setKey(md, k) { md.answer = k.length > 1 ? k : k.length ? k[0] : null; }
+  function togAns(i, oi, on) {
+    const md = C.modules[i], k = mcKey(md).filter((x) => x !== oi);
+    setKey(md, on ? k.concat(oi).sort((a, b) => a - b) : k);
+    saveCase(); renderSide();
+  }
+  function applySet(i, setId) {
+    const md = C.modules[i], set = (Array.isArray(OPTSETS) ? OPTSETS : []).find((x) => x.setId === setId);
+    if (!set) return;
+    if (md.options.some((o) => String(o || '').trim()) && !confirm(`用「${(set.name || {}).zh || setId}」取代目前的選項？正解要重新勾選。`)) return;
+    md.options = set.options.map((o) => (o.text || {}).zh || '');
+    md.optionsEn = set.options.map((o) => (o.text || {}).en || '');
+    md.optSet = setId; setKey(md, []);
     saveCase(); renderSide();
   }
   function delImg(i, k) { C.modules[i].images.splice(k, 1); saveCase(); renderSide(); }
@@ -2073,7 +2139,7 @@
     if (!EX.readOnly) exSave(true);
     exShow(i);
   }
-  const answeredAll = (i) => EX.cases[i].modules.every((m) => (m.type === 'mc' ? EX.ans[i].mc[m.id] !== undefined : m.type === 'short' ? String(EX.ans[i].short[m.id] || '').trim()
+  const answeredAll = (i) => EX.cases[i].modules.every((m) => (m.type === 'mc' ? mcPicks(EX.ans[i].mc[m.id]).length > 0 : m.type === 'short' ? String(EX.ans[i].short[m.id] || '').trim()
     : m.type === 'sop' ? !EX.sops || !m.start || !!agWalk(m, agSt(m, EX.ans[i])).end : true));
   function exBar() {
     const s = EX.session, left = EX.deadline ? Math.max(0, EX.deadline - (Date.now() + EX.offset)) : 0;
@@ -2305,7 +2371,7 @@
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
-    pickMc, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
+    pickMc, togAns, applySet, undo, redo, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
     addMod, moveMod, delMod, setMod, cycleTag, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };

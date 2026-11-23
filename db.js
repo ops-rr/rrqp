@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-23d';
+const VERSION = 'V2-2026-11-23e';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2188,7 +2188,7 @@ function caseCheck(c, title) {
   if (!(meta.topics || []).length) errors.push('請選擇主題');
   const mods = (c && c.modules) || [];
   const qs = mods.filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop');
-  if (!qs.length) errors.push('還沒有作答題（單選題、簡答題或 SOP 路徑）');
+  if (!qs.length) errors.push('還沒有作答題（選擇題、簡答題或 SOP 路徑）');
   // 2026-11-21：SOP 路徑題組可以作答了（第 2 步）；自動批改還沒做（第 3 步），交卷後先由講師人工給分
   if (mods.some((m) => m.type === 'sop')) warns.push('SOP 路徑題的自動批改還沒做，交卷後請講師人工給分');
   let no = 0;
@@ -2209,7 +2209,8 @@ function caseCheck(c, title) {
       const opts = m.options || [];
       if (opts.length < 2) errors.push(p + '至少要 2 個選項');
       if (opts.some((o) => !String(o || '').trim())) errors.push(p + '有空白選項');
-      if (!(Number.isInteger(m.answer) && m.answer >= 0 && m.answer < opts.length)) errors.push(p + '沒有設定正解');
+      const k = mcKey(m);
+      if (!k.length || k.some((x) => !Number.isInteger(x) || x < 0 || x >= opts.length)) errors.push(p + '沒有設定正解');
     }
     if (m.type === 'short' && !String(m.standard || '').trim()) errors.push(p + '沒有標準答案（AI 預評分依據）');
   });
@@ -2225,6 +2226,11 @@ const caseStats = (c) => {
 
 const CASES = {
   /** 案件清單（講師）；TW 講師另外帶出 Return ID（從申請紀錄對照） */
+  /** 選項範本（主題設定裡的）：DMS 考題的選擇題可以套用（2026-11-23） */
+  c_optionSets: async () => {
+    await needTW();
+    return { sets: (await S.list('optionSets')).map((x) => ({ setId: x.id, name: x.name || {}, options: x.options || [] })) };
+  },
   c_list: async () => {
     const m = await needTeacher();
     const idx = await S.get('meta/v3CaseIndex');
@@ -2505,7 +2511,7 @@ function caseAgentView(src) {
   delete c.meta.rid; delete c.meta.title; delete c.meta.groups; delete c.meta.topics; delete c.meta.tags;
   delete c.notes;
   // SOP 路徑：answer（標準路線）、acts（講師示範的操作）、snap（路線節點快照）、cur 都是解答，不能給專員
-  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); delete o.answer; delete o.standard; delete o.explain; delete o.acts; delete o.snap; delete o.cur; delete o.sysSet; return o; });
+  c.modules = (c.modules || []).map((md) => { const o = Object.assign({}, md); if (md.type === 'mc' && mcMulti(md)) o.multi = true; delete o.answer; delete o.standard; delete o.explain; delete o.acts; delete o.snap; delete o.cur; delete o.sysSet; return o; });
   // 中文對照只留專員畫面上真的有的文字（隱藏欄位的值不能從對照表看出來）
   if (c.i18n) {
     const txt = JSON.stringify(Object.assign({}, c, { i18n: null }));
@@ -2514,6 +2520,14 @@ function caseAgentView(src) {
   }
   return c;
 }
+/**
+ * 選擇題（2026-11-23 Chris：單選題改名選擇題，可以複選）：answer 一個數字＝單選；兩個以上的清單＝複選。
+ * 複選要選得和正解完全一樣才給分（多選、少選都算錯）；專員畫面標「複選」。
+ */
+const mcKey = (m) => (Array.isArray(m && m.answer) ? [...new Set(m.answer)].sort((a, b) => a - b) : Number.isInteger(m && m.answer) ? [m.answer] : []);
+const mcMulti = (m) => !!(m && m.multi) || mcKey(m).length > 1;
+const mcPicks = (p) => (Array.isArray(p) ? [...new Set(p)].sort((a, b) => a - b) : Number.isInteger(p) ? [p] : []);
+const mcOk = (m, pick) => { const k = mcKey(m), q = mcPicks(pick); return k.length > 0 && k.length === q.length && k.every((x, i) => x === q[i]); };
 /**
  * 英文翻譯狀態（2026-11-22 Chris 定案）：講師選使用對象「TW」或「TW＋BPO」（meta.twOnly；false＝TW＋BPO）。
  * TW＋BPO 的案件上架時（c_approve）比對：有新的中文句子才排進翻譯佇列（txState = queued），排程翻好存在案件的 tx 欄位（JSON：原文 → 英文）、
@@ -2538,7 +2552,7 @@ function caseTxTexts(c) {
   (c.prev || []).forEach(one);
   (c.modules || []).forEach((md) => {
     if (md.type === 'note') out.push(md.text);
-    else if (md.type === 'mc') out.push(md.q, md.explain, ...(md.options || []));
+    else if (md.type === 'mc') out.push(md.q, md.explain, ...(md.options || []).filter((o, i) => !((md.optionsEn || [])[i])));   // 套用範本的選項已有英文
     else if (md.type === 'short') out.push(md.q, md.standard);
   });
   return [...new Set(out.filter((t) => typeof t === 'string' && t.trim() && /[\u3400-\u9fff]/.test(t) && t.length <= 3000))];
@@ -2552,7 +2566,7 @@ function txOnList(body, d) {
 const xKeyMods = (mods) => (mods || []).filter((m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop')
   // Firestore 不收 undefined：簡答題沒有 answer，一律給明確的值
   // SOP 路徑：解答（標準路線、講師示範的操作、節點快照…）由 x_create 另外放進 sop（JSON 字串）
-  .map((m) => ({ id: m.id, type: m.type, q: m.type === 'sop' ? 'SOP 路徑' : m.q || '', options: m.options || [], answer: m.type === 'mc' && Number.isInteger(m.answer) ? m.answer : null,
+  .map((m) => ({ id: m.id, type: m.type, q: m.type === 'sop' ? 'SOP 路徑' : m.q || '', options: m.options || [], answer: m.type === 'mc' && mcKey(m).length ? (mcMulti(m) ? mcKey(m) : mcKey(m)[0]) : null,
     standard: m.standard || '', explain: m.explain || '', points: Number(m.points) || 0, bindTo: m.bindTo || '', sop: '' }));
 const xIndexRow = (s) => ({ title: s.title, mode: s.mode, review: s.review || '', startAt: s.startAt, endAt: s.endAt, minutes: s.minutes, caseCount: (s.caseIds || []).length,
   questionCount: s.questionCount || 0, points: s.points || 0, assigned: (s.assignees || []).length, ended: !!s.ended, released: !!s.released, answersOpen: !!s.answersOpen,
@@ -2640,7 +2654,7 @@ function sopGrade(keySop, ansSop) {
 function qRight(m, a, g) {
   a = a || {};
   const has = g !== undefined && g !== null && g !== '';
-  if (m.type === 'mc') return (a.mc || {})[m.id] === m.answer;
+  if (m.type === 'mc') return mcOk(m, (a.mc || {})[m.id]);
   if (has) return Number(g) >= (Number(m.points) || 0) - 1e-9 && Number(g) > 0;
   if (m.type === 'sop') { const au = sopGrade(m.sop, (a.sop || {})[m.id]).auto; return au === null ? null : au >= 1; }
   return null;                                                         // 簡答：沒給分就是還沒判定
@@ -2665,7 +2679,7 @@ function xScore(key, att, grade) {
     kc.mods.forEach((m) => {
       const k = i + ':' + m.id;
       tot += m.points;
-      if (m.type === 'mc') detail[k] = (a.mc || {})[m.id] === m.answer ? m.points : 0;
+      if (m.type === 'mc') detail[k] = mcOk(m, (a.mc || {})[m.id]) ? m.points : 0;
       else {
         const g = ((grade && grade.scores) || {})[k];
         // SOP 路徑：講師沒給分時用自動分數（路線錯＝0、全對＝滿分）；要講師確認的才算待給分
@@ -2684,7 +2698,11 @@ const xAnswersIn = (v, n) => {
   const out = {};
   for (let i = 0; i < n; i++) {
     const a = (v || {})[i] || {}, mc = {}, short = {};
-    Object.entries(a.mc || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k) && Number.isInteger(x)) mc[k] = x; });
+    Object.entries(a.mc || {}).slice(0, 50).forEach(([k, x]) => {      // 單選：數字；複選：數字清單
+      if (!/^[\w-]{1,20}$/.test(k)) return;
+      if (Number.isInteger(x) && x >= 0 && x < 20) mc[k] = x;
+      else if (Array.isArray(x)) { const v = [...new Set(x.filter((y) => Number.isInteger(y) && y >= 0 && y < 20))].slice(0, 20); if (v.length) mc[k] = v; }
+    });
     Object.entries(a.short || {}).slice(0, 50).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k)) short[k] = String(x || '').slice(0, 3000); });
     const sop = {};
     Object.entries(a.sop || {}).slice(0, 20).forEach(([k, x]) => { if (/^[\w-]{1,20}$/.test(k)) sop[k] = xSopAnsIn(x); });
@@ -3166,10 +3184,10 @@ function xFlags(track, i, ans, keyCase) {
   const t = (track && track.c && track.c[i]) || {}, b = t.b || {}, sTab = t.s || {}, md = t.m || {};
   const flags = [], mods = (keyCase && keyCase.mods) || [], keys = mods.map((m) => i + ':' + m.id);
   const mcs = mods.filter((m) => m.type === 'mc');
-  const allRight = mcs.length && mcs.every((m) => ((ans || {}).mc || {})[m.id] === m.answer);
+  const allRight = mcs.length && mcs.every((m) => mcOk(m, ((ans || {}).mc || {})[m.id]));
   const seen = Object.values(b).filter((x) => x >= 2).length + Object.entries(sTab).filter(([k, x]) => k !== 'quiz' && x >= 2).length;
   if ((t.t || 0) < 60 && Object.keys((ans || {}).mc || {}).length) flags.push(`這個案件只看了 ${t.t || 0} 秒就作答`);
-  if (allRight && seen <= 2 && !Object.keys(md).length) flags.push(`單選題全對，但只看了 ${seen} 個區塊、沒有打開照片或影片`);
+  if (allRight && seen <= 2 && !Object.keys(md).length) flags.push(`選擇題全對，但只看了 ${seen} 個區塊、沒有打開照片或影片`);
   ((track && track.lv) || []).forEach(([at, dur]) => {
     if (dur < 20) return;
     const back = at + dur, m = Math.floor(dur / 60), s2 = String(dur % 60).padStart(2, '0');
@@ -3294,7 +3312,7 @@ async function api(action, payload = {}) {
     devPut: PREVIEW ? S.devPut : undefined,
     check: (q, rules, opt) => checkQuestion(q, rules, opt),
     caseAgentView,
-    xFlags, sopGrade, qRight, xRight,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
+    xFlags, sopGrade, qRight, xRight, mcKey, mcMulti, mcOk,                                                   // V3 DMS 考題：足跡的「需要留意」                                            // V3 DMS 考題：專員版案件
     caseCheck,                                                // V3 DMS 考題：核准前檢查   // 題目格式檢查（編輯器套用前先檢查；rules = DMS 規則）
     splitKeyTodo,                                             // 從檢查結果分出「講師待填」（正解、判斷重點）
     stickerUrl,                                               // 貼圖圖片網址（由貼圖包代碼組出）

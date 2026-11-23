@@ -1869,7 +1869,7 @@
       return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span><span class="chip brand">DMS 考題</span><span class="chip">${prac ? '練習' : '考試'}</span>${sessChip(s.state)}</div>
         <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(s.title)}</h2><span class="spacer"></span>
           ${!sub ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : prac ? `<span class="tlscore ${r.mcRate !== null && r.mcRate * 100 < (xh.coachLine || 70) ? 'low' : ''}">${r.mcRate === null ? '-' : Math.round(r.mcRate * 100) + '%'}</span>` : `<span class="tlscore ${r.coaching ? 'low' : ''}">${r.score} / ${r.total}</span>`}</div>
-        ${sub && r.wrong.length ? `<div class="small" style="margin-top:6px"><span class="soft">${prac ? '單選錯的題目' : esc(t('wrongPoints'))}：</span>${r.wrong.map((w) => `<span class="chip warn" style="margin:2px">${esc(w.label)}${w.pending ? '（待給分）' : w.partial ? '（部分）' : ''}</span>`).join('')}</div>` : ''}
+        ${sub && r.wrong.length ? `<div class="small" style="margin-top:6px"><span class="soft">${prac ? '答錯的題目' : esc(t('wrongPoints'))}：</span>${r.wrong.map((w) => `<span class="chip warn" style="margin:2px">${esc(w.label)}${w.pending ? '（待給分）' : w.partial ? '（部分）' : ''}</span>`).join('')}</div>` : ''}
         ${sub && r.flags.length ? `<div class="small" style="margin-top:6px;color:#b45309">${r.flags.map(esc).join('；')}</div>` : ''}
         ${sub ? `<div style="margin-top:8px"><a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(d.email)}">${esc(t('detail'))}</a> <a class="small" href="#/xresults/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
     };

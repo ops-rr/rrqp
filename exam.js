@@ -254,7 +254,10 @@
   // SOP 路徑題（2026-11-21 第 3 步）：比對規則在 db.js sopGrade（路線不完整走在標準路線上就全錯；動作逐節點比對）
   //   自動判定（路線錯＝0、全對＝滿分）的不用給分；有文字要確認或操作有錯的才要講師給分
   const sopG = (m, a) => (window.RRQP_DB && window.RRQP_DB.sopGrade ? window.RRQP_DB.sopGrade(m.sop, ((a && a.sop) || {})[m.id]) : null);
-  const QTYPE = (t) => (t === 'mc' ? '單選' : t === 'sop' ? 'SOP 路徑' : '簡答');
+  const QTYPE = (t) => (t === 'mc' ? '選擇題' : t === 'sop' ? 'SOP 路徑' : '簡答');
+  // 選擇題（2026-11-23）：單選或複選；LET 字母、選項文字
+  const MC = () => window.RRQP_DB;
+  const mcTxt = (m, p, LET) => MC().mcKey({ answer: p }).map((x) => `${LET[x]}. ${esc(m.options[x] || '')}`).join('、');
   /** SOP 題給分欄的提示：自動判定的分數，或建議分數 */
   function sopPlaceholder(m, a) {
     const g = sopG(m, a);
@@ -279,9 +282,9 @@
           <div class="lib-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:8px">
             <div>${kc.mods.map((m, qi) => {
               if (m.type === 'mc') {
-                const pick = (a.mc || {})[m.id], ok = pick === m.answer;
-                return `<div class="xq"><b>${qi + 1}. ${esc(m.q)}</b>（${m.points} 分）<div>專員：<span class="${ok ? 'ok' : 'bad'}">${pick === undefined ? '沒作答' : LET[pick] + '. ' + esc(m.options[pick] || '')}</span>
-                  ${ok ? '✓' : `／正解 ${LET[m.answer]}. ${esc(m.options[m.answer] || '')}`}</div></div>`;
+                const pick = (a.mc || {})[m.id], ok = MC().mcOk(m, pick), multi = MC().mcMulti(m);
+                return `<div class="xq"><b>${qi + 1}. ${esc(m.q)}</b>${multi ? '（複選）' : ''}（${m.points} 分）<div>專員：<span class="${ok ? 'ok' : 'bad'}">${pick === undefined ? '沒作答' : mcTxt(m, pick, LET)}</span>
+                  ${ok ? '✓' : `／正解 ${mcTxt(m, m.answer, LET)}`}</div></div>`;
               }
               const v = (r.scores || {})[i + ':' + m.id];
               return `<div class="xq"><b>${qi + 1}. ${esc(m.q)}</b>（${m.points} 分）
@@ -412,12 +415,14 @@
     };
     function pickTxt(q, pick) {
       if (pick === undefined || pick === null) return '<span class="soft">沒作答</span>';
-      const ok = pick === q.m.answer;
-      return `<span class="${ok ? 'okc' : 'errc'}"><b>${LET[pick]}</b> ${esc(q.m.options[pick] || '')}</span>`;
+      const ok = MC().mcOk(q.m, pick);
+      return `<span class="${ok ? 'okc' : 'errc'}">${mcTxt(q.m, pick, LET)}</span>`;
     }
     function mcView(q) {
-      const cnt = q.m.options.map((_, oi) => done.filter((r) => pickOf(r, q.i, q.m.id) === oi).length);
-      return `<div class="small soft" style="margin:4px 0 10px">正解 <b>${LET[q.m.answer]}</b>．${esc(q.m.options[q.m.answer] || '')}　｜　${q.m.options.map((_, oi) => `${LET[oi]} ${cnt[oi]} 人`).join('・')}・沒作答 ${done.length - cnt.reduce((n, v) => n + v, 0)} 人</div>
+      const picked = (r) => MC().mcKey({ answer: pickOf(r, q.i, q.m.id) });
+      const cnt = q.m.options.map((_, oi) => done.filter((r) => picked(r).includes(oi)).length), none = done.filter((r) => !picked(r).length).length;
+      const right = done.filter((r) => MC().mcOk(q.m, pickOf(r, q.i, q.m.id))).length;
+      return `<div class="small soft" style="margin:4px 0 10px">${MC().mcMulti(q.m) ? '複選・' : ''}正解 <b>${mcTxt(q.m, q.m.answer, LET)}</b>　｜　答對 ${right} 人　｜　${q.m.options.map((_, oi) => `${LET[oi]} ${cnt[oi]} 人`).join('・')}・沒作答 ${none} 人</div>
         <div class="scroll-x"><table class="list" style="table-layout:fixed;min-width:480px"><colgroup><col style="width:40%"><col></colgroup><thead><tr><th>專員</th><th>選了</th></tr></thead><tbody>
         ${done.map((r) => `<tr><td>${esc(r.email)}</td><td>${pickTxt(q, pickOf(r, q.i, q.m.id))}</td></tr>`).join('')}</tbody></table></div>`;
     }
