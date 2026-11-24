@@ -149,6 +149,9 @@
       // 沒有英文的案件：BPO 專員會看到中文；講師確認後才發佈（不擋，只給 TW 專員時本來就不需要英文）
       const noEn = st.picked.map((id) => all.find((c) => c.caseId === id)).filter((c) => c && !(c.twOnly === false && c.tx === 'done'));
       if (noEn.length && !confirm(`這些案件沒有完整的英文，BPO 專員會看到中文：\n${noEn.map((c) => `${c.caseId} ${c.title || ''}（${c.twOnly !== false ? 'TW' : c.tx === 'partial' ? '有句子沒翻到' : '還沒翻好'}）`).join('\n')}\n\n只指派 TW 專員的話可以直接發佈。要繼續嗎？`)) return;
+      // 英文對照（2026-11-24）：講師寫的字還有機器翻譯沒人確認；發佈後再改英文要重新發佈，所以先提醒（不擋）
+      const unEn = st.picked.map((id) => all.find((c) => c.caseId === id)).filter((c) => c && c.twOnly === false && c.tx === 'done' && Number(c.txUn) > 0);
+      if (unEn.length && !confirm(`這些案件講師寫的字（題目、選項、詳解…）還有英文沒確認：\n${unEn.map((c) => `${c.caseId} ${c.title || ''}（${c.txUn} 句）`).join('\n')}\n\n可以在案件的「⋯ → 英文對照」確認或修改；發佈後再改要重新發佈。要繼續發佈嗎？`)) return;
       const btn = $('#x_go'); btn.disabled = true; $('#x_err').hidden = true;
       const m = modeOf();
       try {
@@ -166,11 +169,21 @@
     X = ctx;
     const main = X.shell('sessions', '<div class="empty-state"><span class="spin"></span></div>');
     const qp = new URLSearchParams(location.hash.split('?')[1] || '');
-    const want = qp.get('agent') || '', byQ = qp.get('view') === 'q';
+    const want = qp.get('agent') || '';
+    // 2026-11-24 Chris：分頁照測驗的階段排「考題內容｜作答進度｜閱卷批改｜成績與分析」；閱卷批改裡切換依題目／依專員
+    //   沒指定分頁時跟著狀態：尚未開始→考題內容、進行中→作答進度、已結束／已公布→閱卷批改（成績與分析是另一頁，不自動跳）
+    //   舊連結：?view=q＝依題目批改、?agent=…＝依專員看那位專員
+    let view = qp.get('view') || '', by = qp.get('by') || '';
+    if (view === 'q') { view = 'grade'; by = 'q'; }
+    if (want && !view) view = 'grade';
+    if (want) by = 'a';
     let d;
     try { d = await X.api('x_get', { sessionId: id }); } catch (e) { X.showError(e, main); return; }
     const s = d.session, sub = d.roster.filter((r) => r.status === 'submitted').length;
     const exam = s.mode === 'exam';
+    if (!['content', 'progress', 'grade'].includes(view)) view = s.state === 'scheduled' ? 'content' : s.state === 'open' ? 'progress' : 'grade';
+    if (by !== 'a') by = 'q';
+    const href = (v, b) => `#/xsession/${esc(s.sessionId)}?view=${v}${b ? '&by=' + b : ''}`;
     main.innerHTML = `<div class="row"><a href="#/sessions">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
         ${s.answersOpen ? '<span class="chip ok">已公布解答</span>' : ''}<span class="spacer"></span>
         <button class="btn icon" id="xr" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button>
@@ -183,18 +196,24 @@
       <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
       <div class="stats">
         <div class="card pad"><div class="small soft">開放時間</div><div><b>${fmtDT(s.startAt)}</b><br>– <b>${fmtDT(s.endAt)}</b></div></div>
-        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><div class="small soft">${s.caseCount} 個案件・${s.questionCount} 題・滿分 100 分</div></div>
+        <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><a class="small soft xs-lnk" href="${href('content')}" title="看考題內容">${s.caseCount} 個案件・${s.questionCount} 題${exam ? '・滿分 100 分' : ''}</a></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div></div>
       </div>
-      <div class="tabs"><a class="tab ${byQ ? '' : 'on'}" href="#/xsession/${esc(s.sessionId)}">依專員</a><a class="tab ${byQ ? 'on' : ''}" href="#/xsession/${esc(s.sessionId)}?view=q">依題目${exam ? '批改' : '檢視'}</a>
-        <a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
-      <div class="card scroll-x" ${byQ ? 'hidden' : ''}><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>${exam ? '成績' : '答對'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
-        ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
+      <div class="tabs"><a class="tab ${view === 'content' ? 'on' : ''}" href="${href('content')}">考題內容</a><a class="tab ${view === 'progress' ? 'on' : ''}" href="${href('progress')}">作答進度</a>
+        <a class="tab ${view === 'grade' ? 'on' : ''}" href="${href('grade', by)}">${exam ? '閱卷批改' : '作答明細'}</a><a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
+      ${view === 'content' ? `<div id="xcBox">${contentPanel(d)}</div>` : view === 'progress' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>離開頁面</th><th></th></tr></thead><tbody>
+        ${d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
-          <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}<div class="soft">原始 ${r.result.raw} / ${r.result.rawTotal}</div>${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status !== 'not_started' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">查看作答</a>`
-            : !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
+          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="row" style="margin-bottom:10px"><span class="seg xs-seg"><a class="${by === 'q' ? 'on' : ''}" href="${href('grade', 'q')}">依題目</a><a class="${by === 'a' ? 'on' : ''}" href="${href('grade', 'a')}">依專員</a></span>
+          <span class="small muted">${sub} / ${d.roster.length} 人交卷${exam ? gradeLeft(d) : ''}</span></div>
+        ${by === 'a' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>交卷</th><th>${exam ? '成績' : '答對'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
+          ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
+            <td class="small muted">${fmtDT(r.submittedAt)}</td>
+            <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}<div class="soft">原始 ${r.result.raw} / ${r.result.rawTotal}</div>${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
+            <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
+            <td style="text-align:right;white-space:nowrap">${r.status !== 'not_started' ? `<a class="btn sm" href="${href('grade', 'a')}&agent=${encodeURIComponent(r.email)}">${exam && !s.released ? '批改' : '查看作答'}</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`}
       <div id="xAgent" style="margin-top:14px"></div>`;
     $('#xr').onclick = () => session(id, ctx);
     $('#xCopy').onclick = () => navigator.clipboard.writeText(xLink(s.sessionId)).then(() => X.toast('已複製'));
@@ -247,10 +266,81 @@
       if (!(await X.confirmBox(`把 ${b.dataset.rm} 從這場測驗移除？`, '移除', undefined, true))) return;
       try { await X.api('x_removeAssignee', { sessionId: s.sessionId, email: b.dataset.rm }); X.toast('已移除'); session(id, ctx); } catch (e) { X.toast(e.message, 5000); }
     }));
-    if (byQ) return questionPanel($('#xAgent'), d, exam && !s.released);
+    if (view === 'content') return bindContent(d);
+    if (view !== 'grade') return;
+    if (by === 'q') return questionPanel($('#xAgent'), d, exam && !s.released);
     const r = d.roster.find((x) => x.email === want);
     if (r) agentPanel($('#xAgent'), d, r, exam && !s.released);
   }
+  // ═════════════════════════════ 單場：考題內容（2026-11-24 Chris） ═════════════════════════════
+  // 發佈後看這份考卷用了哪些題目：一題一列；同一案件有多題時，案件只寫在第一題。
+  // 正解預設不顯示（避免投影、分享螢幕時洩題），勾「顯示正解」才出現。答對率和「成績與分析」同一個算法（db.js xResultsOf）：
+  // 每位交卷專員這題的得分 ÷ 配分 的平均，沒給分的簡答不算；練習（配分 0）的選擇題用答對人數。
+  const SHOW_ANS = {};
+  const LET10 = 'ABCDEFGHIJ';
+  function sopInfo(m, d) {
+    let sp = {};
+    try { sp = JSON.parse(m.sop || '{}'); } catch (_) { /* 舊資料 */ }
+    const node = ((d.sops[sp.taskbot] || {}).nodes || {})[sp.start] || (sp.snap || {})[sp.start] || null;
+    const name = node ? node.name || node.q || '' : '';
+    return { sp, start: name ? `${name}（${sp.start}）` : sp.start || '-', steps: (sp.route || []).length, acts: (sp.acts || []).length };
+  }
+  function qRate(d, i, m) {
+    const done = d.roster.filter((r) => r.status === 'submitted' && r.result);
+    if (!done.length) return { txt: '—' };
+    if (m.type === 'mc' && !(m.points > 0)) {
+      const ok = done.filter((r) => MC().mcOk(m, (((r.answers || {})[i] || {}).mc || {})[m.id])).length;
+      return { v: ok / done.length };
+    }
+    const got = done.map((r) => r.result.detail[i + ':' + m.id]).filter((v) => v !== null && v !== undefined);
+    if (!got.length) return { txt: m.type === 'mc' ? '—' : '批改中' };
+    if (!(m.points > 0)) return { txt: '—' };
+    return { v: got.reduce((n, v) => n + v / m.points, 0) / got.length, wait: done.length - got.length };
+  }
+  // 閱卷批改上方的摘要：還有幾份要講師給分（自動判定的 SOP 不算）
+  function gradeLeft(d) {
+    const n = d.roster.reduce((t, r) => t + ((r.result && r.result.pending) || 0), 0);
+    return n ? `・待給分 ${n} 份` : d.roster.some((r) => r.result) ? '・都給分了' : '';
+  }
+  function contentPanel(d) {
+    const s = d.session, exam = s.mode === 'exam', show = !!SHOW_ANS[s.sessionId];
+    const cases = d.key.cases || [];
+    let no = 0;
+    const rows = cases.map((kc, i) => kc.mods.map((m, qi) => {
+      no++;
+      const rt = qRate(d, i, m);
+      const rate = rt.v === undefined ? `<span class="soft">${rt.txt}</span>`
+        : `<span style="${rt.v < 0.5 ? 'color:var(--link);font-weight:700' : ''}">${Math.round(rt.v * 100)}%</span>${rt.wait ? `<div class="small soft" style="white-space:nowrap">${rt.wait} 人待給分</div>` : ''}`;
+      let q = '', ans = '';
+      if (m.type === 'sop') {
+        const si = sopInfo(m, d);
+        q = `SOP 路徑：從 ${esc(si.start)} 開始`;
+        ans = `標準路線 ${si.steps} 步${si.acts ? `・操作 ${si.acts} 個` : ''}`;
+      } else if (m.type === 'mc') {
+        q = esc(m.q);
+        ans = `正解 ${MC().mcKey(m).map((x) => `${LET10[x]}. ${esc(m.options[x] || '')}`).join('、') || '（沒有設定）'}`;
+      } else {
+        q = esc(m.q);
+        ans = m.standard ? `<div class="xc-std">${esc(m.standard)}</div>` : '標準答案：（沒有填）';
+      }
+      const caseCell = qi === 0 ? `<a href="#/case/${esc(kc.caseId)}" target="_blank" rel="noopener" title="在新分頁打開案件的「答案與詳解」（顯示的是案件目前的內容）"><b class="mono">${esc(kc.caseId)}</b></a> ${esc(kc.title || '')}
+          ${exam && kc.weight !== undefined && kc.mods.length > 1 ? `<div class="small soft">案件 ${kc.weight} 分</div>` : ''}` : '';
+      return `<tr class="${qi === 0 && i > 0 ? 'xc-first' : ''}"><td class="soft">${no}</td><td class="xc-case">${caseCell}</td>
+        <td><span class="chip">${QTYPE(m.type)}${MC().mcMulti(m) && m.type === 'mc' ? '・複選' : ''}</span></td>
+        <td class="xc-q">${q}${show ? `<div class="small xc-ans">${ans}</div>` : ''}</td>
+        ${exam ? `<td style="text-align:right">${m.points}</td>` : ''}<td style="text-align:right">${rate}</td></tr>`;
+    }).join('')).join('');
+    return `<div class="row" style="margin-bottom:8px"><span class="small muted">${cases.length} 個案件・${no} 題${exam ? '・滿分 100 分' : ''}</span><span class="spacer"></span>
+        <label class="small" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="xcAns" ${show ? 'checked' : ''}> 顯示正解</label></div>
+      <div class="card scroll-x"><table class="list xc-t"><thead><tr><th style="width:36px">#</th><th style="width:22%">案件</th><th style="width:96px">題型</th><th>題目</th>${exam ? '<th style="width:60px;text-align:right">配分</th>' : ''}<th style="width:96px;text-align:right">答對率</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <div class="small soft" style="margin-top:8px">點案件編號在新分頁打開「答案與詳解」（顯示案件目前的內容；發佈後案件若有修改，考卷仍是發佈當下的版本）。答對率在有人交卷後顯示，低於 50% 標橘色；簡答以已給分的人計算。</div>`;
+  }
+  function bindContent(d) {
+    const cb = $('#xcAns');
+    if (cb) cb.onchange = () => { SHOW_ANS[d.session.sessionId] = cb.checked; $('#xcBox').innerHTML = contentPanel(d); bindContent(d); };     // 只重畫這一塊，不重新讀資料
+  }
+
   // SOP 路徑題（2026-11-21 第 3 步）：比對規則在 db.js sopGrade（路線不完整走在標準路線上就全錯；動作逐節點比對）
   //   自動判定（路線錯＝0、全對＝滿分）的不用給分；有文字要確認或操作有錯的才要講師給分
   const sopG = (m, a) => (window.RRQP_DB && window.RRQP_DB.sopGrade ? window.RRQP_DB.sopGrade(m.sop, ((a && a.sop) || {})[m.id]) : null);
@@ -323,7 +413,7 @@
     box.innerHTML = `<h2 style="margin:18px 0 8px">DMS 考題測驗</h2>${!list.length ? '<div class="card empty-state">還沒有已結束的 DMS 考題測驗</div>' : `<div class="card scroll-x"><table class="list"><thead><tr><th>測驗</th><th>類型</th><th>開放時間</th><th>交卷</th><th>狀態</th></tr></thead><tbody>
       ${list.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}</td><td class="small">${MODE(s)}</td>
         <td class="small">${fmtDT(s.startAt)} – ${fmtDT(s.endAt)}</td><td class="small">${s.submitted} / ${s.assigned}</td><td>${stChip(s.state)}</td></tr>`).join('')}</tbody></table></div>`}`;
-    $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xsession/' + tr.dataset.x; }));
+    $$('[data-x]', box).forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xsession/' + tr.dataset.x + '?view=grade'; }));
   }
 
   /** 歷史成績・依測驗：DMS 考題測驗的摘要（d＝x_resultsIndex 的結果） */
@@ -346,8 +436,8 @@
     const s = d.session, st = d.stats, practice = s.mode === 'practice';
     const rows = d.rows.slice().sort((a, b) => (a.pct === null ? -1 : b.pct === null ? 1 : a.pct - b.pct));
     main.innerHTML = `<div class="row"><a href="#/results">← 歷史成績</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}<span class="spacer"></span>
-        <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
-      ${!practice && !s.released ? `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}">前往批改 →</a></div>` : ''}
+        <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}?view=grade" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
+      ${!practice && !s.released ? `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}?view=grade">前往批改 →</a></div>` : ''}
       <div class="stats five">
         <div class="card pad"><div class="small soft">${practice ? '平均答對率' : '平均（百分比）'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
@@ -364,7 +454,7 @@
           <td class="small">${r.wrong.map((w) => esc(w.label) + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、') || (r.status === 'submitted' ? '—' : '')}</td>
           <td class="small">${r.status === 'submitted' ? durTxt(r.secs) : ''}</td><td class="small">${r.status === 'submitted' ? (r.leaves ? `${r.leaves} 次（${durTxt(r.leaveSecs)}）` : '0') : ''}</td>
           <td class="small">${r.flags.length ? `<span class="cnt o" title="${esc(r.flags.join('\n'))}">${r.flags.length}</span>` : ''}</td>
-          <td style="text-align:right;white-space:nowrap">${r.coaching ? '<span class="chip warn">需輔導</span> ' : ''}${r.status === 'submitted' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(r.email)}">明細</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+          <td style="text-align:right;white-space:nowrap">${r.coaching ? '<span class="chip warn">需輔導</span> ' : ''}${r.status === 'submitted' ? `<a class="btn sm" href="#/xsession/${esc(s.sessionId)}?view=grade&by=a&agent=${encodeURIComponent(r.email)}">明細</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
     $('#xRf').onclick = () => results(id, X);
     $('#xCsv').onclick = () => X.downloadCsv(`${s.sessionId}_results.csv`, [CSV_HEAD].concat(rows.map((r) => csvRow(Object.assign({ sessionId: s.sessionId, title: s.title, mode: s.mode, startAt: s.startAt }, r)))));
   }

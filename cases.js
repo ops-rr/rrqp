@@ -101,11 +101,12 @@
     // 清單用：標籤只寫 TW＋BPO，翻譯狀態放在下面一行小字（避免欄位太寬把標題擠成直排）
     if (compact) {
       const n = Number(c.txMissed) || 0;
-      const st = c.tx === 'done' ? '' : c.tx === 'queued' ? '翻譯中' : c.tx === 'partial' ? `${n} 句沒翻到` : c.status === 'approved' ? '尚未翻譯' : '上架後翻譯';
+      const un = Number(c.txUn) || 0;
+      const st = c.tx === 'done' ? (un ? `英文未確認 ${un} 句` : '') : c.tx === 'queued' ? '翻譯中' : c.tx === 'partial' ? `${n} 句沒翻到` : c.status === 'approved' ? '尚未翻譯' : '上架後翻譯';
       return `<span class="chip ${c.tx === 'done' ? 'ok' : c.tx === 'queued' ? 'info' : 'warn'}">TW＋BPO</span>${st ? `<div class="small soft" style="margin-top:2px">${st}</div>` : ''}`;
     }
     const n = Number(c.txMissed) || 0;
-    if (c.tx === 'done') return '<span class="chip ok">TW＋BPO</span>';
+    if (c.tx === 'done') return Number(c.txUn) ? `<span class="chip warn" title="英文是機器翻譯，還沒有人在「英文對照」確認">TW＋BPO・英文未確認 ${Number(c.txUn)} 句</span>` : '<span class="chip ok">TW＋BPO</span>';
     if (c.tx === 'queued') return '<span class="chip info" title="排程翻譯完成後，BPO 專員才看得到英文">TW＋BPO・翻譯中</span>';
     if (c.tx === 'partial') return `<span class="chip warn" title="這些句子 BPO 專員會看到中文">TW＋BPO・${n} 句沒翻到</span>`;
     return `<span class="chip warn" title="上架時有新的中文才送翻譯">TW＋BPO・${c.status === 'approved' ? '尚未翻譯' : '上架後翻譯'}</span>`;
@@ -316,12 +317,13 @@
       : `<span class="cqh-title ro">${esc(tl || '（未命名）')}</span>`;
     const rid = (C.meta || {}).rid || '';
     const menu = [
+      txrCan() ? '<button onclick="CQTX.open()" title="講師寫的字（情境說明、題目、選項、詳解、參考答案）的中英對照，可以確認或修改英文">英文對照</button>' : '',
       CUR.canEdit ? '<button onclick="CQ.copy()" title="同一筆 DMS 案件再做一份考題（新案件未上架）">複製成新案件</button>' : '',
       rid ? `<button class="rid" onclick="CQ.copyRid()" title="點一下複製">Return ID ${esc(rid)}${(CUR.priv.prevIds || []).length ? `<br>前幾次申退：${esc(CUR.priv.prevIds.join(', '))}` : ''}</button>` : '',
       CUR.canDelete ? '<button class="del" onclick="CQ.del()">刪除案件</button>' : '',
     ].join('');
     bar.innerHTML = `<div class="cqh-crumb"><a href="${backOf(CUR.status)}">${st ? '可用題庫' : '未上架 DMS 考題'}</a> ／ <b>${esc(CUR.caseId)}</b>${CUR.copyOf ? `<span>・複製自 <a href="#/case/${esc(CUR.copyOf)}">${esc(CUR.copyOf)}</a></span>` : ''}</div>
-      <div class="cqh-row">${title}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}${canMod() ? sv : ''}
+      <div class="cqh-row">${title}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}${txrChip()}${canMod() ? sv : ''}
         <span style="flex:1"></span>
         ${canMod() ? `<button class="cqh-ib" onclick="CQ.undo()" ${HIST.undo.length ? '' : 'disabled'} title="復原（Ctrl+Z）" aria-label="復原">${ICON_UNDO}</button><button class="cqh-ib" onclick="CQ.redo()" ${HIST.redo.length ? '' : 'disabled'} title="重做（Ctrl+Y）" aria-label="重做">${ICON_REDO}</button>
 ` : ''}${canMod() || (st && CUR.canView !== false) ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">${st ? '答案與詳解' : '編輯'}</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
@@ -337,6 +339,130 @@
     const ms = (CUR.tx || {}).missed || [], h = langChip({ twOnly: C.meta.twOnly, tx: (CUR.tx || {}).state, txMissed: ms.length, status: CUR.status });
     return ms.length && CUR.tx.state === 'partial' ? h.replace(/title="[^"]*"/, `title="${esc('這些句子 BPO 專員會看到中文：\n' + ms.join('\n'))}"`) : h;
   }
+
+  // ───────── 英文對照（2026-11-24 Chris） ─────────
+  // 講師寫的字一律先用 DMS 翻譯；這裡列出中文／英文，講師可以「確認」機器翻譯或「修改」成人工的英文（排程不會覆蓋）。
+  // 只在 TW＋BPO、已上架的案件開放（上架後中文就鎖住，確認過的英文不會因為改中文而作廢）。改英文不用下架。
+  // 視窗放在 #cq 外面（document.body），已上架的唯讀鎖定（lockView）不會鎖到它；動作走 window.CQTX，不經過 CQ 的唯讀攔截。
+  // 句子範圍和 db.js caseTeacherTexts()、排程 case_teacher_texts() 相同（套用範本的選項另外標「範本」）
+  let TXR = null;
+  const TXR_LET = 'ABCDEFGHIJ';
+  const txrZh = (t) => typeof t === 'string' && t.trim() && /[㐀-鿿]/.test(t) && t.length <= 3000;
+  const txrCan = () => !!(CUR && !EX && C && C.meta && C.meta.twOnly === false && CUR.status === 'approved');
+  const TXR_ST = { un: ['未確認', 'warn'], ok: ['已確認', 'ok'], man: ['人工修改', 'info'], tpl: ['範本', ''], none: ['沒有英文', 'bad'], wait: ['翻譯中', 'info'] };
+  function txrRows() {
+    const qn = qNumbers(), tx = CUR.tx || {}, mt = tx.mt || {}, ed = tx.edit || {}, rows = [], seen = {};
+    const add = (pos, zh, tpl) => {
+      if (!txrZh(zh)) return;
+      if (seen[zh]) { seen[zh].more++; return; }
+      const e = ed[zh] || null, m = mt[zh] || '';
+      const st = tpl ? 'tpl' : e && e.k === 'man' && e.en ? 'man' : m && e && e.k === 'ok' && e.en === m ? 'ok' : m ? 'un' : tx.state === 'queued' ? 'wait' : 'none';
+      const r = { pos, zh, mt: m, en: tpl || (st === 'man' ? e.en : m), st, e: st === 'man' || st === 'ok' ? e : null, more: 0 };
+      seen[zh] = r; rows.push(r);
+    };
+    C.modules.forEach((md) => {
+      const n = qn[md.id];
+      if (md.type === 'note') add('情境說明', md.text);
+      else if (md.type === 'mc') {
+        add(`第 ${n} 題・題目`, md.q);
+        (md.options || []).forEach((o, i) => add(`第 ${n} 題・選項 ${TXR_LET[i]}`, o, (md.optionsEn || [])[i] || ''));
+        add(`第 ${n} 題・詳解`, md.explain);
+      } else if (md.type === 'short') { add(`第 ${n} 題・題目`, md.q); add(`第 ${n} 題・參考答案`, md.standard); }
+    });
+    return rows;
+  }
+  // 工作列的標籤：英文未確認幾句（點了打開英文對照）
+  function txrChip() {
+    if (!txrCan() || !['done', 'partial'].includes((CUR.tx || {}).state)) return '';
+    const n = txrRows().filter((r) => r.st === 'un').length;
+    return `<button type="button" class="chipc txr-chip ${n ? '' : 'ok'}" onclick="CQTX.open()" title="打開英文對照">${n ? `英文未確認 ${n} 句` : '英文已確認'}</button>`;
+  }
+  function txrOpen() {
+    MORE_OPEN = false;
+    if (!txrCan()) return X.toast('只有使用對象「TW＋BPO」、已上架的案件才有英文對照');
+    TXR = { filter: 'all', edit: -1, busy: false };
+    let box = document.getElementById('txrBox');
+    if (!box) { box = document.createElement('div'); box.id = 'txrBox'; document.body.appendChild(box); }
+    document.addEventListener('keydown', txrKey);
+    window.addEventListener('hashchange', txrClose, { once: true });
+    renderBar(); txrRender();
+  }
+  function txrClose() {
+    TXR = null;
+    const box = document.getElementById('txrBox');
+    if (box) box.remove();
+    document.removeEventListener('keydown', txrKey);
+  }
+  function txrKey(e) { if (e.key === 'Escape' && TXR && TXR.edit < 0) txrClose(); }
+  function txrRender() {
+    const box = document.getElementById('txrBox');
+    if (!box || !TXR) return;
+    if (!document.getElementById('cq')) return txrClose();          // 離開案件頁
+    const rows = TXR.rows = txrRows(), can = CUR.canEdit, f = TXR.filter;
+    const cnt = (k) => rows.filter((r) => r.st === k).length;
+    const tabs = [['all', '全部', rows.length], ['un', '未確認', cnt('un')], ['ok', '已確認', cnt('ok')], ['man', '人工修改', cnt('man')], ['tpl', '範本', cnt('tpl')], ['none', '沒有英文', cnt('none') + cnt('wait')]]
+      .filter((t) => t[0] === 'all' || t[2]);
+    const show = rows.map((r, i) => [r, i]).filter(([r]) => f === 'all' || r.st === f || (f === 'none' && r.st === 'wait'));
+    const who = (e) => (e ? `<div class="txr-who">${esc(String(e.by || '').split('@')[0])} ${esc(fmtTime(e.at))}</div>` : '');
+    const row = ([r, i]) => {
+      const [lab, cls] = TXR_ST[r.st], ed = TXR.edit === i;
+      const enCell = ed
+        ? `<textarea id="txrIn" rows="3">${esc(r.en || '')}</textarea>${r.mt ? `<div class="txr-mt">機器翻譯：${esc(r.mt)}</div>` : ''}
+          <div class="txr-acts"><button type="button" class="txr-b pri" onclick="CQTX.save(${i})" ${TXR.busy ? 'disabled' : ''}>儲存</button><button type="button" class="txr-b" onclick="CQTX.edit(-1)">取消</button></div>`
+        : `<div class="txr-en">${r.en ? esc(r.en) : `<span class="txr-none">${r.st === 'wait' ? '排程翻譯中' : 'DMS 沒翻出來，專員會看到中文'}</span>`}</div>
+          ${r.st === 'man' && r.mt && r.mt !== r.en ? `<div class="txr-mt">機器翻譯：${esc(r.mt)}</div>` : ''}`;
+      const acts = !can || ed || r.st === 'tpl' ? '' : `<div class="txr-acts">
+          ${r.st === 'un' ? `<button type="button" class="txr-b" onclick="CQTX.ok(${i})" ${TXR.busy ? 'disabled' : ''}>確認</button>` : ''}
+          <button type="button" class="txr-b" onclick="CQTX.edit(${i})">${r.en ? '修改' : '填英文'}</button>
+          ${r.st === 'man' || r.st === 'ok' ? `<button type="button" class="txr-b ghost" onclick="CQTX.reset(${i})" title="${r.st === 'man' ? '拿掉人工的英文，改回機器翻譯' : '取消確認'}" ${TXR.busy ? 'disabled' : ''}>${r.st === 'man' ? '改回機器翻譯' : '取消確認'}</button>` : ''}</div>`;
+      return `<div class="txr-row ${ed ? 'on' : ''}"><div class="txr-pos">${esc(r.pos)}${r.more ? `<div class="txr-who">另有 ${r.more} 處相同</div>` : ''}</div>
+        <div class="txr-zh">${esc(r.zh)}</div><div>${enCell}</div>
+        <div><span class="txr-st ${cls}">${lab}</span>${r.st === 'ok' || r.st === 'man' ? who(r.e) : ''}${acts}</div></div>`;
+    };
+    const un = cnt('un');
+    box.innerHTML = `<div class="txr-bg" onclick="if(event.target===this)CQTX.close()"><div class="txr" role="dialog" aria-label="英文對照">
+      <div class="txr-h"><div><div class="txr-crumb">${esc(CUR.caseId)}・${esc(CUR.title || '')}</div><div class="txr-t">英文對照</div></div>
+        <span class="txr-note">只列講師寫的字；DMS 案件內容照 DMS 翻譯，不在這裡</span><button type="button" class="txr-x" onclick="CQTX.close()" aria-label="關閉">×</button></div>
+      <div class="txr-tabs">${tabs.map(([k, l, n]) => `<button type="button" class="${f === k ? 'on' : ''}" onclick="CQTX.filter('${k}')">${l} ${n}</button>`).join('')}</div>
+      <div class="txr-list"><div class="txr-row txr-head"><div>位置</div><div>中文</div><div>英文</div><div>狀態</div></div>
+        ${show.length ? show.map(row).join('') : '<div class="txr-empty">沒有符合的句子</div>'}</div>
+      <div class="txr-f"><span>${un ? `還有 ${un} 句未確認。` : '講師寫的字都確認過了。'}人工修改的英文排程不會覆蓋；改了中文，那句會回到未確認。已發佈的測驗要重新發佈才會換成新的英文。</span>
+        ${can && un ? `<button type="button" class="txr-b" onclick="CQTX.okAll()" ${TXR.busy ? 'disabled' : ''}>未確認的全部標為已確認</button>` : ''}</div></div></div>`;
+    const ta = document.getElementById('txrIn');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
+  async function txrSave(items, msg) {
+    if (!TXR || TXR.busy) return;
+    TXR.busy = true; txrRender();
+    try {
+      const r = await X.api('c_txSave', { caseId: CUR.caseId, items });
+      CUR.tx.edit = r.edit; CUR.tx.un = r.un; CUR.tx.state = r.txState || CUR.tx.state;
+      const m = MAIN.i18n || (MAIN.i18n = {}), tx = m.tx || (m.tx = {});
+      items.forEach((x) => { if (r.en[x.zh]) tx[x.zh] = r.en[x.zh]; else delete tx[x.zh]; });
+      if (TXR) { TXR.edit = -1; TXR.busy = false; }
+      X.toast(msg);
+      if (isEdit()) renderBar(); else renderAll();               // 專員預覽（EN）要換成新的英文
+      txrRender();
+    } catch (e) { if (TXR) { TXR.busy = false; txrRender(); } X.toast(e.message, 6000); }
+  }
+  window.CQTX = {
+    open: txrOpen, close: txrClose,
+    filter: (k) => { TXR.filter = k; TXR.edit = -1; txrRender(); },
+    edit: (i) => { TXR.edit = i; txrRender(); },
+    ok: (i) => txrSave([{ zh: TXR.rows[i].zh, k: 'ok' }], '已確認'),
+    reset: (i) => txrSave([{ zh: TXR.rows[i].zh, k: '' }], TXR.rows[i].st === 'man' ? '已改回機器翻譯' : '已取消確認'),
+    save: (i) => {
+      const r = TXR.rows[i], v = ((document.getElementById('txrIn') || {}).value || '').trim();
+      if (!v) return X.toast('英文不能空白');
+      if (v === r.mt) return txrSave([{ zh: r.zh, k: 'ok' }], '和機器翻譯相同，已標為確認');
+      txrSave([{ zh: r.zh, k: 'man', en: v }], '已儲存人工的英文');
+    },
+    okAll: async () => {
+      const list = TXR.rows.filter((r) => r.st === 'un');
+      if (!list.length || !(await X.confirmBox(`把 ${list.length} 句未確認的英文標為已確認？`, '全部確認'))) return;
+      txrSave(list.map((r) => ({ zh: r.zh, k: 'ok' })), `已確認 ${list.length} 句`);
+    },
+  };
 
   // ───────── 復原／重做 ─────────
   function histGo(from, to) {

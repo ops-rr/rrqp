@@ -441,3 +441,16 @@ img.stk { width: 96px; height: 96px; object-fit: contain; display: block; }
 .btn.icon svg { width: 18px; height: 18px; }
 .btn.icon:hover:not(:disabled) { color: var(--brand); border-color: var(--brand-line); background: var(--brand-soft); }
 .btn.icon.busy svg { animation: sp 1s linear infinite; }
+/* 單場頁（2026-11-24）：閱卷批改的「依題目／依專員」切換、統計卡片的連結、考題內容表 */
+.xs-seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; background: #fff; }
+.xs-seg a { padding: 5px 14px; font-size: 13px; color: var(--muted); text-decoration: none; }
+.xs-seg a + a { border-left: 1px solid var(--line2); }
+.xs-seg a.on { background: var(--chip); color: var(--ink); font-weight: 700; }
+.xs-lnk { text-decoration: underline dotted; text-underline-offset: 3px; }
+.xs-lnk:hover { color: var(--link); }
+table.list.xc-t td { vertical-align: top; }
+.xc-t tr.xc-first td { border-top: 2px solid var(--line2); }
+.xc-case { word-break: break-word; }
+.xc-q { word-break: break-word; }
+.xc-ans { margin-top: 6px; padding: 6px 8px; background: var(--ok-bg); border-radius: 6px; color: var(--ok); }
+.xc-std { white-space: pre-wrap; color: var(--ink); max-height: 160px; overflow: auto; }

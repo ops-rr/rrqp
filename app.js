@@ -1242,7 +1242,7 @@
     const [v, x] = await Promise.all([api('t_listSessions', { includeArchived: showArch }), X3 ? api('x_list') : { sessions: [] }]);
     const rows = v.sessions.map((s) => ({ kind: 'q', s, id: s.sessionId, title: L(s.title), startAt: s.startAt, state: s.state, href: '#/session/' + s.sessionId, gradeHref: '#/grading/' + s.sessionId,
         type: t('typeVariant'), sub: `${s.draftId && s.draftId !== 'BANK' ? esc(s.draftId) + ' · ' : ''}${esc(t('qUnit', { n: s.questionCount }))}` }))
-      .concat(x.sessions.map((s) => ({ kind: 'x', s, id: s.sessionId, title: s.title, startAt: s.startAt, state: s.state, href: '#/xsession/' + s.sessionId, gradeHref: '#/xsession/' + s.sessionId,
+      .concat(x.sessions.map((s) => ({ kind: 'x', s, id: s.sessionId, title: s.title, startAt: s.startAt, state: s.state, href: '#/xsession/' + s.sessionId, gradeHref: '#/xsession/' + s.sessionId + '?view=grade',
         type: `${t('typeCases')}・${X3.modeTxt(s)}`, sub: esc(lang === 'zh' ? `${s.caseCount} 個案件・${s.questionCount} 題` : `${s.caseCount} cases · ${s.questionCount} questions`) })));
     rows.sort((a, b) => (b.startAt || 0) - (a.startAt || 0) || String(b.id).localeCompare(String(a.id)));
     return { rows, archivedCount: v.archivedCount || 0 };
@@ -1301,10 +1301,14 @@
 
   async function viewSession(id) {
     const main = shell('sessions', `<div class="empty-state"><span class="spin"></span> ${esc(t('loading'))}</div>`);
+    const want = new URLSearchParams(location.hash.split('?')[1] || '').get('view') || '';
     async function load() {
       let d;
       try { d = await api('t_getSession', { sessionId: id }); } catch (e) { showError(e); return; }
       const s = d.session, link = quizLink(s.sessionId), offset = d.serverNow - Date.now();
+      // 沒指定分頁：尚未開始→考題內容、進行中→作答進度、已結束／已公布→閱卷批改（另一頁 #/grading/）
+      const view = ['content', 'progress'].includes(want) ? want : s.state === 'scheduled' ? 'content' : s.state === 'open' ? 'progress' : '';
+      if (!view) { location.replace('#/grading/' + encodeURIComponent(s.sessionId)); return 'away'; }
       const sub = d.roster.filter((r) => r.status === 'submitted').length, inp = d.roster.filter((r) => r.status === 'in_progress').length, nst = d.roster.filter((r) => r.status === 'not_started').length;
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}<span class="spacer"></span>
@@ -1317,12 +1321,14 @@
         <div class="stats">
           <div class="card pad"><div class="small soft">${esc(t('colWindow'))}</div><div><b>${esc(fmtDT(s.startAt))}</b><br>– <b>${esc(fmtDT(s.endAt))}</b></div></div>
           <div class="card pad"><div class="small soft">${esc(t('remaining'))}</div><div class="big">${esc(rem)}</div></div>
-          <div class="card pad"><div class="small soft">${esc(t('timeLimit'))}</div><div class="big">${esc(t('minUnit', { n: s.minutes }))}</div><div class="small soft">${esc(t('qUnit', { n: s.questionCount }))}</div></div>
+          <div class="card pad"><div class="small soft">${esc(t('timeLimit'))}</div><div class="big">${esc(t('minUnit', { n: s.minutes }))}</div><a class="small soft xs-lnk" href="#/session/${esc(s.sessionId)}?view=content">${esc(t('qUnit', { n: s.questionCount }))}</a></div>
           <div class="card pad"><div class="small soft">${esc(t('colSubmitted'))}</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div><div class="small soft">${esc(t('a_in_progress'))} ${inp} · ${esc(t('a_not_started'))} ${nst}</div></div>
         </div>
-        <div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
+        ${sessTabs(s.sessionId, view)}
+        ${view === 'content' ? `<div id="vcBox">${vContent(d)}</div>` : `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
           d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${attChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td><td class="small muted">${esc(fmtDT(r.startedAt))}</td><td class="small muted">${esc(fmtDT(r.submittedAt))}</td>
-            <td style="text-align:right">${M5_READY && r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+            <td style="text-align:right">${M5_READY && r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`}`;
+      if (view === 'content') vContentBind(d);
       $('#cpl').onclick = () => copyText(link);
       $('#reload').onclick = load;
       const ex = $('#extend'); if (ex) ex.onclick = () => extendModal(s, load);
@@ -1340,9 +1346,60 @@
         try { await api('t_endSession', { sessionId: s.sessionId }); toast(t('ended')); load(); } catch (e) { toast(e.message, 4000); }
       };
     }
-    await load();
-    pollTimer = setInterval(() => { if (!document.hidden) load(); }, 30000);
+    if ((await load()) === 'away') return;
+    pollTimer = setInterval(() => { if (!document.hidden && !(document.activeElement && document.activeElement.id === 'vcAns')) load(); }, 30000);
   }
+
+  // ───────── 單場頁的分頁（2026-11-24 Chris）：考題內容｜作答進度｜閱卷批改｜成績與分析，變化題和 DMS 考題（exam.js）一樣 ─────────
+  // 變化題的閱卷批改、成績與分析是另外兩頁（#/grading/、#/results/），分頁列放在單場頁和閱卷頁
+  function sessTabs(id, on) {
+    const sid = encodeURIComponent(id);
+    return `<div class="tabs" style="margin:2px 0 12px"><a class="tab ${on === 'content' ? 'on' : ''}" href="#/session/${sid}?view=content">${esc(t('tabContent'))}</a>
+      <a class="tab ${on === 'progress' ? 'on' : ''}" href="#/session/${sid}?view=progress">${esc(t('tabProgress'))}</a>
+      <a class="tab ${on === 'grade' ? 'on' : ''}" href="#/grading/${sid}">${esc(t('tabGrade'))}</a><a class="tab" href="#/results/${sid}">${esc(t('tabResults'))}</a></div>`;
+  }
+  // 考題內容：一題一列（題號、題型、題目、判斷重點、配分、答對率）；正解預設不顯示。答對率用成績頁同一份資料（t_results），測驗結束後才讀、只讀一次
+  const V_SHOW = {}, V_RATE = {};
+  function vContent(d) {
+    const s = d.session, show = !!V_SHOW[s.sessionId], rate = V_RATE[s.sessionId];
+    const rateOf = (q) => {
+      if (s.state === 'scheduled' || s.state === 'open') return '<span class="soft">—</span>';
+      if (!rate || rate === 'wait') return '<span class="soft">…</span>';
+      // 文字作答（B、C）還沒公布成績前可能還沒批完，沒批的算 0 分會誤導，先不顯示
+      if (!s.released && (q.type === 'B' || q.type === 'C')) return `<span class="soft">${esc(t('gradingNow'))}</span>`;
+      const x = (rate.questions || []).find((y) => y.qid === q.qid);
+      return !x || x.rate === null || x.rate === undefined ? '<span class="soft">—</span>' : `<span style="${x.rate < 0.5 ? 'color:var(--link);font-weight:700' : ''}">${Math.round(x.rate * 100)}%</span>`;
+    };
+    const ansOf = (q) => {
+      if (q.type === 'G') return `${esc(t('correctAns'))}：${esc(grpSummary(q))}`;
+      const o = (q.options || []).find((x) => x.id === q.answer);
+      const a = o ? `${esc(t('correctAns'))}：${esc(String(o.id).toUpperCase())}. ${esc(L(o.text))}` : '';
+      const m = L(q.modelAnswer) ? `<div class="xc-std">${esc(t('modelAnswer2'))}：${esc(L(q.modelAnswer))}</div>` : '';
+      return a + m || '-';
+    };
+    const pts = (q) => r2(((q.points || {}).choice || 0) + ((q.points || {}).text || 0));
+    return `<div class="row" style="margin-bottom:8px"><span class="small muted">${esc(t('qUnit', { n: d.questions.length }))}</span><span class="spacer"></span>
+        <label class="small" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="vcAns" ${show ? 'checked' : ''}> ${esc(t('showAns'))}</label></div>
+      <div class="card scroll-x"><table class="list xc-t"><thead><tr><th style="width:36px">#</th><th style="width:90px">${esc(t('colQid'))}</th><th style="width:120px">${esc(t('colType'))}</th><th>${esc(t('colQuestion'))}</th>
+        <th style="width:60px;text-align:right">${esc(t('colPts'))}</th><th style="width:80px;text-align:right">${esc(t('colCorrect'))}</th></tr></thead><tbody>${
+        d.questions.map((q) => `<tr><td class="soft">${q.seq}</td><td><a href="#/bank/${esc(q.qid)}" target="_blank" rel="noopener"><b class="mono">${esc(q.qid)}</b></a></td>
+          <td><span class="chip">${esc(t('type' + q.type + 'Name'))}</span></td>
+          <td class="xc-q">${esc(L(q.prompt))}${L(q.point) ? `<div class="small soft">${esc(t('colPoint'))}：${esc(L(q.point))}</div>` : ''}${show ? `<div class="small xc-ans">${ansOf(q)}</div>` : ''}</td>
+          <td style="text-align:right">${pts(q)}</td><td style="text-align:right">${rateOf(q)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="small soft" style="margin-top:8px">${esc(t('contentNote'))}</div>`;
+  }
+  function vContentBind(d) {
+    const s = d.session, cb = $('#vcAns'), redraw = () => { const b = $('#vcBox'); if (b) { b.innerHTML = vContent(d); vContentBind(d); } };
+    if (cb) cb.onchange = () => { V_SHOW[s.sessionId] = cb.checked; redraw(); };
+    if ((s.state === 'closed' || s.state === 'released') && !V_RATE[s.sessionId]) {
+      V_RATE[s.sessionId] = 'wait';
+      api('t_results', { sessionId: s.sessionId }).then((r) => { V_RATE[s.sessionId] = r; redraw(); }).catch(() => { V_RATE[s.sessionId] = { questions: [] }; redraw(); });
+    }
+  }
+  Object.assign(I18N.zh, { tabContent: '考題內容', tabProgress: '作答進度', tabGrade: '閱卷批改', tabResults: '成績與分析', showAns: '顯示正解', colCorrect: '答對率', colPts: '配分', colQuestion: '題目',
+    byQuestion: '依題目', byAgent: '依專員', gradingNow: '批改中', contentNote: '點題號在新分頁打開題庫的題目。答對率在測驗結束後顯示（文字作答在公布成績後），低於 50% 標橘色。' });
+  Object.assign(I18N.en, { tabContent: 'Questions', tabProgress: 'Progress', tabGrade: 'Grading', tabResults: 'Results & analysis', showAns: 'Show answers', colCorrect: 'Correct rate', colPts: 'Points', colQuestion: 'Question',
+    byQuestion: 'By question', byAgent: 'By agent', gradingNow: 'Grading', contentNote: 'Click an ID to open the bank question in a new tab. The correct rate shows after the quiz ends (written answers after results are released); below 50% is highlighted.' });
 
   // ───────── 專員：我的測驗 ─────────
   async function viewMyQuizzes() {
@@ -1601,12 +1658,14 @@
         <div class="row small muted">${esc(t('gradeSummary', { n: sub, t: all.length, g: graded }))}<span class="spacer"></span>
           <span>${esc(t('confirmedN'))} <b style="font-size:18px;color:var(--ink)">${conf}</b> / ${all.length}</span><div class="bar ok" style="width:160px"><i style="width:${all.length ? Math.round((conf / all.length) * 100) : 0}%"></i></div></div>
         ${missing ? `<div class="banner info row"><span>${esc(t('needAi', { n: missing }))}</span><span class="cmd" style="padding:6px 12px"><code style="font-size:15px">${esc(d.command)}</code><button class="btn sm" id="cpg">${esc(t('copy'))}</button></span></div>` : ''}
-        <div class="tabs" role="tablist">${textQs.map((q) => {
+        ${sessTabs(d.session.sessionId, 'grade')}
+        <div class="row" style="margin-bottom:8px"><span class="xs-seg"><a class="${tab !== 'overview' ? 'on' : ''}" href="#" data-tab="${esc(textQs[0] ? textQs[0].qid : 'overview')}">${esc(t('byQuestion'))}</a><a class="${tab === 'overview' ? 'on' : ''}" href="#" data-tab="overview">${esc(t('byAgent'))}</a></span></div>
+        ${tab === 'overview' ? '' : `<div class="tabs" role="tablist">${textQs.map((q) => {
           const ans = d.answers.filter((a) => a.qid === q.qid), low = ans.filter(isLow).length;
           return `<button class="tab ${tab === q.qid ? 'on' : ''}" data-tab="${esc(q.qid)}" role="tab">Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}${(() => { const left = ans.filter((a) => a.teacherScore === null).length;      // 灰＝還沒確認、橘＝AI 低信心、綠勾＝都確認了
             return !ans.length ? '' : !left ? ' <span class="dotok">✓</span>' : ` <span class="cnt g" title="未確認 ${left}">${left}</span>` + (low ? `<span class="cnt o" title="${esc(t('lowN', { n: low }))}">${low}</span>` : ''); })()}</button>`;
-        }).join('')}<button class="tab ${tab === 'overview' ? 'on' : ''}" data-tab="overview" role="tab">${esc(t('overview'))}</button></div>
-        <div class="dotlegend"><span><span class="cnt g"></span> 未確認</span><span><span class="cnt o"></span> AI 低信心</span><span><span class="dotok">✓</span> 都確認了</span></div>`;
+        }).join('')}</div>
+        <div class="dotlegend"><span><span class="cnt g"></span> 未確認</span><span><span class="cnt o"></span> AI 低信心</span><span><span class="dotok">✓</span> 都確認了</span></div>`}`;
     }
     function qPanel(q) {
       const opt = (q.options || []).find((o) => o.id === q.answer), p = q.points || {};
@@ -1666,7 +1725,7 @@
     function bind() {
       $('#reload').onclick = () => viewGrading(d.session.sessionId);
       const cp = $('#cpg'); if (cp) cp.onclick = () => copyText(d.command);
-      $$('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; history.replaceState(null, '', '#/grading/' + d.session.sessionId + '?q=' + tab); draw(); }));
+      $$('[data-tab]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); tab = b.dataset.tab; history.replaceState(null, '', '#/grading/' + d.session.sessionId + '?q=' + tab); draw(); }));
       const rel = $('#rel'); if (rel) rel.onclick = async () => {
         const un = textAnswers().filter((a) => a.teacherScore === null).length;
         if (!(await confirmBox(un ? t('releaseConfirm', { n: un }) : t('releaseConfirm0'), t('releaseBtn')))) return;
