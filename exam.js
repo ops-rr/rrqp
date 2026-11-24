@@ -273,7 +273,7 @@
 
   /** 單一專員：每個案件的作答、正解、足跡卡；考試可以給簡答分數 */
   function agentPanel(box, d, r, canGrade) {
-    const LET = 'ABCDEFGH';
+    const LET = 'ABCDEFGHIJ';
     box.innerHTML = `<div class="card pad"><div class="row"><h2>${esc(r.email)}</h2><span class="small muted">${esc(window.RRQP_CASES.leaveSummary(r.track))}</span><span class="spacer"></span>
         ${canGrade ? '<button class="btn brand" id="xSave">儲存給分</button>' : ''}</div>
       ${(d.key.cases || []).map((kc, i) => {
@@ -397,7 +397,7 @@
   /** 依題目：上方題目分頁，一次看一題所有人的答案（和 V2 閱卷一樣）；給分先記在 draft，切換題目不會不見，按「儲存給分」一次存 */
   let qTab = {};
   function questionPanel(box, d, canGrade) {
-    const LET = 'ABCDEFGH', sid = d.session.sessionId, done = d.roster.filter((r) => r.status === 'submitted');
+    const LET = 'ABCDEFGHIJ', sid = d.session.sessionId, done = d.roster.filter((r) => r.status === 'submitted');
     if (!done.length) { box.innerHTML = '<div class="card empty-state">還沒有人交卷</div>'; return; }
     const qs = (d.key.cases || []).flatMap((kc, i) => kc.mods.map((m, qi) => ({ k: i + ':' + m.id, i, qi, m, kc })));
     const qOf = (i, id) => qs.find((q) => q.i === i && q.m.id === id);

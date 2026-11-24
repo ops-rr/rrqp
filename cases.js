@@ -10,7 +10,7 @@
   let X = null;          // app.js 傳進來的共用工具：me、api、shell、toast、confirmBox、setLeaveGuard、setLive、DB
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const LETTERS = 'ABCDEFGH';
+  const LETTERS = 'ABCDEFGHIJ';
   // 選擇題（2026-11-23）：answer 一個數字＝單選，兩個以上的清單＝複選；複選要和正解完全一樣才給分（規則同 db.js 的 mcOk）
   const mcKey = (md) => (Array.isArray(md.answer) ? [...new Set(md.answer)].sort((a, b) => a - b) : Number.isInteger(md.answer) ? [md.answer] : []);
   const mcMulti = (md) => !!md.multi || mcKey(md).length > 1;
