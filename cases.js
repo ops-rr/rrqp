@@ -94,8 +94,14 @@
     return s;
   }
   // 使用對象標籤（2026-11-22 Chris）：TW／TW＋BPO（＋翻譯狀態）；案件清單、編輯畫面、發佈表單共用。c：{ twOnly, tx, txMissed, status }
-  function langChip(c) {
+  function langChip(c, compact) {
     if (c.twOnly !== false) return '<span class="chip">TW</span>';
+    // 清單用：標籤只寫 TW＋BPO，翻譯狀態放在下面一行小字（避免欄位太寬把標題擠成直排）
+    if (compact) {
+      const n = Number(c.txMissed) || 0;
+      const st = c.tx === 'done' ? '' : c.tx === 'queued' ? '翻譯中' : c.tx === 'partial' ? `${n} 句沒翻到` : c.status === 'approved' ? '尚未翻譯' : '上架後翻譯';
+      return `<span class="chip ${c.tx === 'done' ? 'ok' : c.tx === 'queued' ? 'info' : 'warn'}">TW＋BPO</span>${st ? `<div class="small soft" style="margin-top:2px">${st}</div>` : ''}`;
+    }
     const n = Number(c.txMissed) || 0;
     if (c.tx === 'done') return '<span class="chip ok">TW＋BPO</span>';
     if (c.tx === 'queued') return '<span class="chip info" title="排程翻譯完成後，BPO 專員才看得到英文">TW＋BPO・翻譯中</span>';
@@ -189,16 +195,16 @@
       const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
-      $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
-          <th>案件</th><th>標題</th><th>分類</th><th style="white-space:nowrap">用途</th><th style="white-space:nowrap">對象</th><th style="white-space:nowrap">作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
+      $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list cql-tb"><thead><tr>
+          <th>案件</th><th class="t">標題</th><th>分類</th><th>用途</th><th>對象</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}${c.copyOf ? `<div class="soft small" style="white-space:nowrap">複製自 ${esc(c.copyOf)}</div>` : ''}</td>
-          <td>${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
+          <td class="t">${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
           <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
-          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${langChip(c)}</td><td style="white-space:nowrap">${c.questions} 題</td>
+          <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${langChip(c, true)}</td><td style="white-space:nowrap">${c.questions} 題</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
           ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
-          <td class="small">${esc(fmtTime(c.updatedAt))}<div class="soft">${esc(c.updatedBy || '')}</div></td>
+          <td class="small"><span style="white-space:nowrap">${esc(fmtTime(c.updatedAt))}</span><div class="soft">${esc(String(c.updatedBy || '').replace(/@.*/, ''))}</div></td>
           ${pend ? `<td><span class="chip ${c.status === 'approved' ? 'ok' : 'warn'}">${STATUS[c.status] || c.status}</span></td>` : ''}</tr>`).join('')}
         </tbody></table></div>`;
       $$('#cqRows tr[data-id]').forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/case/' + encodeURIComponent(tr.dataset.id); }));
