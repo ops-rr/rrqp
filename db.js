@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-24n';
+const VERSION = 'V2-2026-11-24o';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1236,6 +1236,8 @@ const ACTIONS = {
     const topics = await S.list('topics');
     const used = topics.filter((t) => t.defaultOptionSet === b.setId);
     if (used.length) fail('這個範本是主題「' + (used[0].name?.zh || used[0].id) + '」的預設選項，請先更換 / This set is a topic default');
+    const qt = (await S.list('qTemplates')).filter((x) => x.optSet === b.setId);
+    if (qt.length) fail('題目範本「' + ((qt[0].q || {}).zh || qt[0].id) + '」用到這組選項，請先更換 / Used by a question template');
     await S.del('optionSets/' + b.setId);
     return { deleted: b.setId };
   },
@@ -2236,6 +2238,46 @@ const caseStats = (c) => {
 const CASES = {
   /** 案件清單（講師）；TW 講師另外帶出 Return ID（從申請紀錄對照） */
   /** 選項範本（主題設定裡的）：DMS 考題的選擇題可以套用（2026-11-23） */
+  /**
+   * 題目範本（2026-11-24 Chris）：常用的固定題目，中英文一次設定好；套用到案件後題目、選項的英文直接用範本的（不經過翻譯、英文對照標「範本」），
+   * 改了文字就改走翻譯。選擇題的選項可以選一組選項範本（積木，範本跟著選項範本變）或自己寫。不含正解、詳解。
+   * qTemplates/{id}：{ type: 'mc'|'short', q: {zh, en}, optSet: '', options: [{ text: {zh, en} }], updatedAt, updatedBy }
+   * 套用到案件時複製一份（案件存 qEn、optionsEn、qTpl、optSet），之後範本或選項範本改了，已套用的題目不會跟著變。
+   */
+  c_qTemplates: async () => {
+    await needTW();
+    const [rows, sets] = await Promise.all([S.list('qTemplates'), S.list('optionSets')]);
+    return { templates: rows.map((x) => qTplOut(x, sets)).sort((a, b) => (a.type === b.type ? String(a.q.zh).localeCompare(String(b.q.zh), 'zh-Hant') : a.type === 'mc' ? -1 : 1)) };
+  },
+  tw_saveQTemplate: async (b) => {
+    const m = await needTW();
+    const type = b.type === 'short' ? 'short' : 'mc';
+    const q = { zh: String((b.q || {}).zh || '').trim(), en: String((b.q || {}).en || '').trim() };
+    if (!q.zh || !q.en) fail('題目需要中英文 / The question needs both languages');
+    if (q.zh.length > 500 || q.en.length > 1000) fail('題目太長 / Question is too long');
+    let optSet = '', options = [];
+    if (type === 'mc') {
+      optSet = String(b.optSet || '');
+      if (optSet) { if (!(await S.get('optionSets/' + optSet))) fail('找不到選項範本 / Option set not found'); }
+      else {
+        options = (b.options || []).map((o) => ({ text: { zh: String((o.text || {}).zh || '').trim(), en: String((o.text || {}).en || '').trim() } }));
+        if (options.length < 2) fail('至少需要 2 個選項 / At least 2 options');
+        if (options.length > 10) fail('最多 10 個選項 / At most 10 options');
+        if (options.some((o) => !o.text.zh || !o.text.en)) fail('每個選項都要有中英文 / Every option needs both languages');
+      }
+    }
+    const all = await S.list('qTemplates');
+    let id = b.tplId && all.some((x) => x.id === b.tplId) ? b.tplId : '';
+    while (!id || (!b.tplId && all.some((x) => x.id === id))) id = 'QT' + String(await S.nextIds('QT', 1)).padStart(3, '0');      // 流水號；萬一撞到既有的就再拿下一號
+    if (all.some((x) => x.id !== id && x.type === type && (x.q || {}).zh === q.zh)) fail('已經有一樣題目的範本 / A template with the same question already exists');
+    await S.set('qTemplates/' + id, { type, q, optSet, options, updatedAt: now(), updatedBy: m.email });
+    return { tplId: id, template: qTplOut(Object.assign({ id }, { type, q, optSet, options }), await S.list('optionSets')) };
+  },
+  tw_deleteQTemplate: async (b) => {
+    await needTW();
+    await S.del('qTemplates/' + b.tplId);
+    return { deleted: b.tplId };
+  },
   c_optionSets: async () => {
     await needTW();
     return { sets: (await S.list('optionSets')).map((x) => ({ setId: x.id, name: x.name || {}, options: x.options || [] })) };
@@ -2601,8 +2643,8 @@ function caseTxTexts(c) {
   (c.prev || []).forEach(one);
   (c.modules || []).forEach((md) => {
     if (md.type === 'note') out.push(md.text);
-    else if (md.type === 'mc') out.push(md.q, md.explain, ...(md.options || []).filter((o, i) => !((md.optionsEn || [])[i])));   // 套用範本的選項已有英文
-    else if (md.type === 'short') out.push(md.q, md.standard);
+    else if (md.type === 'mc') out.push(md.qEn ? '' : md.q, md.explain, ...(md.options || []).filter((o, i) => !((md.optionsEn || [])[i])));   // 套用範本的題目、選項已有英文
+    else if (md.type === 'short') out.push(md.qEn ? '' : md.q, md.standard);
   });
   return [...new Set(out.filter((t) => typeof t === 'string' && t.trim() && /[\u3400-\u9fff]/.test(t) && t.length <= 3000))];
 }
@@ -2620,6 +2662,12 @@ function txOnList(body, d) {
  * 改了中文就是另一句，自然回到未確認。txUn：講師的字有英文、還沒確認的句數（索引也存一份，清單、發佈表單用）
  * 範圍必須和排程 rrqp_cases.py 的 case_teacher_texts()（＋有中文、3000 字以內）一模一樣
  */
+// 題目範本輸出：選了選項範本就用選項範本目前的選項（setName 給畫面顯示）
+function qTplOut(x, sets) {
+  const set = x.optSet ? (sets || []).find((y) => y.id === x.optSet) : null;
+  return { tplId: x.id, type: x.type || 'mc', q: x.q || { zh: '', en: '' }, optSet: x.optSet || '', setName: set ? set.name || {} : null, setMissing: !!x.optSet && !set,
+    options: x.type === 'short' ? [] : set ? (set.options || []).map((o) => ({ text: o.text || {} })) : (x.options || []), updatedAt: x.updatedAt || 0, updatedBy: x.updatedBy || '' };
+}
 const txEditMap = (d) => { try { return JSON.parse((d && d.txEdit) || '{}'); } catch (_) { return {}; } };
 function txEnOf(d) {
   const out = txMap(d);
@@ -2631,8 +2679,8 @@ function caseTeacherTexts(c) {
   const out = [];
   (c.modules || []).forEach((md) => {
     if (md.type === 'note') out.push(md.text);
-    else if (md.type === 'mc') out.push(md.q, md.explain, ...(md.options || []).filter((o, i) => !((md.optionsEn || [])[i])));
-    else if (md.type === 'short') out.push(md.q, md.standard);
+    else if (md.type === 'mc') out.push(md.qEn ? '' : md.q, md.explain, ...(md.options || []).filter((o, i) => !((md.optionsEn || [])[i])));
+    else if (md.type === 'short') out.push(md.qEn ? '' : md.q, md.standard);
   });
   return [...new Set(out.filter(hasZh))];
 }

@@ -112,6 +112,8 @@
     return `<span class="chip warn" title="上架時有新的中文才送翻譯">TW＋BPO・${c.status === 'approved' ? '尚未翻譯' : '上架後翻譯'}</span>`;
   }
   // 講師寫的字（題目、選項、情境說明）：EN 時只顯示英文；詳解、參考答案用 TX（附原文）
+  // 題目：套用題目範本的用範本的英文（md.qEn），其他照 TE
+  function TQ(md) { return dmsLang() === 'en' && md.qEn ? esc(md.qEn) : TE(md.q); }
   function TE(s) {
     const m = (MAIN && MAIN.i18n) || {}, en = s && dmsLang() === 'en' && m.tx && m.tx[s];
     return esc(en || s);
@@ -364,10 +366,10 @@
       const n = qn[md.id];
       if (md.type === 'note') add('情境說明', md.text);
       else if (md.type === 'mc') {
-        add(`第 ${n} 題・題目`, md.q);
+        add(`第 ${n} 題・題目`, md.q, md.qEn || '');
         (md.options || []).forEach((o, i) => add(`第 ${n} 題・選項 ${TXR_LET[i]}`, o, (md.optionsEn || [])[i] || ''));
         add(`第 ${n} 題・詳解`, md.explain);
-      } else if (md.type === 'short') { add(`第 ${n} 題・題目`, md.q); add(`第 ${n} 題・參考答案`, md.standard); }
+      } else if (md.type === 'short') { add(`第 ${n} 題・題目`, md.q, md.qEn || ''); add(`第 ${n} 題・參考答案`, md.standard); }
     });
     return rows;
   }
@@ -1271,7 +1273,7 @@
       if (md.type === 'sop') html += sopAgentHtml(md, C.modules.indexOf(md), qn[md.id]);
       if (md.type === 'short') {
         const bind = md.bindTo && qn[md.bindTo] ? `<div class="hint">${U(`說明第 ${qn[md.bindTo]} 題的選擇`, `Explain your answer to question ${qn[md.bindTo]}`)}</div>` : '';
-        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${TE(md.q)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
+        html += `<div class="mod qmod"><div class="mh">${qn[md.id]}. ${TQ(md)}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>${bind}
           <textarea ${A.submitted ? 'disabled' : ''} oninput="CQ.shortAns('${md.id}',this.value)" onpaste="CQ.paste('${md.id}',event)">${esc(A.short[md.id] || '')}</textarea>
           ${A.submitted && reveal() && md.standard ? `<div class="explain"><b>${U('參考答案：', 'Reference answer: ')}</b>${TX(md.standard)}</div>` : ''}${exShortScore(md)}</div>`;
       }
@@ -1290,7 +1292,7 @@
       const en = dmsLang() === 'en' && (md.optionsEn || [])[i];        // 套用選項範本的選項：用範本裡人寫的英文
       return `<div class="${cls}" onclick="CQ.pickMc('${md.id}',${i},${multi ? 1 : 0})"><span class="l">${LETTERS[i]}</span><span>${en ? esc(en) : TE(o)}</span></div>`;
     }).join('');
-    return `<div class="mod qmod"><div class="mh">${no}. ${TE(md.q)}${multi ? `<span class="mc-multi">${U('複選', 'Multiple answers')}</span>` : ''}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>
+    return `<div class="mod qmod"><div class="mh">${no}. ${TQ(md)}${multi ? `<span class="mc-multi">${U('複選', 'Multiple answers')}</span>` : ''}<span class="sp"></span><span class="pts">${ptsLabel(md)}</span></div>
       ${multi && !A.submitted ? `<div class="hint">${U('選出所有正確的選項，全部選對才給分', 'Select all correct options; points are given only when all are correct')}</div>` : ''}${opts}
       ${showAns && md.explain ? `<div class="explain"><b>${U('詳解：', 'Explanation: ')}</b>${TX(md.explain)}</div>` : ''}</div>`;
   }
@@ -1379,7 +1381,7 @@
       if (md.type === 'mc') {
         if (OPTSETS === null) { OPTSETS = 'loading'; X.api('c_optionSets').then((r) => { OPTSETS = r.sets || []; renderSide(); }).catch(() => { OPTSETS = []; }); }
         const key = mcKey(md), sets = Array.isArray(OPTSETS) ? OPTSETS : [];
-        body = `<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
+        body = `${qtplBar(md, i)}<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
           <div class="lbl" style="display:flex;align-items:center;gap:8px">選項（勾選正解；勾兩個以上就是複選題，要全部選對才給分）<span class="sp" style="flex:1"></span>
             ${sets.length ? `<select style="width:auto" onchange="CQ.applySet(${i},this.value);this.value=''"><option value="">套用選項範本…</option>${sets.map((x) => `<option value="${esc(x.setId)}">${esc((x.name || {}).zh || x.setId)}（${(x.options || []).length} 個）</option>`).join('')}</select>` : ''}</div>
           ${md.options.map((o, oi) => `<div class="erow"><input type="checkbox" ${key.includes(oi) ? 'checked' : ''} onchange="CQ.togAns(${i},${oi},this.checked)" title="正解">
@@ -1391,7 +1393,7 @@
           <div class="lbl">詳解（練習模式交卷後顯示）</div><textarea onchange="CQ.setMod(${i},'explain',this.value)">${esc(md.explain || '')}</textarea>`;
       }
       if (md.type === 'short') {
-        body = `<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
+        body = `${qtplBar(md, i)}<div class="lbl">題目</div><input type="text" value="${esc(md.q)}" onchange="CQ.setMod(${i},'q',this.value)">
           <div class="lbl">綁定選擇題（選錯時這題預設 0 分）</div>
           <select onchange="CQ.setMod(${i},'bindTo',this.value)"><option value="">不綁定</option>
             ${mcList.map(m => `<option value="${m.id}" ${md.bindTo === m.id ? 'selected' : ''}>第 ${qn[m.id]} 題：${esc(m.q)}</option>`).join('')}</select>
@@ -1405,6 +1407,98 @@
       ${Object.keys(TYPE_NAME).map(t => `<button onclick="CQ.addMod('${t}')">${TYPE_NAME[t]}</button>`).join('')}</div>`;
     return html;
   }
+
+  // ───────── 題目範本（2026-11-24 Chris） ─────────
+  // 常用的固定題目：題目、選項的中英文一次設定好（主題設定 → 題目範本），套用後英文直接用範本的；改了文字就改走翻譯、出現在英文對照。
+  // 範本只有題目和選項，不含正解、詳解；套用時複製一份進案件（md.qEn、md.optionsEn、md.qTpl、md.optSet），範本之後改了不影響已套用的題目。
+  let QTPLS = null;
+  const qtplLoad = () => {
+    if (QTPLS !== null) return;
+    QTPLS = 'loading';
+    X.api('c_qTemplates').then((r) => { QTPLS = r.templates || []; renderSide(); }).catch(() => { QTPLS = []; });
+  };
+  const qtplOf = (type) => (Array.isArray(QTPLS) ? QTPLS : []).filter((x) => x.type === type);
+  // 編輯區上方：套用題目範本、存成題目範本、套用中的提示
+  function qtplBar(md, i) {
+    qtplLoad();
+    const list = qtplOf(md.type), cur = md.qTpl && (Array.isArray(QTPLS) ? QTPLS : []).find((x) => x.tplId === md.qTpl);
+    return `<div class="qt-bar">${list.length ? `<select onchange="CQ.applyQTpl(${i},this.value);this.value=''"><option value="">套用題目範本…</option>${list.map((x) => `<option value="${esc(x.tplId)}">${esc(x.q.zh.length > 40 ? x.q.zh.slice(0, 40) + '…' : x.q.zh)}</option>`).join('')}</select>` : ''}
+      <button class="mbtn" onclick="CQ.saveQTpl(${i})" title="把這題的題目${md.type === 'mc' ? '和選項' : ''}存成題目範本，之後其他案件可以直接套用">存成題目範本</button></div>
+      ${md.qEn ? `<div class="hint" style="margin-top:0">題目套用自題目範本${cur ? `（${esc(cur.tplId)}）` : ''}：BPO 專員看到的英文是「${esc(md.qEn)}」；改了題目文字就改走翻譯。</div>` : ''}`;
+  }
+  function applyQTpl(i, id) {
+    const md = C.modules[i], tp = qtplOf(md.type).find((x) => x.tplId === id);
+    if (!tp) return;
+    const has = String(md.q || '').trim() && !/^請(選擇正確的|說明你選擇這個答案的理由)$/.test(md.q);
+    if (md.type === 'mc' && (has || md.options.some((o) => String(o || '').trim())) && !confirm('用題目範本取代目前的題目和選項？正解要重新勾選。')) return;
+    if (md.type === 'short' && has && !confirm('用題目範本取代目前的題目？')) return;
+    md.q = tp.q.zh; md.qEn = tp.q.en; md.qTpl = tp.tplId;
+    if (md.type === 'mc') {
+      md.options = tp.options.map((o) => (o.text || {}).zh || '');
+      md.optionsEn = tp.options.map((o) => (o.text || {}).en || '');
+      md.optSet = tp.optSet || ''; setKey(md, []);
+    }
+    saveCase(); renderSide();
+  }
+
+  // 存成題目範本：英文先帶入範本的英文、英文對照（人工修改優先）的英文，講師確認或修改後存
+  let QTS = null;
+  function qtsOpen(i) {
+    const md = C.modules[i], tx = (MAIN.i18n || {}).tx || {};
+    if (!String(md.q || '').trim()) return X.toast('先填題目');
+    if (md.type === 'mc' && md.options.filter((o) => String(o || '').trim()).length < 2) return X.toast('至少要 2 個選項');
+    const sets = Array.isArray(OPTSETS) ? OPTSETS : [];
+    const set = md.optSet && sets.find((x) => x.setId === md.optSet);
+    const sameSet = !!set && set.options.length === md.options.length && set.options.every((o, k) => (o.text || {}).zh === md.options[k] && (md.optionsEn || [])[k]);
+    QTS = { i, type: md.type, zh: md.q, en: md.qEn || tx[md.q] || '', src: sameSet ? set.setId : '',
+      opts: md.type === 'mc' ? md.options.map((o, k) => ({ zh: o, en: (md.optionsEn || [])[k] || tx[o] || '' })) : [], busy: false };
+    let box = document.getElementById('qtBox');
+    if (!box) { box = document.createElement('div'); box.id = 'qtBox'; document.body.appendChild(box); }
+    window.addEventListener('hashchange', qtsClose, { once: true });
+    qtsRender();
+  }
+  function qtsClose() { QTS = null; const b = document.getElementById('qtBox'); if (b) b.remove(); }
+  function qtsRender() {
+    const box = document.getElementById('qtBox');
+    if (!box || !QTS) return;
+    const sets = Array.isArray(OPTSETS) ? OPTSETS : [], set = QTS.src && sets.find((x) => x.setId === QTS.src);
+    const opts = QTS.type !== 'mc' ? '' : `<div class="qt-l">選項</div>
+      <select id="qtSrc" onchange="CQTPL.src(this.value)"><option value="">自己寫選項</option>${sets.map((x) => `<option value="${esc(x.setId)}" ${x.setId === QTS.src ? 'selected' : ''}>選項範本：${esc((x.name || {}).zh || x.setId)}</option>`).join('')}</select>
+      ${set ? `<ol class="qt-ol">${set.options.map((o) => `<li>${esc((o.text || {}).zh)} <span class="soft">/ ${esc((o.text || {}).en)}</span></li>`).join('')}</ol><div class="qt-h">選項範本之後改了，這個題目範本會跟著變。</div>`
+        : QTS.opts.map((o, k) => `<div class="qt-row"><b>${LETTERS[k]}</b><input data-k="${k}" data-l="zh" value="${esc(o.zh)}" placeholder="中文"><input data-k="${k}" data-l="en" value="${esc(o.en)}" placeholder="English"></div>`).join('')}`;
+    box.innerHTML = `<div class="txr-bg" onclick="if(event.target===this)CQTPL.close()"><div class="txr qt" role="dialog" aria-label="存成題目範本">
+      <div class="txr-h"><div><div class="txr-crumb">${QTS.type === 'mc' ? '選擇題' : '簡答題'}</div><div class="txr-t">存成題目範本</div></div><span class="txr-note">範本只存題目和選項，不含正解、詳解</span>
+        <button type="button" class="txr-x" onclick="CQTPL.close()" aria-label="關閉">×</button></div>
+      <div class="qt-body"><div class="qt-l">題目</div>
+        <div class="qt-row"><input id="qtZh" value="${esc(QTS.zh)}" placeholder="中文"><input id="qtEn" value="${esc(QTS.en)}" placeholder="English"></div>
+        ${QTS.en ? '<div class="qt-h">英文先帶入這題目前的英文（英文對照有人工修改的用人工修改），請確認。</div>' : ''}
+        ${opts}</div>
+      <div class="txr-f"><span>存好後，這題會變成「套用自題目範本」；其他案件可以在選擇題／簡答題的「套用題目範本…」直接用。</span>
+        <button type="button" class="txr-b" onclick="CQTPL.close()">取消</button><button type="button" class="txr-b pri" onclick="CQTPL.save()" ${QTS.busy ? 'disabled' : ''}>存成範本</button></div></div></div>`;
+    box.querySelectorAll('[data-k]').forEach((el) => el.addEventListener('input', () => { QTS.opts[+el.dataset.k][el.dataset.l] = el.value; }));
+    ['qtZh', 'qtEn'].forEach((id) => document.getElementById(id).addEventListener('input', (e) => { QTS[id === 'qtZh' ? 'zh' : 'en'] = e.target.value; }));
+  }
+  async function qtsSave() {
+    if (!QTS || QTS.busy) return;
+    const zh = QTS.zh.trim(), en = QTS.en.trim();
+    if (!zh || !en) return X.toast('題目要有中文和英文');
+    if (QTS.type === 'mc' && !QTS.src && QTS.opts.some((o) => !o.zh.trim() || !o.en.trim())) return X.toast('每個選項都要有中文和英文');
+    QTS.busy = true; qtsRender();
+    try {
+      const r = await X.api('tw_saveQTemplate', { type: QTS.type, q: { zh, en }, optSet: QTS.src, options: QTS.opts.map((o) => ({ text: { zh: o.zh.trim(), en: o.en.trim() } })) });
+      const md = C.modules[QTS.i], tp = r.template, old = md.options ? md.options.slice() : [];
+      md.q = tp.q.zh; md.qEn = tp.q.en; md.qTpl = tp.tplId;
+      if (md.type === 'mc') {
+        const key = mcKey(md).map((k) => old[k]);                       // 正解跟著選項文字走（存成範本時選項通常沒變）
+        md.options = tp.options.map((o) => (o.text || {}).zh || ''); md.optionsEn = tp.options.map((o) => (o.text || {}).en || ''); md.optSet = tp.optSet || '';
+        setKey(md, md.options.map((o, k) => (key.includes(o) ? k : -1)).filter((k) => k >= 0));
+      }
+      if (Array.isArray(QTPLS)) QTPLS = QTPLS.filter((x) => x.tplId !== tp.tplId).concat(tp);
+      qtsClose(); saveCase(); renderSide();
+      X.toast(`已存成題目範本 ${tp.tplId}`);
+    } catch (e) { if (QTS) { QTS.busy = false; qtsRender(); } X.toast(e.message, 6000); }
+  }
+  window.CQTPL = { close: qtsClose, save: qtsSave, src: (v) => { QTS.src = v; qtsRender(); } };
 
   // ───────── 配分：題目佔本案件的百分比（加起來 100）；案件在試卷佔幾分由組卷時設定 ─────────
   const isQ = (m) => m.type === 'mc' || m.type === 'short' || m.type === 'sop';
@@ -1435,7 +1529,8 @@
     C.modules.push(md); saveCase(); renderSide();
     const pane = document.getElementById('cqQuizPane'); pane.scrollTop = pane.scrollHeight;
   }
-  function setMod(i, k, v) { C.modules[i][k] = v; saveCase(); if (k === 'answer' || k === 'bindTo' || k === 'q' || k === 'points') renderSide(); }
+  // 題目改了文字：題目範本的英文就不算數了（改走翻譯）
+  function setMod(i, k, v) { C.modules[i][k] = v; if (k === 'q' && C.modules[i].qEn) { delete C.modules[i].qEn; delete C.modules[i].qTpl; renderSide(); } saveCase(); if (k === 'answer' || k === 'bindTo' || k === 'q' || k === 'points') renderSide(); }
   function moveMod(i, d) {
     const j = i + d;
     if (j < 0 || j >= C.modules.length) return;
@@ -2647,7 +2742,7 @@
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
-    pickMc, togAns, applySet, undo, redo, moreToggle, copyRid, setToggle, alertOpen, alertStep, alertClose, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
+    pickMc, togAns, applySet, applyQTpl, saveQTpl: qtsOpen, undo, redo, moreToggle, copyRid, setToggle, alertOpen, alertStep, alertClose, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
     addMod, moveMod, delMod, setMod, cycleTag, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };

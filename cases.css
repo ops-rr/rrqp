@@ -579,3 +579,16 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .txr-f{display:flex;align-items:center;gap:12px;padding:12px 20px;background:#fafafc;border-top:1px solid #e8e8ee;border-radius:0 0 12px 12px;font-size:12px;color:#666}
 .txr-f span{flex:1}
 @media (max-width:760px){.txr-row{grid-template-columns:1fr}.txr-head{display:none}}
+/* 題目範本（2026-11-24） */
+.cq .qt-bar{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-bottom:6px}
+.cq .qt-bar select{width:auto;max-width:60%}
+.txr.qt{width:min(760px,100%)}
+.qt-body{padding:4px 20px 16px;overflow:auto}
+.qt-l{font-size:12px;color:#8a8f99;margin:12px 0 6px}
+.qt-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.qt-row b{width:16px;color:#555}
+.qt-row input{flex:1;min-width:0;height:34px;border:1px solid #d0d0d8;border-radius:6px;padding:0 10px;font:inherit}
+.qt-body select{height:34px;border:1px solid #d0d0d8;border-radius:6px;padding:0 8px;font:inherit;margin-bottom:6px}
+.qt-ol{margin:4px 0 6px;padding-left:22px;font-size:13px;line-height:1.7}
+.qt-ol .soft{color:#8a8f99}
+.qt-h{font-size:12px;color:#8a8f99;margin-top:2px}

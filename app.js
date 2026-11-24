@@ -2970,8 +2970,8 @@
   async function viewSettings() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     if (['roles', 'system'].includes(params.get('tab'))) { location.replace(me.isAdmin ? '#/admin?tab=' + params.get('tab') : '#/settings'); return; }
-    const TABS = ['topic', 'tags', 'options', 'dms'];
-    const NAMES = { topic: 'setTopic', tags: 'setTags', options: 'setOptions', dms: 'setDms' };
+    const TABS = ['topic', 'tags', 'options', 'qtpl', 'dms'];
+    const NAMES = { topic: 'setTopic', tags: 'setTags', options: 'setOptions', qtpl: 'setQtpl', dms: 'setDms' };
     const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'topic';
     shell('settings', `<div class="row"><h1>${esc(t('settings'))}</h1></div><div id="sb"><div class="empty-state"><span class="spin"></span></div></div>`);
     let st;
@@ -2983,6 +2983,7 @@
       if (tab === 'topic') await setTopicTab(box);
       else if (tab === 'tags') await setTagsTab(box);
       else if (tab === 'options') await setOptionsTab(box);
+      else if (tab === 'qtpl') await setQtplTab(box);
       else await setDmsTab(box);
     } catch (e) { showError(e, box); }
   }
@@ -3227,6 +3228,73 @@
       };
     } });
   }
+
+  // ───────── 題目範本（2026-11-24 Chris）：DMS 考題的選擇題、簡答題可以直接套用；選項可以選一組選項範本（積木）或自己寫 ─────────
+  async function setQtplTab(box) {
+    const [meta, r] = await Promise.all([api('t_topics'), api('c_qTemplates')]);
+    const sets = meta.optionSets, list = r.templates;
+    const card = (x) => `<div class="card pad" style="display:flex;flex-direction:column;gap:6px">
+        <div class="row" style="align-items:flex-start"><span class="chip">${esc(t(x.type === 'short' ? 'qtShort' : 'qtMc'))}</span><span class="small soft mono">${esc(x.tplId)}</span><span class="spacer"></span><button class="btn sm" data-qt="${esc(x.tplId)}">${esc(t('editBtn'))}</button></div>
+        <b>${esc(x.q.zh)}</b><div class="small muted">${esc(x.q.en)}</div>
+        ${x.type === 'mc' ? `${x.optSet ? `<div class="small"><span class="chip info">${esc(x.setMissing ? t('qtSetMissing') : t('qtFromSet', { n: L(x.setName) }))}</span></div>` : ''}
+          <ol class="small" style="margin:0;padding-left:20px">${x.options.map((o) => `<li>${esc((o.text || {}).zh)} <span class="muted">/ ${esc((o.text || {}).en)}</span></li>`).join('')}</ol>` : ''}</div>`;
+    box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="small muted">${esc(t('qtHint'))}</span><span class="spacer"></span><button class="btn" id="qt_new">＋ ${esc(t('qtAdd'))}</button></div>
+      ${list.length ? ['mc', 'short'].map((k) => { const xs = list.filter((x) => x.type === k); return xs.length ? `<h3 style="margin:14px 0 8px">${esc(t(k === 'short' ? 'qtShort' : 'qtMc'))}（${xs.length}）</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${xs.map(card).join('')}</div>` : ''; }).join('') : `<div class="card empty-state">${esc(t('qtNone'))}</div>`}`;
+    const open = (x) => qTplDialog(x, sets).then((v) => { if (v) viewSettings(); });
+    $('#qt_new').onclick = () => open(null);
+    $$('[data-qt]', box).forEach((b) => b.addEventListener('click', () => open(list.find((x) => x.tplId === b.dataset.qt))));
+  }
+  function qTplDialog(tp, sets) {
+    const st = { type: tp ? tp.type : 'mc', src: tp ? tp.optSet : '', opts: tp && !tp.optSet ? clone(tp.options) : [{ text: { zh: '', en: '' } }, { text: { zh: '', en: '' } }] };
+    const inStyle = 'flex:1;min-width:120px;height:36px;border:1px solid var(--line2);border-radius:8px;padding:0 10px';
+    const qStyle = 'width:100%;height:36px;border:1px solid var(--line2);border-radius:8px;padding:0 10px';     // 直排的輸入框不能用 flex:1（會被壓扁）
+    return modal(`<h2>${esc(t(tp ? 'qtEdit' : 'qtAdd'))}</h2>
+      <div class="form" style="margin-top:12px">
+        <label class="k">${esc(t('qtType'))}</label><select id="qt_type" ${tp ? 'disabled' : ''}><option value="mc">${esc(t('qtMc'))}</option><option value="short" ${st.type === 'short' ? 'selected' : ''}>${esc(t('qtShort'))}</option></select>
+        <label class="k">${esc(t('qtQ'))}</label><div style="display:flex;flex-direction:column;gap:6px"><input id="qt_zh" placeholder="${esc(t('zhL'))}" value="${esc(tp ? tp.q.zh : '')}" style="${qStyle}"><input id="qt_en" placeholder="${esc(t('enL'))}" value="${esc(tp ? tp.q.en : '')}" style="${qStyle}"></div>
+      </div>
+      <div id="qt_opts" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:16px">${tp ? `<button class="btn danger" id="qt_del" type="button">${esc(t('qtDel'))}</button>` : ''}<span class="spacer"></span><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="qt_ok" type="button">${esc(t('save'))}</button></div>`,
+    { wide: true, onMount: (el, close) => {
+      const draw = () => {
+        const box = $('#qt_opts', el);
+        if (st.type !== 'mc') { box.innerHTML = `<div class="small muted">${esc(t('qtShortNote'))}</div>`; return; }
+        const set = st.src && sets.find((x) => x.setId === st.src);
+        box.innerHTML = `<b class="small">${esc(t('qtSrc'))}</b> <select id="qt_src" style="margin-left:8px;height:36px;border:1px solid var(--line2);border-radius:8px;padding:0 8px"><option value="">${esc(t('qtOwn'))}</option>${sets.map((x) => `<option value="${esc(x.setId)}" ${x.setId === st.src ? 'selected' : ''}>${esc(t('qtFromSet', { n: L(x.name) }))}</option>`).join('')}</select>
+          ${set ? `<ol class="small" style="margin:8px 0 0;padding-left:20px">${set.options.map((o) => `<li>${esc(o.text.zh)} <span class="muted">/ ${esc(o.text.en)}</span></li>`).join('')}</ol><div class="small muted" style="margin-top:6px">${esc(t('qtSetNote'))}</div>`
+            : `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${st.opts.map((o, i) => `<div class="row" style="gap:6px"><b class="mono" style="width:18px">${String.fromCharCode(65 + i)}.</b><input data-i="${i}" data-l="zh" value="${esc(o.text.zh)}" placeholder="${esc(t('zhL'))}" style="${inStyle}"><input data-i="${i}" data-l="en" value="${esc(o.text.en)}" placeholder="${esc(t('enL'))}" style="${inStyle}">${st.opts.length > 2 ? `<button class="btn sm ghost" data-rm="${i}" type="button" aria-label="remove">✕</button>` : ''}</div>`).join('')}</div>
+              ${st.opts.length < 10 ? `<button class="btn sm" id="qt_add" type="button" style="margin-top:8px">${esc(t('optAddRow'))}</button>` : ''}`}`;
+        $('#qt_src', el).onchange = (e) => { st.src = e.target.value; draw(); };
+        $$('[data-i]', el).forEach((inp) => inp.addEventListener('input', () => { st.opts[+inp.dataset.i].text[inp.dataset.l] = inp.value; }));
+        $$('[data-rm]', el).forEach((b) => b.addEventListener('click', () => { st.opts.splice(+b.dataset.rm, 1); draw(); }));
+        const add = $('#qt_add', el); if (add) add.onclick = () => { st.opts.push({ text: { zh: '', en: '' } }); draw(); };
+      };
+      draw();
+      $('#qt_type', el).onchange = (e) => { st.type = e.target.value; draw(); };
+      $('#qt_ok', el).onclick = async () => {
+        try {
+          const r = await api('tw_saveQTemplate', { tplId: tp ? tp.tplId : '', type: st.type, q: { zh: $('#qt_zh', el).value.trim(), en: $('#qt_en', el).value.trim() }, optSet: st.src, options: st.opts });
+          toast(t('qtSaved', { id: r.tplId })); close(r);
+        } catch (e) { toast(e.message, 4500); }
+      };
+      const del = $('#qt_del', el);
+      if (del) del.onclick = async () => {
+        if (!(await confirmBox(t('qtDelConfirm', { n: tp.q.zh }), t('qtDel'), t('cancel'), true))) return;
+        try { await api('tw_deleteQTemplate', { tplId: tp.tplId }); toast(t('qtDeleted')); close({ deleted: true }); } catch (e) { toast(e.message, 4500); }
+      };
+    } });
+  }
+  Object.assign(I18N.zh, { setQtpl: '題目範本', qtAdd: '新增題目範本', qtEdit: '編輯題目範本', qtType: '題型', qtMc: '選擇題', qtShort: '簡答題', qtQ: '題目', qtSrc: '選項',
+    qtOwn: '自己寫選項', qtFromSet: '選項範本：{n}', qtSetMissing: '選項範本已刪除', qtSetNote: '選項範本之後改了，這個題目範本會跟著變；已經套用到案件的題目不會變。',
+    qtShortNote: '簡答題範本只有題目；標準答案在案件裡依案件填寫。', qtDel: '刪除範本', qtDelConfirm: '刪除題目範本「{n}」？已經套用到案件的題目不受影響。',
+    qtSaved: '已儲存題目範本 {id}', qtDeleted: '已刪除題目範本', qtNone: '還沒有題目範本。可以在這裡新增，或在 DMS 考題的選擇題、簡答題按「存成題目範本」。',
+    qtHint: 'DMS 考題的選擇題、簡答題可以「套用題目範本」：題目、選項的英文直接用範本的，不經過翻譯；範本不含正解與詳解。' });
+  Object.assign(I18N.en, { setQtpl: 'Question templates', qtAdd: 'Add question template', qtEdit: 'Edit question template', qtType: 'Type', qtMc: 'Multiple choice', qtShort: 'Short answer', qtQ: 'Question', qtSrc: 'Options',
+    qtOwn: 'Write my own options', qtFromSet: 'Option set: {n}', qtSetMissing: 'Option set deleted', qtSetNote: 'If the option set changes later, this template follows it; questions already applied to cases do not change.',
+    qtShortNote: 'A short-answer template has the question only; the model answer is set in each case.', qtDel: 'Delete template', qtDelConfirm: 'Delete question template "{n}"? Questions already applied to cases are not affected.',
+    qtSaved: 'Saved question template {id}', qtDeleted: 'Question template deleted', qtNone: 'No question templates yet. Add one here, or press "Save as question template" on a DMS case question.',
+    qtHint: 'DMS case questions can use a question template: the English comes from the template, no machine translation. Templates have no answer key or explanation.' });
 
   async function setDmsTab(box) {
     const { dms } = await api('tw_getDms');
