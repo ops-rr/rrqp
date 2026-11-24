@@ -40,7 +40,9 @@
   function src(path) { return /^(data|blob):/.test(String(path)) ? esc(path) : esc(encodeURI(path)); }
   // 2026-11-23 Chris：已上架的案件不能直接改，要先「下架修改」
   const canMod = () => !!(CUR && CUR.canEdit && CUR.status !== 'approved');
-  const isEdit = () => mode === 'edit' && canMod();
+  // 已上架：講師可以看「答案與詳解」（編輯畫面但全部唯讀，2026-11-24）；要改還是要先下架
+  const isView = () => !EX && mode === 'edit' && !!CUR && CUR.status === 'approved';
+  const isEdit = () => mode === 'edit' && (canMod() || isView());
   const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString('sv-SE').slice(0, 16) : '-');
 
   // 黏在上方的高度：V2 頂部列＋案件工具列（左側導覽、右側面板從這裡開始）
@@ -243,7 +245,7 @@
     A = newAnswer();
     mode = canMod() ? 'edit' : 'agent';
     HIST = { undo: [], redo: [], last: histSnap() };
-    SET_OPEN = null; ALERT_OPEN = ''; MORE_OPEN = false;
+    SET_OPEN = null; ALERT_OPEN = ''; MORE_OPEN = false; mode = 'edit';
     sideTab = 'quiz'; sideDrawn = ''; dirty = false; saving = false; saveErr = '';
     PII_SEEN = new Set(); PII_I = -1; LEAK_I = -1; MS_OPEN = ''; OPEN.imp = false; ACTIVE_SOP = ''; ACT_HINT = ''; ACT_MODAL = null;
     main.classList.add('cq-full');
@@ -276,6 +278,7 @@
       const root = $('#cq');
       if (!root) return;
       root.classList.toggle('edit', isEdit());
+      root.classList.toggle('view', isView());
       renderBar();
       renderSettings();
       renderViews();
@@ -284,6 +287,7 @@
       renderSide();
       renderWatermark();
       layout();
+      if (isView()) { lockView(root); lockObs.observe(root, { childList: true, subtree: true }); }
       markNav();
     } catch (e) {
       console.error(e);
@@ -320,7 +324,7 @@
       <div class="cqh-row">${title}<span class="chipc ${st ? 'ok' : ''}">${STATUS[CUR.status] || esc(CUR.status)}</span>${txChip()}${canMod() ? sv : ''}
         <span style="flex:1"></span>
         ${canMod() ? `<button class="cqh-ib" onclick="CQ.undo()" ${HIST.undo.length ? '' : 'disabled'} title="復原（Ctrl+Z）" aria-label="復原">${ICON_UNDO}</button><button class="cqh-ib" onclick="CQ.redo()" ${HIST.redo.length ? '' : 'disabled'} title="重做（Ctrl+Y）" aria-label="重做">${ICON_REDO}</button>
-          <span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">編輯</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
+` : ''}${canMod() || (st && CUR.canView !== false) ? `<span class="seg"><button class="${isEdit() ? 'on' : ''}" onclick="CQ.setMode('edit')">${st ? '答案與詳解' : '編輯'}</button><button class="${!isEdit() ? 'on' : ''}" onclick="CQ.setMode('agent')">專員預覽</button></span>` : ''}
         ${CUR.canEdit ? (st ? '<button class="cbtn ok" onclick="CQ.unapprove()" title="從可用題庫拿掉，改完再上架；已發佈的測驗不受影響">下架修改</button>' : '<button class="cbtn ok" onclick="CQ.approve()">上架到題庫</button>') : ''}
         ${menu ? `<span class="cqh-more"><button class="cbtn" onclick="event.stopPropagation();CQ.moreToggle()" aria-label="更多動作" title="更多動作">⋯</button>${MORE_OPEN ? `<div class="cqh-menu" onclick="event.stopPropagation()">${menu}</div>` : ''}</span>` : ''}</div>`;
   }
@@ -346,7 +350,7 @@
   const undo = () => histGo(HIST.undo, HIST.redo), redo = () => histGo(HIST.redo, HIST.undo);
   // Ctrl+Z／Ctrl+Y（Ctrl+Shift+Z）：游標在輸入框裡時交給瀏覽器（輸入框自己的復原）
   document.addEventListener('keydown', (e) => {
-    if (!(e.ctrlKey || e.metaKey) || !CUR || EX || !isEdit() || !$('#cqBar')) return;
+    if (!(e.ctrlKey || e.metaKey) || !CUR || EX || !isEdit() || isView() || !$('#cqBar')) return;
     const t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
     const k = e.key.toLowerCase();
     if (typing || !(k === 'z' || k === 'y')) return;
@@ -410,7 +414,7 @@
     const sum = `<div class="cqs-sum"><span class="k">設定</span><span>${m.usage === 'exam' ? '考試用' : '練習用'}・${m.twOnly === false ? 'TW＋BPO' : 'TW'}・${mask.length ? '遮蔽' + mask.join('、') : '不遮蔽'}</span>
         <span class="k">｜分類</span><span>${cls.length ? esc(cls.join(' › ')) : '<span class="bad">還沒選組別、主題</span>'}</span>
         <a class="cqs-link" onclick="CQ.setToggle()">${SET_OPEN ? '收起設定 ▴' : '編輯設定 ▾'}</a>
-        <span style="flex:1"></span><span id="cqAl" class="cqa">${alertBoxes()}</span></div>`;
+        <span style="flex:1"></span>${isView() ? '<span class="small soft">已上架，只能查看；要修改請先「下架修改」</span>' : `<span id="cqAl" class="cqa">${alertBoxes()}</span>`}</div>`;
     if (!SET_OPEN) { box.innerHTML = sum + alertPop(); layout(); return; }
     box.innerHTML = sum + alertPop() + `<div class="cond">
         <div class="r1">
@@ -600,7 +604,7 @@
     try {
       const r = await X.api('c_approve', { caseId: CUR.caseId, rev: CUR.rev });
       CUR.status = r.status; CUR.tx.state = r.txState || '';
-      mode = 'agent';
+      mode = 'edit';
       X.toast(r.txState === 'queued' ? '已上架，有新的中文要翻成英文（排程翻好後 BPO 專員才能用）' : '已上架', 5000); renderAll();
     } catch (e) { X.toast(e.message, 6000); }
   }
@@ -932,7 +936,7 @@
   // ===== 講師編輯：DMS 欄位 =====
   function onFocusOut(e) {
     const el = e.target;
-    if (!el.dataset || !el.dataset.set) return;
+    if (!el.dataset || !el.dataset.set || isView()) return;
     const d = el.dataset, v = el.innerText.trim();
     const b = d.b != null ? C.blocks[+d.b] : null;
     if (d.set === 'field') b.fields[+d.f].v = v;
@@ -1594,44 +1598,44 @@
   // Potential Fraud 的原因（2026-11-24 Chris 提供）：勾 Buyer 出現 Buyer Reason、勾 Seller 出現 Seller Reason，各自一個選單
   //   存 id（之後補英文翻譯不影響已存的答案）；en 還沒給的先用 zh
   const FRAUD_REASON = {
-    buyer: [
-      ['b1', '(Reg) Provided fake/tampered evidence 影片、照片證據造假'],
-      ['b2', '(Reg) Returned empty/ fraudulent parcel 買家退回空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯)'],
-      ['b3', '(Local)有使用行為導致毀損(商品損毀)'],
-      ['b4', '(Local)賠償金額大於300 之換貨/補寄/補運費/補折扣碼/雙方已有協議金額'],
-      ['b5', '(Reg) Provided irrelevant evidence 申退提交空白/模糊/不相關證據'],
-      ['b6', '(Local)買家未妥善包裝導致商品毀損(物流毀損/外盒使用/包裝不完整/包裝退回錯誤)'],
-      ['b7', '(Local)例外商品/個人衛生用品拆封/虛擬點數已儲值使用'],
-      ['b8', '(Local)退回商品缺件'],
-      ['b9', '(Local)SPX智取店買家惡意未寄回'],
-      ['b10', '(Local)買家寄回非賣場商品(無涉及詐欺)'],
-      ['b11', '(Local)買家蓄意將商品留於店到店/智取櫃中 / 買家智取店誤取聯繫後逾期未歸還'],
+    buyer: [      // 順序照 2026-11-24 Chris 給的表（1、2.1、2.2、2.3、3…9）；id 對應原本的意思，不要改
+      ['b1', '影片、照片證據造假'],
+      ['b3', '有使用行為導致毀損(商品損毀)'],
+      ['b6', '買家未妥善包裝導致商品毀損(物流毀損/外盒使用/包裝不完整/包裝退回錯誤)'],
+      ['b7', '例外商品/個人衛生用品拆封/虛擬點數已儲值使用'],
+      ['b5', '申退提交空白/模糊/不相關證據'],
+      ['b2', '買家退回空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯)'],
+      ['b4', '賠償金額大於300 之換貨/補寄/補運費/補折扣碼/雙方已有協議金額'],
+      ['b8', '退回商品缺件'],
+      ['b9', 'SPX智取店買家惡意未寄回'],
+      ['b10', '買家寄回非賣場商品(無涉及詐欺)'],
+      ['b11', '買家蓄意將商品留於店到店/智取櫃中；買家智取店誤取聯繫後逾期未歸還'],
     ],
     seller: [
-      ['s1', '(Reg) Provided fake/tampered evidence 影片、照片證據造假'],
-      ['s2', '(Reg) Sent empty/fraudulent parcel 賣家寄出空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯/貼錯標)'],
-      ['s3', '(Reg) Seller cheats buyer by intentionally giving wrong instruction 引導買家不正確的退貨方式 引導買家不正確的退貨方式'],
-      ['s4', '(Local) Service Recovry Seller 個案服務補償的賣家'],
-      ['s5', '(Local)規避延遲出貨的賣家 (賣家未準時出貨，先用其他通知或贈品代替出貨)'],
+      ['s1', '影片、照片證據造假'],
+      ['s2', '惡意寄出空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯/貼錯標)'],
+      ['s3', '引導買家不正確的退貨方式'],
+      ['s4', '個案服務補償的賣家'],
+      ['s5', '規避延遲出貨的賣家 (賣家未準時出貨，先用其他通知或贈品代替出貨)'],
     ],
   };
-  const FRAUD_EN = {        // id → 英文（2026-11-24 Chris 提供）
+  const FRAUD_EN = {        // id → 英文（2026-11-24 Chris 提供的完整翻譯）
     b1: '(Reg) Provided fake/tampered evidence: videos and photos are falsified.',
-    b2: '(Reg) Returned empty/fraudulent parcel. The buyer Returned an empty package/garbage/non-Shop item (涉及詐欺，非單純寄錯)',
     b3: '(Local) Damage caused by use (product damage)',
-    b4: '(Local) Compensation amount greater than 300 — exchange/reshipment/reimbursement of shipping fees/reimbursement of discount codes — amount already agreed upon by both parties.',
-    b5: '(Reg) Provided irrelevant evidence. The submitted refund application contains blank, blurry, or irrelevant evidence.',
-    b6: '(Local) Buyer failed to properly package the item, causing damage (shipping damage / outer box used / packaging incomplete / returned with incorrect packaging).',
-    b7: '(Local) Exception item / personal hygiene product unsealed / virtual points already credited and used',
+    b6: '(Local) Buyer did not properly package the item, resulting in damage (logistics damage / outer box used / packaging incomplete / packaging returned incorrectly)',
+    b7: '(Local) Exception items / personal hygiene products unsealed / virtual points already used',
+    b5: '(Reg) Provided irrelevant evidence. The refund application submitted blank, blurry, or irrelevant evidence.',
+    b2: '(Reg) Returned empty/fraudulent parcel. Buyer Returned an empty package/trash/non-marketplace item (fraud involved, not simply a wrong item shipped).',
+    b4: '(Local) Compensation amount greater than 300 — exchange/reshipment/reimbursement of shipping fees/reimbursement of discount codes — amount already agreed upon by both parties',
     b8: '(Local) Returned item missing parts',
     b9: '(Local) SPX Locker Store: Buyer maliciously failed to return the item.',
-    b10: '(Local) Buyer returned a non-Shop item (not related to fraud)',
-    b11: '(Local) The buyer intentionally left the item in a Shopee Xpress locker/locker store. After being contacted, the buyer failed to return it within the deadline.',
+    b10: '(Local) Buyer returned a non-marketplace item (not related to fraud)',
+    b11: '(Local) The buyer intentionally left the item in a SPX/Locker Store. After being contacted, the buyer failed to return it within the deadline.',
     s1: '(Reg) Provided fake/tampered evidence: videos and photos are falsified.',
-    s2: '(Reg) Sent empty/fraudulent parcel. Seller shipped an empty package/garbage/non-Shop item (涉及詐欺，非僅僅寄錯或貼錯標籤)',
+    s2: '(Reg) Sent empty/fraudulent parcel. Seller Sent an empty package/trash/non-marketplace item (involving fraud, not simply a wrong shipment / wrong label)',
     s3: '(Reg) Seller cheats buyer by intentionally giving wrong instructions, guiding the buyer to an incorrect return method.',
-    s4: '(Local) Service Recovry Seller — Seller responsible for case Service compensation',
-    s5: '(Local) Avoid sellers who delay shipping (seller did not ship on time; instead used other notifications or free gifts to substitute for the shipment)',
+    s4: '(Local) Service Recovery Seller: Seller Compensation for Individual Cases',
+    s5: '(Local) Avoid sellers who delay shipping (sellers who fail to ship on time instead ship with other notifications or free gifts)',
   };
   const fraudTxt = (id) => { const r = [...FRAUD_REASON.buyer, ...FRAUD_REASON.seller].find((x) => x[0] === id); return r ? U(r[1], FRAUD_EN[id] || r[1]) : ''; };
   const ACT_KINDS = { note: 'Note and Reminder', proofBuyer: 'Request Proof from Buyer', proofSeller: 'Request Proof from Seller', pending: 'Pending Reason', caseDone: 'Case Done', fraud: 'Potential Fraud' };
@@ -2521,6 +2525,32 @@
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
     addMod, moveMod, delMod, setMod, cycleTag, setOpt, addOpt, delOpt, delImg, pickImg, pasteImg,
   };
+
+  // 已上架的「答案與詳解」：只能看。會改內容的 CQ 動作一律擋下；畫面上這些按鈕藏起來、輸入框鎖住
+  const VIEW_OK = new Set(['txOrig', 'dtToggle', 'toggleCls', 'piiNext', 'leakNext', 'impToggle', 'sopToggle', 'sopCopy', 'sopSearch', 'view', 'setMode',
+    'unapprove', 'copy', 'del', 'jumpTo', 'toggleNav', 'tab', 'room', 'filter', 'openLightbox', 'closeLightbox', 'showTrack', 'moreToggle', 'copyRid',
+    'setToggle', 'alertOpen', 'alertStep', 'alertClose', 'exCase', 'saveNow', 'retry']);
+  Object.keys(window.CQ).forEach((k) => {
+    if (VIEW_OK.has(k) || typeof window.CQ[k] !== 'function') return;
+    const f = window.CQ[k];
+    window.CQ[k] = function (...a) {
+      if (isView()) { X.toast('已上架的考題只能查看；要修改請先按「下架修改」', 4000); renderAll(); return undefined; }
+      return f.apply(this, a);
+    };
+  });
+  function lockView(root) {
+    if (!root || !isView()) return;
+    $$('[onclick],[onchange],[oninput]', root).forEach((el) => {
+      const m = /CQ\.(\w+)/.exec(el.getAttribute('onclick') || el.getAttribute('onchange') || el.getAttribute('oninput') || '');
+      if (!m || VIEW_OK.has(m[1])) return;
+      if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) el.disabled = true;
+      else el.style.display = 'none';
+    });
+    $$('input,textarea,select', root).forEach((el) => { if (!el.closest('.cq-bar') && !el.closest('.sop-search')) el.readOnly = true; });
+    $$('[contenteditable]', root).forEach((el) => el.setAttribute('contenteditable', 'false'));
+  }
+  let lockTimer = 0;
+  const lockObs = new MutationObserver(() => { if (!isView() || lockTimer) return; lockTimer = requestAnimationFrame(() => { lockTimer = 0; lockView($('#cq')); }); });
 
   // ===== 入口（app.js 的 route 呼叫） =====
   function route(page, arg, ctx) {

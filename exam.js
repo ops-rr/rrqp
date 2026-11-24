@@ -290,7 +290,7 @@
               return `<div class="xq"><b>${qi + 1}. ${esc(m.q)}</b>（${m.points} 分）
                 ${m.type === 'sop' ? window.RRQP_CASES.sopReview(m.sop, (a.sop || {})[m.id], d.sops)
                   : `<div style="white-space:pre-wrap;background:var(--chip);border-radius:8px;padding:8px;margin:6px 0">${esc((a.short || {})[m.id] || '（沒作答）')}</div>`}
-                ${m.type === 'sop' ? '' : `<div class="small soft">標準答案：${esc(m.standard)}</div>`}
+                ${m.type === 'sop' ? '' : `<div class="small soft">標準答案</div><div class="xstd">${esc(m.standard || '（沒有填）')}</div>`}
                 ${canGrade ? `<div class="row" style="margin-top:6px">給分 <input class="sc" type="number" min="0" max="${m.points}" step="any" data-k="${i}:${esc(m.id)}" value="${v === null || v === undefined ? '' : v}" ${m.type === 'sop' ? sopPlaceholder(m, a) : ''}> / ${m.points}${m.type === 'sop' ? '<span class="small soft">（留空＝用自動判定）</span>' : ''}</div>`
                   : (v !== undefined && v !== null ? `<div class="small">得分 ${v} / ${m.points}</div>` : '')}
                 ${aiTip((r.ai || {})[i + ':' + m.id], m.points, canGrade)}</div>`;
@@ -428,7 +428,8 @@
     }
     function shortView(q) {
       const bound = q.m.bindTo && q.m.type !== 'sop' ? qOf(q.i, q.m.bindTo) : null;
-      return `<div class="small soft" style="margin:4px 0 10px">${q.m.type === 'sop' ? '標準答案：講師設定的 SOP 路線（比對之後會做）' : '標準答案：' + esc(q.m.standard || '（沒有填）')}${bound ? `　｜　說明案件${q.i + 1}-${bound.qi + 1} 的選擇（正解 ${LET[bound.m.answer]}）` : ''}</div>
+      // 標準答案保留講師填的換行（2026-11-24：原本擠成一段）；太長就在框裡捲動
+      return `<div class="small soft" style="margin:4px 0 ${q.m.type !== 'sop' && q.m.standard ? 0 : 10}px">${q.m.type === 'sop' ? '標準答案：講師設定的 SOP 路線（比對之後會做）' : `標準答案${q.m.standard ? '' : '：（沒有填）'}`}${bound ? `　｜　說明案件${q.i + 1}-${bound.qi + 1} 的選擇（正解 ${LET[bound.m.answer]}）` : ''}</div>${q.m.type !== 'sop' && q.m.standard ? `<div class="xstd">${esc(q.m.standard)}</div>` : ''}
         <div class="scroll-x"><table class="list xqt" style="table-layout:fixed;min-width:${bound ? 760 : 660}px"><colgroup><col style="width:20%">${bound ? '<col style="width:13%">' : ''}<col><col style="width:28%"><col style="width:${canGrade ? 120 : 80}px"></colgroup>
         <thead><tr><th>專員</th>${bound ? `<th>${q.i + 1}-${bound.qi + 1} 選了</th>` : ''}<th>答案</th><th>AI 建議</th><th>給分</th></tr></thead><tbody>
         ${done.map((r) => { const v = scoreOf(r, q.k); return `<tr class="xq"><td class="small" style="word-break:break-all">${esc(r.email)}</td>

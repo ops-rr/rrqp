@@ -537,3 +537,7 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cql-tb th.t,.cql-tb td.t{min-width:180px}
 .cql-tb td:not(.t){white-space:nowrap}
 .cql-tb td:nth-child(3){white-space:normal;min-width:120px}
+/* 批改頁的標準答案：保留講師填的換行，太長在框裡捲動（2026-11-24） */
+.xstd{white-space:pre-wrap;word-break:break-word;background:#f7f7f9;border:1px solid #ececf0;border-radius:8px;padding:8px 10px;margin:4px 0 10px;max-height:280px;overflow:auto;font-size:13px;line-height:1.6;color:#444}
+/* 已上架的「答案與詳解」：唯讀 */
+.cq.view [contenteditable]{cursor:text;outline:none}
