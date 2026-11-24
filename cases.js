@@ -1450,7 +1450,8 @@
       h += `<div class="sop-act">Pending Reason：<b>${esc(PENDING_BY[p.pending_by] || (p.pending_by ? 'Pending by ' + p.pending_by : '（沒有指定 Pending by）'))}</b>${p.remark ? `<div class="sop-rmk">Remark 範本：${esc(p.remark)}</div>` : ''}</div>`;
     });
     (node.note || []).forEach((p) => {
-      h += `<div class="sop-act">Note and Reminder：更新真實退貨原因${p.real_return_reason ? '（' + esc(p.real_return_reason) + '）' : ''}${String(p.remark || '').trim() ? `<div class="sop-rmk">Remark 範本：${esc(p.remark)}</div>` : ''}</div>`;
+      const rm = remindOf(p.remind_me);
+      h += `<div class="sop-act">Note and Reminder：更新真實退貨原因${p.real_return_reason ? '（' + esc(p.real_return_reason) + '）' : ''}${rm === null ? '' : `｜Remind me：${rm ? 'Yes' : 'No'}`}${String(p.remark || '').trim() ? `<div class="sop-rmk">Remark 範本：${esc(p.remark)}</div>` : ''}</div>`;
     });
     if (node.codes && node.codes.length) h += `<div class="sop-act">代碼：${node.codes.map(esc).join('、')}</div>`;
     return h;
@@ -1564,7 +1565,70 @@
   //     { seq, kind, fields, link:{n 節點, b 第幾顆按鈕, k 第幾步} 或 null（SOP 以外的操作）, at: 當時走到第幾步 }
   //   講師示範＝標準答案；專員作答、批改在第 2、3 步
   // ═════════════════════════════════════════════════════════════
-  const ACT_KINDS = { note: 'Note and Reminder', proofBuyer: 'Request Proof from Buyer', proofSeller: 'Request Proof from Seller', pending: 'Pending Reason', caseDone: 'Case Done' };
+  // Real Return Reason 下拉選單（2026-11-24 Chris 提供，DMS 的選項）：存英文
+  const RRR = [
+    ['包裹未送達／無法取件', 'Parcel not delivered'],
+    ['收到完全不同的商品', 'Seller sent wrong item (e.g wrong size, model)'],
+    ['其它(商品須以原包裝退還)', 'I want to return item in original/ sealed condition'],
+    ['商品缺件／賣家通知缺貨', 'Missing part of the order'],
+    ['實品與賣場描述／圖片有落差', 'Product does not meet expectations'],
+    ['商品有仿品疑慮', 'Counterfeit product'],
+    ['商品外表瑕疵／毀損', 'Damaged Item'],
+    ['商品功能有問題', 'Product is defective or does not work'],
+    ['只收到破壞袋、外箱', 'Empty parcel'],
+  ];
+  const rrrNorm = (v) => String(v == null ? '' : v).replace(/\s+/g, '').toLowerCase();
+  /** SOP 預設值（可能是中文、英文或「中文 / 英文」）對到選項；對不到就原樣 */
+  function rrrMatch(v) {
+    const s = rrrNorm(v);
+    if (!s) return '';
+    const r = RRR.find(([zh, en]) => [zh, en, zh + '/' + en].some((x) => rrrNorm(x) === s)) || RRR.find(([zh, en]) => s.includes(rrrNorm(en)) || s.includes(rrrNorm(zh)));
+    return r ? r[1] : String(v).trim();
+  }
+  // Potential Fraud 的原因（2026-11-24 Chris 提供）：勾 Buyer 出現 Buyer Reason、勾 Seller 出現 Seller Reason，各自一個選單
+  //   存 id（之後補英文翻譯不影響已存的答案）；en 還沒給的先用 zh
+  const FRAUD_REASON = {
+    buyer: [
+      ['b1', '(Reg) Provided fake/tampered evidence 影片、照片證據造假'],
+      ['b2', '(Reg) Returned empty/ fraudulent parcel 買家退回空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯)'],
+      ['b3', '(Local)有使用行為導致毀損(商品損毀)'],
+      ['b4', '(Local)賠償金額大於300 之換貨/補寄/補運費/補折扣碼/雙方已有協議金額'],
+      ['b5', '(Reg) Provided irrelevant evidence 申退提交空白/模糊/不相關證據'],
+      ['b6', '(Local)買家未妥善包裝導致商品毀損(物流毀損/外盒使用/包裝不完整/包裝退回錯誤)'],
+      ['b7', '(Local)例外商品/個人衛生用品拆封/虛擬點數已儲值使用'],
+      ['b8', '(Local)退回商品缺件'],
+      ['b9', '(Local)SPX智取店買家惡意未寄回'],
+      ['b10', '(Local)買家寄回非賣場商品(無涉及詐欺)'],
+      ['b11', '(Local)買家蓄意將商品留於店到店/智取櫃中 / 買家智取店誤取聯繫後逾期未歸還'],
+    ],
+    seller: [
+      ['s1', '(Reg) Provided fake/tampered evidence 影片、照片證據造假'],
+      ['s2', '(Reg) Sent empty/fraudulent parcel 賣家寄出空包/垃圾/非賣場商品(涉及詐欺，非單純寄錯/貼錯標)'],
+      ['s3', '(Reg) Seller cheats buyer by intentionally giving wrong instruction 引導買家不正確的退貨方式 引導買家不正確的退貨方式'],
+      ['s4', '(Local) Service Recovry Seller 個案服務補償的賣家'],
+      ['s5', '(Local)規避延遲出貨的賣家 (賣家未準時出貨，先用其他通知或贈品代替出貨)'],
+    ],
+  };
+  const FRAUD_EN = {        // id → 英文（2026-11-24 Chris 提供）
+    b1: '(Reg) Provided fake/tampered evidence: videos and photos are falsified.',
+    b2: '(Reg) Returned empty/fraudulent parcel. The buyer Returned an empty package/garbage/non-Shop item (涉及詐欺，非單純寄錯)',
+    b3: '(Local) Damage caused by use (product damage)',
+    b4: '(Local) Compensation amount greater than 300 — exchange/reshipment/reimbursement of shipping fees/reimbursement of discount codes — amount already agreed upon by both parties.',
+    b5: '(Reg) Provided irrelevant evidence. The submitted refund application contains blank, blurry, or irrelevant evidence.',
+    b6: '(Local) Buyer failed to properly package the item, causing damage (shipping damage / outer box used / packaging incomplete / returned with incorrect packaging).',
+    b7: '(Local) Exception item / personal hygiene product unsealed / virtual points already credited and used',
+    b8: '(Local) Returned item missing parts',
+    b9: '(Local) SPX Locker Store: Buyer maliciously failed to return the item.',
+    b10: '(Local) Buyer returned a non-Shop item (not related to fraud)',
+    b11: '(Local) The buyer intentionally left the item in a Shopee Xpress locker/locker store. After being contacted, the buyer failed to return it within the deadline.',
+    s1: '(Reg) Provided fake/tampered evidence: videos and photos are falsified.',
+    s2: '(Reg) Sent empty/fraudulent parcel. Seller shipped an empty package/garbage/non-Shop item (涉及詐欺，非僅僅寄錯或貼錯標籤)',
+    s3: '(Reg) Seller cheats buyer by intentionally giving wrong instructions, guiding the buyer to an incorrect return method.',
+    s4: '(Local) Service Recovry Seller — Seller responsible for case Service compensation',
+    s5: '(Local) Avoid sellers who delay shipping (seller did not ship on time; instead used other notifications or free gifts to substitute for the shipment)',
+  };
+  const fraudTxt = (id) => { const r = [...FRAUD_REASON.buyer, ...FRAUD_REASON.seller].find((x) => x[0] === id); return r ? U(r[1], FRAUD_EN[id] || r[1]) : ''; };
+  const ACT_KINDS = { note: 'Note and Reminder', proofBuyer: 'Request Proof from Buyer', proofSeller: 'Request Proof from Seller', pending: 'Pending Reason', caseDone: 'Case Done', fraud: 'Potential Fraud' };
   let ACTIVE_SOP = '';               // 最近操作的 SOP 題組（底部操作記到這一題）
   let ACT_HINT = '';                 // 底部要亮起提示的功能
   let ACT_MODAL = null;              // { kind, f: 欄位 }
@@ -1573,17 +1637,20 @@
     if (x.includes('pending')) return 'pending';
     if (x.includes('proof') && x.includes('buyer')) return 'proofBuyer';
     if (x.includes('proof') && x.includes('seller')) return 'proofSeller';
+    if (x.includes('fraud')) return 'fraud';
     if (x.includes('note')) return 'note';
     if (x.includes('judge')) return 'judge';
     if (x.includes('case done')) return 'caseDone';
     return 'note';                   // 其他按鈕（Remark…）一律比照 Note And Reminder（Chris 11-21）
   }
+  /** SOP 按鈕預設的 Remind me（true / 1 / 'yes'…）；沒設定＝null，畫面預設 No */
+  const remindOf = (v) => v === undefined || v === null || v === '' ? null : v === true || v === 1 || /^(1|true|yes|y)$/i.test(String(v).trim());
   /** 節點綁定的動作按鈕（SOP 資料裡的按鈕；按鈕文字決定是哪個功能，SOP 設定的類型有時候是錯的） */
   function sopButtons(node) {
     const raw = node.pending || node.note || node.buttons || [];
     const fin = node.type === 'judge' || node.type === 'end' || node.type === 'final';   // 判決節點的按鈕只顯示、不用點
     let out = raw.map((b) => ({ kind: fin ? 'judge' : btnKind(b.button_text), text: b.button_text || '',
-      bind: { pendingBy: b.pending_by || null, remark: String(b.remark || '').trim(), realReason: b.real_return_reason || '' } }));
+      bind: { pendingBy: b.pending_by || null, remark: String(b.remark || '').trim(), realReason: b.real_return_reason || '', remindMe: remindOf(b.remind_me) } }));
     if (!out.length && node.type === 'pending') out = [{ kind: 'pending', text: 'Pending Reason', bind: {} }];
     if (!out.length && node.type === 'note') out = [{ kind: 'note', text: 'Note And Reminder', bind: {} }];
     return out;
@@ -1612,13 +1679,14 @@
     if (a.kind === 'pending') return `Pending by：${PENDING_BY[f.pendingBy] || '-'}`;
     if (a.kind === 'proofBuyer' || a.kind === 'proofSeller') return `${U('模板', 'Template')}：${f.template || '-'}｜${f.deadline === 'flexible' ? 'Flexible' : 'Fixed'} ${f.days || 1} day｜${f.timeType === 'working' ? 'Working Days' : 'Calendar Days'}${f.excludeHolidays ? '（Exclude Holidays）' : ''}｜Email：${f.email ? 'Yes' : 'No'}`;
     if (a.kind === 'note') return `Real Return Reason：${f.realReason || '-'}｜Remind me：${f.remindMe ? 'Yes' : 'No'}`;
+    if (a.kind === 'fraud') return [f.buyer ? `Buyer Reason：${fraudTxt(f.buyerReason) || f.buyerReasonText || '-'}` : '', f.seller ? `Seller Reason：${fraudTxt(f.sellerReason) || f.sellerReasonText || '-'}` : ''].filter(Boolean).join('｜') || 'User Type：-';
     return '';
   }
   function actLine(md, a, i, no) {
     const f = a.fields || {};
     const items = (f.items || []).length ? `<div class="sop-rmk">${U('證據項目', 'Evidence items')}：${f.items.map((x, k) => `${k + 1}. ${esc(x.hint)}${x.req ? '' : '（Optional）'}`).join('　')}</div>` : '';
     const ck = f.checklist ? `<div class="sop-rmk">Checklist：${esc(f.checklist)}</div>` : '';
-    return `<div class="sop-act-line"><div class="sop-act-txt"><b>${no ? no + '. ' : ''}${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${ck}${items}${f.remark ? `<div class="sop-rmk">Remark：${esc(f.remark)}</div>` : ''}</div>
+    return `<div class="sop-act-line"><div class="sop-act-txt"><b>${no ? no + '. ' : ''}${esc(ACT_KINDS[a.kind] || a.kind)}</b> ${esc(actSummary(a))}${ck}${items}${f.remark ? `<div class="sop-rmk">${a.kind === 'fraud' ? 'Description' : 'Remark'}：${esc(f.remark)}</div>` : ''}</div>
       ${isEdit() ? `<button class="mbtn del" title="刪除這筆操作紀錄" onclick="CQ.actDel(${i},${a.seq})">✕</button>` : ''}</div>`;
   }
   function sopBtn(i, r) {
@@ -1654,7 +1722,7 @@
     if (!show) { ACT_MODAL = null; renderActModal(); return; }
     const soon = (t) => `<button class="actb soon" title="${U('第二期才做', 'Not available yet')}">${t}</button>`;
     const b = (k, t) => `<button class="actb ${ACT_HINT === k ? 'hint' : ''} ${ACT_MODAL && ACT_MODAL.kind === k ? 'on' : ''}" onclick="CQ.actOpen('${k}')">${t}</button>`;
-    bar.innerHTML = soon('More ⌄') + soon('Agreement') + b('caseDone', 'Case Done') + soon('Potential Fraud') + b('note', 'Note and Reminder')
+    bar.innerHTML = soon('More ⌄') + soon('Agreement') + b('caseDone', 'Case Done') + b('fraud', 'Potential Fraud') + b('note', 'Note and Reminder')
       + b('proofBuyer', 'Request Proof from Buyer') + b('proofSeller', 'Request Proof from Seller') + soon('Validate Proof ⌄') + b('pending', 'Pending Reason');
     renderActModal();
   }
@@ -1686,13 +1754,21 @@
   function actOpen(kind) {
     const md = actTarget();
     const link = md ? actLinkFor(md, kind) : null;
-    const bind = (link && link.bind) || {};     // SOP 有綁定的欄位先帶好（可以改）
+    // SOP 有綁定的欄位先帶好（可以改）：只有講師示範時帶；專員作答（測驗、講師預覽）不帶，要自己填（2026-11-24 Chris）
+    const bind = (isEdit() && !EX && link && link.bind) || {};
     const f = { pendingBy: bind.pendingBy || null, remark: bind.remark || '', template: '', deadline: 'fixed', days: 1, timeType: 'calendar', excludeHolidays: false, email: false,
-      realReason: bind.realReason || '', remindMe: false, checklist: '', items: [{ hint: '', req: true }] };
+      realReason: rrrMatch(bind.realReason), remindMe: bind.remindMe === true, buyer: false, seller: false, buyerReason: '', sellerReason: '', checklist: '', items: [{ hint: '', req: true }] };
     ACT_MODAL = { kind, f };
     renderActbar();
   }
   function actSet(k, v) { if (ACT_MODAL) ACT_MODAL.f[k] = v; }
+  /** Potential Fraud：改 User Type 要重畫（出現／收起對應的原因選單）；取消勾選就清掉那一類的原因 */
+  function fraudUser(k, v) {
+    if (!ACT_MODAL) return;
+    ACT_MODAL.f[k] = v;
+    if (!v) ACT_MODAL.f[k + 'Reason'] = '';
+    renderActModal();
+  }
   /** Evidence Module（要索取的證據項目）：改內容不重畫（輸入框才不會跳掉）；新增、刪除才重畫 */
   function actItem(k, key, v) { if (ACT_MODAL && ACT_MODAL.f.items[k]) ACT_MODAL.f.items[k][key] = v; }
   function actItemAdd() { if (!ACT_MODAL) return; if (ACT_MODAL.f.items.length >= 10) return X.toast('最多 10 個證據項目'); ACT_MODAL.f.items.push({ hint: '', req: true }); renderActModal(); }
@@ -1705,12 +1781,18 @@
     if (m.kind === 'pending' && !f.pendingBy) return X.toast(U('請選擇 Pending by', 'Please select Pending by'));
     if ((m.kind === 'proofBuyer' || m.kind === 'proofSeller') && !String(f.template).trim()) return X.toast(U('請填寫 Evidence checklist template（模板名稱）', 'Please fill in Evidence checklist template'));
     if ((m.kind === 'proofBuyer' || m.kind === 'proofSeller') && !f.items.some((x) => String(x.hint).trim())) return X.toast(U('請至少填一個 Evidence Module（要索取的證據項目）', 'Please fill in at least one Evidence Module'));
+    if (m.kind === 'fraud' && !f.buyer && !f.seller) return X.toast(U('請選擇 User Type', 'Please select User Type'));
+    if (m.kind === 'fraud' && f.buyer && !f.buyerReason) return X.toast(U('請選擇 Buyer Reason', 'Please select Buyer Reason'));
+    if (m.kind === 'fraud' && f.seller && !f.sellerReason) return X.toast(U('請選擇 Seller Reason', 'Please select Seller Reason'));
     if (m.kind === 'note' && !String(f.realReason).trim()) return X.toast(U('請填寫 Real Return Reason', 'Please fill in Real Return Reason'));
     const md = actTarget();
     if (!md) { ACT_MODAL = null; renderActbar(); return; }
     const link = actLinkFor(md, m.kind), st = sopState(md);
     const fields = m.kind === 'pending' ? { pendingBy: Number(f.pendingBy), remark: String(f.remark).trim() }
       : m.kind === 'note' ? { realReason: String(f.realReason).trim(), remindMe: !!f.remindMe, remark: String(f.remark).trim() }
+      : m.kind === 'fraud' ? Object.assign({ buyer: !!f.buyer, seller: !!f.seller, remark: String(f.remark).trim() },
+        f.buyer ? { buyerReason: f.buyerReason, buyerReasonText: (FRAUD_REASON.buyer.find((x) => x[0] === f.buyerReason) || [])[1] || '' } : {},
+        f.seller ? { sellerReason: f.sellerReason, sellerReasonText: (FRAUD_REASON.seller.find((x) => x[0] === f.sellerReason) || [])[1] || '' } : {})
       : m.kind === 'caseDone' ? {}
       : { template: String(f.template).trim(), deadline: f.deadline, days: Number(f.days) || 1, timeType: f.timeType, excludeHolidays: !!f.excludeHolidays, email: !!f.email, remark: String(f.remark).trim(),
         checklist: String(f.checklist).trim(), items: f.items.filter((x) => String(x.hint).trim()).map((x) => ({ hint: String(x.hint).trim(), req: !!x.req })) };
@@ -1745,8 +1827,18 @@
     let body;
     if (m.kind === 'pending') {
       body = `<div class="am-l"><i>*</i> Pending by</div><div class="am-grid">${Object.entries(PENDING_BY).map(([v, t]) => radio('pb', Number(v), Number(f.pendingBy), esc(t), 'pendingBy')).join('')}</div>` + remark(500);
+    } else if (m.kind === 'fraud') {
+      // DMS-SOP-UI-13：User Type（Buyer／Seller 複選）＋ Description（上限 1000 字）；Description 存在 remark
+      // 勾 Buyer 出現 Buyer Reason、勾 Seller 出現 Seller Reason（DMS 截圖 2026-11-24）
+      const ck = (k, label) => `<label class="am-r"><input type="checkbox" ${f[k] ? 'checked' : ''} onchange="CQ.fraudUser('${k}',this.checked)"> ${label}</label>`;
+      const sel = (k, label) => !f[k] ? '' : `<div class="am-l"><i>*</i> ${label}</div><select class="am-rrr" onchange="CQ.actSet('${k}Reason',this.value)"><option value="" ${f[k + 'Reason'] ? '' : 'selected'}>Please select</option>${
+        FRAUD_REASON[k].map(([id]) => `<option value="${id}" ${f[k + 'Reason'] === id ? 'selected' : ''}>${esc(fraudTxt(id))}</option>`).join('')}</select>`;
+      body = `<div class="am-l"><i>*</i> User Type</div><div class="am-row">${ck('buyer', 'Buyer')}${ck('seller', 'Seller')}</div>` + sel('buyer', 'Buyer Reason') + sel('seller', 'Seller Reason')
+        + remark(1000).replace('<div class="am-l">Remark</div>', '<div class="am-l">Description</div>');
     } else if (m.kind === 'note') {
-      body = `<div class="am-l"><i>*</i> Real Return Reason</div><input type="text" value="${esc(f.realReason)}" placeholder="${U('例如 I want to return item in original/ sealed condition', 'e.g. I want to return item in original/ sealed condition')}" oninput="CQ.actSet('realReason',this.value)">
+      body = `<div class="am-l"><i>*</i> Real Return Reason</div><select class="am-rrr" onchange="CQ.actSet('realReason',this.value)"><option value="" ${f.realReason ? '' : 'selected'}>Please select</option>${
+          RRR.map(([zh, en]) => `<option value="${esc(en)}" ${f.realReason === en ? 'selected' : ''}>${esc(zh + ' / ' + en)}</option>`).join('')}${
+          f.realReason && !RRR.some((r) => r[1] === f.realReason) ? `<option value="${esc(f.realReason)}" selected>${esc(f.realReason)}</option>` : ''}</select>
         <div class="am-l"><i>*</i> Remind me</div><div class="am-row">${radio('rm', true, f.remindMe, 'Yes', 'remindMe')}${radio('rm', false, f.remindMe, 'No', 'remindMe')}</div>` + remark(1000);
     } else {
       body = `<div class="am-l"><i>*</i> Evidence checklist template</div><input type="text" value="${esc(f.template)}" placeholder="${U('輸入模板名稱，例如 8.1_退貨_商品缺件_低風險賣家_出貨證明', 'Template name, e.g. 8.1_退貨_商品缺件_低風險賣家_出貨證明')}" oninput="CQ.actSet('template',this.value)">
@@ -2414,7 +2506,7 @@
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
     txOrig(a) { const src = a.previousElementSibling; src.hidden = !src.hidden; a.textContent = src.hidden ? 'Show Original' : 'Hide Original'; },
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,

@@ -531,3 +531,4 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .cqa-pop li.err{color:var(--bad)}
 .cq .cqa-nav{display:flex;gap:6px;align-items:center}
 .cq .cqa-nav .cbtn{height:28px;padding:0 10px;border:1px solid #d0d0d8;border-radius:6px;background:#fff;font-size:12px;cursor:pointer}
+.cq .am-b select.am-rrr{width:100%;margin-top:0}

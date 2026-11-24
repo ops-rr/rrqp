@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-23j';
+const VERSION = 'V2-2026-11-24g';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2603,12 +2603,18 @@ function sopGrade(keySop, ansSop) {
   const routeOk = diverge < 0;
   const norm = (v) => String(v == null ? '' : v).replace(/\s+/g, '').toLowerCase();
   const txt = (e, g) => (norm(e) === norm(g) ? true : null);           // 文字：一樣＝對，不一樣＝講師確認
+  // Real Return Reason 是下拉選單（2026-11-24）：兩邊都是選單的值就直接對錯；舊的自由填寫才請講師確認
+  const RRR_EN = ['Parcel not delivered', 'Seller sent wrong item (e.g wrong size, model)', 'I want to return item in original/ sealed condition', 'Missing part of the order',
+    'Product does not meet expectations', 'Counterfeit product', 'Damaged Item', 'Product is defective or does not work', 'Empty parcel'].map(norm);
+  const rrr = (e, g) => (RRR_EN.includes(norm(e)) && RRR_EN.includes(norm(g)) ? norm(e) === norm(g) : txt(e, g));
   const same = (e, g) => (e === g || (e == null && !g) || (!e && g == null));
   const fieldChecks = (kind, e, g) => {
     const f = [], add = (name, ok, ev, gv) => f.push({ name, ok, exp: ev, got: gv });
     e = e || {}; g = g || {};
+    if (kind === 'fraud') { const ut = (x) => [x.buyer ? 'Buyer' : '', x.seller ? 'Seller' : ''].filter(Boolean).join('、') || '-'; add('User Type', ut(e) === ut(g), ut(e), ut(g));
+      ['buyer', 'seller'].forEach((k) => { if (e[k] || g[k]) add(k === 'buyer' ? 'Buyer Reason' : 'Seller Reason', (e[k + 'Reason'] || '') === (g[k + 'Reason'] || ''), e[k + 'ReasonText'] || '-', g[k + 'ReasonText'] || '-'); }); }
     if (kind === 'pending') add('Pending by', Number(e.pendingBy) === Number(g.pendingBy), e.pendingBy, g.pendingBy);
-    if (kind === 'note') { add('Real Return Reason', txt(e.realReason, g.realReason), e.realReason, g.realReason); add('Remind me', same(!!e.remindMe, !!g.remindMe), !!e.remindMe, !!g.remindMe); }
+    if (kind === 'note') { add('Real Return Reason', rrr(e.realReason, g.realReason), e.realReason, g.realReason); add('Remind me', same(!!e.remindMe, !!g.remindMe), !!e.remindMe, !!g.remindMe); }
     if (kind === 'proofBuyer' || kind === 'proofSeller') {
       add('模板名稱', txt(e.template, g.template), e.template, g.template);
       const it = (x) => (x.items || []).map((y) => norm(y.hint) + (y.req ? '' : '(optional)')).sort().join('|');
@@ -2618,7 +2624,7 @@ function sopGrade(keySop, ansSop) {
       add('Email 通知', !!e.email === !!g.email, !!e.email, !!g.email);
       if (e.checklist || g.checklist) add('Checklist', txt(e.checklist, g.checklist), e.checklist, g.checklist);
     }
-    if (kind !== 'caseDone' && (e.remark || g.remark)) add('Remark', txt(e.remark, g.remark), e.remark, g.remark);
+    if (kind !== 'caseDone' && (e.remark || g.remark)) add(kind === 'fraud' ? 'Description' : 'Remark', txt(e.remark, g.remark), e.remark, g.remark);
     return f;
   };
   const byNode = (acts) => { const o = {}; (acts || []).filter((x) => x.link).sort((x, y) => x.seq - y.seq).forEach((x) => { (o[x.link.n] = o[x.link.n] || []).push(x); }); return o; };
@@ -2715,7 +2721,7 @@ const xAnswersIn = (v, n) => {
 /** SOP 路徑的作答（存成 JSON 字串，裡面有陣列）：
  *  route＝專員自己選的每一步 {n 節點, pick 選項, clicked 點過的按鈕, t 秒}（系統判讀節點不存，作答畫面自動帶過）
  *  acts＝底部操作列的操作 {seq, kind, fields, link:{n,b,k}|null, at 當時第幾步, t 秒}；cur＝目前節點已點過的按鈕 */
-const SOP_ACT_KINDS = ['note', 'proofBuyer', 'proofSeller', 'pending', 'caseDone'];
+const SOP_ACT_KINDS = ['note', 'proofBuyer', 'proofSeller', 'pending', 'caseDone', 'fraud'];
 function xSopAnsIn(x) {
   if (typeof x === 'string') { try { x = JSON.parse(x); } catch (_) { x = {}; } }
   x = x && typeof x === 'object' ? x : {};
@@ -2726,12 +2732,12 @@ function xSopAnsIn(x) {
     st && st.chg ? { chg: int(st.chg), hist: (Array.isArray(st.hist) ? st.hist : []).slice(-30).map((h) => [int(h && h[0]), int(h && h[1])]) } : {}));
   const acts = (Array.isArray(x.acts) ? x.acts : []).slice(0, 100).filter((ac) => ac && SOP_ACT_KINDS.includes(ac.kind)).map((ac) => {
     const f = ac.fields || {}, fields = {};
-    ['remark', 'template', 'realReason'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 1500); });
+    ['remark', 'template', 'realReason', 'buyerReasonText', 'sellerReasonText'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 1500); });
     if (f.checklist !== undefined) fields.checklist = str(f.checklist, 1000);
     if (Array.isArray(f.items)) fields.items = f.items.slice(0, 10).map((x) => ({ hint: str(x && x.hint, 500), req: !!(x && x.req) }));
-    ['deadline', 'timeType'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 20); });
+    ['deadline', 'timeType', 'buyerReason', 'sellerReason'].forEach((k) => { if (f[k] !== undefined) fields[k] = str(f[k], 20); });
     ['pendingBy', 'days'].forEach((k) => { if (f[k] !== undefined) fields[k] = Number(f[k]) || 0; });
-    ['excludeHolidays', 'email', 'remindMe'].forEach((k) => { if (f[k] !== undefined) fields[k] = !!f[k]; });
+    ['excludeHolidays', 'email', 'remindMe', 'buyer', 'seller'].forEach((k) => { if (f[k] !== undefined) fields[k] = !!f[k]; });
     const l = ac.link;
     return { seq: int(ac.seq), kind: ac.kind, fields, link: l && typeof l === 'object' ? { n: str(l.n, 60), b: int(l.b), k: int(l.k) } : null, at: int(ac.at), t: int(ac.t) };
   });
