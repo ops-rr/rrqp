@@ -2831,6 +2831,7 @@
     permPage: '頁面', permAction: '刪除項目', permAdminAlways: '管理員一律可以刪除', permTwOnly: '這個頁面只有 TW 講師能進', permSaved: '刪除權限已儲存',
     permHint: '勾選的身分會在該頁面看到刪除按鈕；沒勾的看不到，也無法透過其他方式刪除（由 Firebase 權限規則把關）。', permLast: '最後修改：{by}（{at}）',
     perm_bankQ: '刪除題庫題目', permd_bankQ: '已發佈的測驗保留試卷副本，成績不受影響；題目的統計會消失',
+    perm_case: '刪除 DMS 考題', permd_case: '未上架、已上架都適用；連同補充圖片與申請紀錄，同一個 Return ID 之後可以重新申請；已發佈的測驗保留試卷副本，成績不受影響', permPageCase: 'DMS 考題',
     perm_draft: '刪除草稿', permd_draft: '題庫與已發佈的測驗不受影響；未入庫的題目一併移除',
     perm_draftQ: '校對時刪除單題', permd_draftQ: '含「刪除並請 Agent 補一題」，屬於日常校對',
     perm_session: '刪除測驗', permd_session: '作答、分數、公布的成績一起刪除，專員的歷史成績也會消失；正式測驗請用「封存」',
@@ -2879,6 +2880,7 @@
     permPage: 'Page', permAction: 'Delete action', permAdminAlways: 'Admins can always delete', permTwOnly: 'Only TW trainers can open this page', permSaved: 'Delete permissions saved',
     permHint: 'Ticked roles see the delete button on that page; others do not, and cannot delete any other way (enforced by the Firebase rules).', permLast: 'Last changed by {by} ({at})',
     perm_bankQ: 'Delete bank questions', permd_bankQ: 'Published quizzes keep their own copy; the question stats are lost',
+    perm_case: 'Delete DMS questions', permd_case: 'Listed or not; also removes its images and request, so the Return ID can be requested again; published quizzes keep their own copy', permPageCase: 'DMS questions',
     perm_draft: 'Delete drafts', permd_draft: 'The bank and published quizzes are not affected; questions not in the bank are removed',
     perm_draftQ: 'Delete a question while reviewing', permd_draftQ: 'Including "delete and let the agent add one"; part of normal review',
     perm_session: 'Delete quizzes', permd_session: 'Attempts, scores and released results are deleted, including agents\' history; archive real quizzes instead',
@@ -3251,7 +3253,7 @@
   async function setPermsTab(box) {
     const r = await api('ad_getPerms');
     const perms = JSON.parse(JSON.stringify(r.perms));
-    const PAGE = { bankQ: 'navBank', draft: 'navDrafts', draftQ: 'navDrafts', session: 'navSessions', sample: 'navLibrary', request: 'navLibrary' };
+    const PAGE = { bankQ: 'navBank', case: 'permPageCase', draft: 'navDrafts', draftQ: 'navDrafts', session: 'navSessions', sample: 'navLibrary', request: 'navLibrary' };
     const ROLES = ['admin', 'tw', 'bpo'], RN = { admin: 'roleAdmin', tw: 'roleTw', bpo: 'roleBpo' };
     const cell = (k, role) => {
       if (role === 'admin') return `<input type="checkbox" checked disabled title="${esc(t('permAdminAlways'))}">`;

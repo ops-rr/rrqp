@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-23i';
+const VERSION = 'V2-2026-11-23j';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -133,12 +133,13 @@ const friendly = (e) => {
 // ───────── 刪除權限（管理員可在「管理 → 刪除權限」設定哪些身分看得到刪除按鈕；管理員一律可以）─────────
 const STUCK_MIN = 15;              // 「處理中」超過幾分鐘可以在網站上按重試
 const REQ_DELETABLE = ['queued', 'failed', 'cancelled', 'deleted'];
-const PERM_KEYS = ['bankQ', 'draft', 'draftQ', 'session', 'sample', 'request'];
-const PERM_TW_ONLY = ['sample', 'request'];            // 範例生成只有 TW 講師能進
-const DEFAULT_PERMS = { bankQ: [], draft: [], draftQ: ['tw', 'bpo'], session: [], sample: [], request: [] };
+// case＝DMS 考題（v3cases）：2026-11-23 以前跟著「刪除範例」，所以還沒設定過時沿用 sample 的勾選
+const PERM_KEYS = ['bankQ', 'case', 'draft', 'draftQ', 'session', 'sample', 'request'];
+const PERM_TW_ONLY = ['case', 'sample', 'request'];    // DMS 考題、範例生成只有 TW 講師能改
+const DEFAULT_PERMS = { bankQ: [], case: [], draft: [], draftQ: ['tw', 'bpo'], session: [], sample: [], request: [] };
 function permsOf(doc) {
   const d = (doc && doc.delete) || {}, out = {};
-  PERM_KEYS.forEach((k) => { out[k] = Array.isArray(d[k]) ? d[k].filter((r) => r === 'tw' || (r === 'bpo' && !PERM_TW_ONLY.includes(k))) : DEFAULT_PERMS[k].slice(); });
+  PERM_KEYS.forEach((k) => { const v = k === 'case' && !Array.isArray(d.case) ? d.sample : d[k]; out[k] = Array.isArray(v) ? v.filter((r) => r === 'tw' || (r === 'bpo' && !PERM_TW_ONLY.includes(k))) : DEFAULT_PERMS[k].slice(); });
   return out;
 }
 async function whoAmI() {
@@ -2245,7 +2246,7 @@ const CASES = {
     const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, tx: '', txMissed: 0, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
       items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
     const [topics, tags, groups] = await Promise.all([S.list('topics'), S.list('tags'), loadGroups()]);
-    return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.sample, groups,
+    return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.case, groups,
       topics: topics.map(topicOut).filter((x) => x.usage.includes('case')), tags: tags.map(tagOut) };
   },
 
@@ -2306,7 +2307,7 @@ const CASES = {
     return { caseId: b.caseId, status: d.status || 'pending', title: d.title || '', rev: d.rev || 0, version: body.version || '',
       tx: { state: d.txState || '', missed: d.txMissed || [], at: d.txAt || 0, rev: d.txRev || 0 },
       notes: d.importNotes || [], requestId: d.requestId || '', createdAt: d.createdAt || 0, updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '',
-      approvedBy: d.approvedBy || '', copyOf: d.copyOf || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.sample,
+      approvedBy: d.approvedBy || '', copyOf: d.copyOf || '', case: body, private: priv || {}, canEdit: m.role === 'tw', canDelete: !!m.can.case,
       groups: await loadGroups(), topics: (await S.list('topics')).map(topicOut).filter((x) => x.usage.includes('case')), tags: (await S.list('tags')).map(tagOut) };
   },
 
@@ -2409,7 +2410,7 @@ const CASES = {
 
   /** 刪除案件：連同原始資訊、補充資訊圖片、申請紀錄 */
   c_delete: async (b) => {
-    await needDelete('sample');
+    await needDelete('case');
     const id = String(b.caseId || '');
     await S.get('v3cases/' + id) || fail('找不到案件 / Case not found');
     const imgs = await S.query('v3images', 'caseId', '==', id).catch(() => []);
