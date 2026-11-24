@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-24h';
+const VERSION = 'V2-2026-11-24i';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1102,6 +1102,13 @@ const ACTIONS = {
     if (p.usage !== undefined) patch.usage = cleanUsage(p.usage);
     if (typeof p.rules === 'string') patch.rules = p.rules;
     if (typeof p.gradingGuide === 'string') patch.gradingGuide = p.gradingGuide.trim().slice(0, 3000);
+    // 題組範本（2026-11-24 可在主題設定直接改選項）：已出好的題目各自保留一份，不受影響
+    if (p.group !== undefined) {
+      const g = normGroup(p.group), errs = groupErrors(g);
+      if (!g) fail('題組範本不能是空的 / Group template cannot be empty');
+      if (errs.length) fail('題組範本有誤 / Invalid group: ' + errs.join('; '));
+      patch.group = g;
+    }
     let bumped = null;
     if (typeof p.criteria === 'string' && p.criteria.trim() !== String(t.criteria || '').trim()) {
       if (!p.criteria.trim()) fail('判斷標準不能是空的 / Criteria cannot be empty');

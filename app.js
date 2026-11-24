@@ -466,7 +466,7 @@
     grpConvert: '轉成題組', grpTitle: '題組（{n} 小題）', grpKeyHint: '點選每個小題的正解', grpNoAns: '未設定正解', grpScoring: '計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × {n}）',
     grpMine: '你的答案', grpKey: '正解', grpOkN: '答對 {a} / {b} 小題', grpTopicOnly: '這個主題使用題組：全部出 G 題（{n} 小題）', qeTypeG: 'G：題組',
     grpToG: '改成題組後，原本的選項、正解、參考答案與評分標準會移除，請重新點選每個小題的正解。', grpNone: '這個主題沒有題組範本',
-    grpTopic: '題組範本', grpTopicHint: '題組範本目前用「匯入主題」更新（JSON 檔的 topic.group）。改範本不會影響已經出好的題目。',
+    grpTopic: '題組範本', grpTopicHint: '可以直接修改每個小題的選項（中英文都要填），按下方「儲存」生效。選項代碼 a、b、c… 依順序重新編；判斷標準、出題規則、判斷關鍵裡提到選項的地方要一起改。已經出好的題目保留原本的選項，不受影響。', grpOptAdd: '＋ 新增選項', grpOptDel: '刪除這個選項',
     blindSubs: 'AI 沒看答案時，以下小題和正解不同：', tImportUpdate: '已經有主題「{n}」。要用檔案內容更新它嗎？判斷標準有改時版本號會 +1 並保留舊版；已有的標籤不會被修改。', tUpdated: '已更新主題 {n}',
   });
   Object.assign(I18N.en, {
@@ -475,7 +475,7 @@
     grpConvert: 'Convert to question set', grpTitle: 'Question set ({n} parts)', grpKeyHint: 'Pick the correct answer for each part', grpNoAns: 'No answer set', grpScoring: 'Scoring: all correct = full points; otherwise each correct part earns full ÷ (2 × {n})',
     grpMine: 'Your answer', grpKey: 'Correct', grpOkN: '{a} / {b} parts correct', grpTopicOnly: 'This topic uses question sets: all questions are type G ({n} parts)', qeTypeG: 'G: Question set',
     grpToG: 'Switching to a question set removes the options, answer, model answer and rubric. Pick the answer for each part again.', grpNone: 'This topic has no question set template',
-    grpTopic: 'Question set template', grpTopicHint: 'Update the template with Import topic (topic.group in the JSON). Changing it does not affect existing questions.',
+    grpTopic: 'Question set template', grpTopicHint: 'Edit each sub-question’s options here (both languages), then Save. Option ids a, b, c… follow the order; update the criteria, generation rules and key factors that mention them. Existing questions keep their own options.', grpOptAdd: '+ Add option', grpOptDel: 'Delete this option',
     blindSubs: 'Without seeing the key, the AI answered these parts differently: ', tImportUpdate: 'Topic "{n}" already exists. Update it with this file? If the criteria changed, the version goes up and the old version is kept. Existing tags are not changed.', tUpdated: 'Topic {n} updated',
   });
   const topicGroup = (meta, topicId) => { const x = ((meta && meta.topics) || []).find((y) => y.topicId === topicId); return (x && x.group) || null; };
@@ -2998,6 +2998,9 @@
     const added = new Set();          // 這次加入判斷標準的建議（儲存後標記為已加入）
     const sets = meta.optionSets;
     const active = topic.active !== false;
+    const grp = (() => { const g = DB().group.normalize(topic.group); return g ? JSON.parse(JSON.stringify(g)) : null; })();   // 題組範本（可編輯的副本）
+    const NA_TXT = { zh: '不適用', en: 'Not applicable' };
+    let grpDirty = false;
     box.innerHTML = `${topicPicker(meta, topicId, 'topic')}
       ${active ? '' : `<div class="banner warn">${esc(t('tInactiveNote'))}</div>`}
       <div class="card pad" style="display:flex;flex-direction:column;gap:16px">
@@ -3014,7 +3017,7 @@
           ${g.count > 1 ? `<div class="small soft">${esc(t('gapAlso'))}${g.refs.filter((x) => x !== g.ref).map((x) => `<a href="${gapLink(x)}">${esc(x)}</a>`).join('、')}</div>` : ''}
           ${g.suggestion ? `<pre class="gapsug">${esc(g.suggestion)}</pre>` : ''}</div>`).join('')}</div>` : ''}
       <div><div class="row" style="margin-bottom:6px"><b>${esc(t('tCriteria'))}</b><span class="chip info">${esc(topic.criteriaVersion || '')}</span></div><div class="small muted" style="margin-bottom:6px">${esc(t('tCriteriaNote'))}</div>${ta('t_crit', 14, topic.criteria || '')}</div>
-      ${(() => { const g = DB().group.normalize(topic.group); return g ? `<div><b>${esc(t('grpTopic'))}</b><div class="small muted" style="margin:2px 0 6px">${esc(t('grpTopicHint'))}</div><div class="grp">${g.map((x, i) => `<div class="grp-sub"><div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b><span class="soft small mono">${esc(x.id)}</span></div><div class="small">${x.options.map((o) => `<span class="chip" style="margin:2px">${esc(o.id)}. ${esc(L(o.text))}</span>`).join('')}</div></div>`).join('')}</div></div>` : ''; })()}
+      ${grp ? `<div><b>${esc(t('grpTopic'))}</b><div class="small muted" style="margin:2px 0 6px">${esc(t('grpTopicHint'))}</div><div class="grp" id="t_grp"></div></div>` : ''}
       <div><b>${esc(t('tKeyFactors'))}</b>${ta('t_kf', 6, lines(topic.keyFactors))}</div>
       <div class="small muted">${esc(t('tReasonsMoved'))} <a href="#/settings?tab=dms">${esc(t('setDms'))} →</a></div>
       <div><b>${esc(t('tRules'))}</b>${ta('t_rules', 12, topic.rules || '')}</div>
@@ -3060,6 +3063,33 @@
       catch (e) { toast(e.message, 5000); }
     };
     const mark = () => { dirty = true; $('#t_save').disabled = false; };
+    // 題組範本：小題的選項可以直接改（2026-11-24）；選項代碼 a、b、c… 依順序重新編，已出好的題目保留自己的一份不受影響
+    const drawGrp = () => {
+      const el = $('#t_grp'); if (!el) return;
+      el.innerHTML = grp.map((x, i) => {
+        const real = x.options.filter((o) => o.id !== 'na');
+        return `<div class="grp-sub"><div class="grp-q"><span class="grp-n">${i + 1}</span><b>${esc(L(x.text))}</b><span class="soft small mono">${esc(x.id)}</span></div>
+          ${real.map((o, k) => `<div class="row" style="gap:6px;margin:3px 0"><b class="mono" style="width:18px">${String.fromCharCode(97 + k)}.</b>
+            <input type="text" data-go="${i}.${k}.zh" value="${esc(o.text.zh)}" placeholder="${esc(t('zhL'))}" style="flex:1;min-width:160px">
+            <input type="text" data-go="${i}.${k}.en" value="${esc(o.text.en)}" placeholder="${esc(t('enL'))}" style="flex:1;min-width:160px">
+            ${real.length > 2 ? `<button type="button" class="btn sm ghost danger" data-gdel="${i}.${k}" title="${esc(t('grpOptDel'))}">✕</button>` : ''}</div>`).join('')}
+          ${x.options.some((o) => o.id === 'na') ? `<div class="small soft" style="margin:3px 0 0 24px">na. ${esc(L(NA_TXT))}</div>` : ''}
+          ${real.length < 10 ? `<button type="button" class="btn sm" style="margin:4px 0 0 24px" data-gadd="${i}">${esc(t('grpOptAdd'))}</button>` : ''}</div>`;
+      }).join('');
+      $$('[data-go]', el).forEach((inp) => inp.addEventListener('input', () => {
+        const [i, k, l] = inp.dataset.go.split('.'); grp[+i].options.filter((o) => o.id !== 'na')[+k].text[l] = inp.value; grpDirty = true; mark();
+      }));
+      $$('[data-gdel]', el).forEach((b) => b.addEventListener('click', () => {
+        const [i, k] = b.dataset.gdel.split('.').map(Number), o = grp[i].options.filter((x) => x.id !== 'na')[k];
+        grp[i].options.splice(grp[i].options.indexOf(o), 1); grpDirty = true; mark(); drawGrp();
+      }));
+      $$('[data-gadd]', el).forEach((b) => b.addEventListener('click', () => {
+        const x = grp[+b.dataset.gadd], na = x.options.findIndex((o) => o.id === 'na');
+        x.options.splice(na < 0 ? x.options.length : na, 0, { id: '', text: { zh: '', en: '' } }); grpDirty = true; mark(); drawGrp();
+        const ins = $$(`[data-go^="${b.dataset.gadd}."][data-go$=".zh"]`, el); if (ins.length) ins[ins.length - 1].focus();
+      }));
+    };
+    drawGrp();
     $$('[data-usage]', box).forEach((c) => c.addEventListener('change', () => c.parentElement.classList.toggle('on', c.checked)));
     $$('input,textarea,select', box).forEach((el) => el.addEventListener('input', mark));
     leaveGuard = () => !dirty || window.confirm(t('unsavedLeave'));
@@ -3077,6 +3107,7 @@
           prompt: { zh: $('#tp_zh').value.trim(), en: $('#tp_en').value.trim() },
           usage: $$('[data-usage]', box).filter((c) => c.checked).map((c) => c.dataset.usage),
           defaultOptionSet: $('#t_set').value, criteria: crit, keyFactors: unlines($('#t_kf').value), rules: $('#t_rules').value, gradingGuide: $('#t_grade').value,
+          ...(grpDirty ? { group: grp } : {}),
         } });
         if (added.size) await api('tw_setGap', { refs: [...added].flatMap((r) => (gaps.find((x) => x.ref === r) || { refs: [r] }).refs), state: 'added' }).catch(() => null);
         dirty = false; leaveGuard = null; topicsCache = null; libMeta = null;
