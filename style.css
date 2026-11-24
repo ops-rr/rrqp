@@ -454,3 +454,5 @@ table.list.xc-t td { vertical-align: top; }
 .xc-q { word-break: break-word; }
 .xc-ans { margin-top: 6px; padding: 6px 8px; background: var(--ok-bg); border-radius: 6px; color: var(--ok); }
 .xc-std { white-space: pre-wrap; color: var(--ink); max-height: 160px; overflow: auto; }
+.xc-t td.xc-cid, .xc-t td.xc-case { background: #fff; border-right: 1px solid var(--line); }
+.xc-t td.xc-no { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }

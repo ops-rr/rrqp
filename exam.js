@@ -323,16 +323,17 @@
         q = esc(m.q);
         ans = m.standard ? `<div class="xc-std">${esc(m.standard)}</div>` : '標準答案：（沒有填）';
       }
-      const caseCell = qi === 0 ? `<a href="#/case/${esc(kc.caseId)}" target="_blank" rel="noopener" title="在新分頁打開案件的「答案與詳解」（顯示的是案件目前的內容）"><b class="mono">${esc(kc.caseId)}</b></a> ${esc(kc.title || '')}
-          ${exam && kc.weight !== undefined && kc.mods.length > 1 ? `<div class="small soft">案件 ${kc.weight} 分</div>` : ''}` : '';
-      return `<tr class="${qi === 0 && i > 0 ? 'xc-first' : ''}"><td class="soft">${no}</td><td class="xc-case">${caseCell}</td>
+      // 2026-11-24 Chris：案件編號、案件標題各一欄，同一案件的題目合併成一格；題號用「案件-題」（和依題目批改、成績與分析一致）
+      const n = kc.mods.length, caseCells = qi > 0 ? '' : `<td rowspan="${n}" class="xc-cid"><a href="#/case/${esc(kc.caseId)}" target="_blank" rel="noopener" title="在新分頁打開案件的「答案與詳解」（顯示的是案件目前的內容）"><b class="mono">${esc(kc.caseId)}</b></a></td>
+        <td rowspan="${n}" class="xc-case">${esc(kc.title || '')}<div class="small soft">${exam && kc.weight !== undefined ? `案件 ${kc.weight} 分・` : ''}${n} 題</div></td>`;
+      return `<tr class="${qi === 0 && i > 0 ? 'xc-first' : ''}">${caseCells}<td class="xc-no">${i + 1}-${qi + 1}</td>
         <td><span class="chip">${QTYPE(m.type)}${MC().mcMulti(m) && m.type === 'mc' ? '・複選' : ''}</span></td>
         <td class="xc-q">${q}${show ? `<div class="small xc-ans">${ans}</div>` : ''}</td>
         ${exam ? `<td style="text-align:right">${m.points}</td>` : ''}<td style="text-align:right">${rate}</td></tr>`;
     }).join('')).join('');
     return `<div class="row" style="margin-bottom:8px"><span class="small muted">${cases.length} 個案件・${no} 題${exam ? '・滿分 100 分' : ''}</span><span class="spacer"></span>
         <label class="small" style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="xcAns" ${show ? 'checked' : ''}> 顯示正解</label></div>
-      <div class="card scroll-x"><table class="list xc-t"><thead><tr><th style="width:36px">#</th><th style="width:22%">案件</th><th style="width:96px">題型</th><th>題目</th>${exam ? '<th style="width:60px;text-align:right">配分</th>' : ''}<th style="width:96px;text-align:right">答對率</th></tr></thead>
+      <div class="card scroll-x"><table class="list xc-t"><thead><tr><th style="width:84px">案件編號</th><th style="width:20%">案件標題</th><th style="width:56px">題號</th><th style="width:96px">題型</th><th>題目</th>${exam ? '<th style="width:60px;text-align:right">配分</th>' : ''}<th style="width:96px;text-align:right">答對率</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
       <div class="small soft" style="margin-top:8px">點案件編號在新分頁打開「答案與詳解」（顯示案件目前的內容；發佈後案件若有修改，考卷仍是發佈當下的版本）。答對率在有人交卷後顯示，低於 50% 標橘色；簡答以已給分的人計算。</div>`;
   }
