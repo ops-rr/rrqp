@@ -144,7 +144,8 @@
   }
   function shell(active, inner) {
     const teacher = me && me.isTeacher;
-    const nav = teacher ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}">
+    // TL（2026-11-25）：只有「歷史成績」
+    const nav = me && me.isTL ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}"><a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a></nav>` : teacher ? `<nav class="nav" aria-label="${esc(t('teacherPortal'))}">
         ${me.role === 'tw' ? `<a href="#/library" class="${active === 'library' ? 'on' : ''}">${esc(t('navLibrary'))}</a>` : ''}
         <a href="#/drafts" class="${active === 'drafts' ? 'on' : ''}">${esc(t('navDrafts'))}</a>
         <a href="#/bank" class="${active === 'bank' ? 'on' : ''}">${esc(t('navBank'))}</a>
@@ -154,7 +155,7 @@
     app().innerHTML = `<header class="top">
         <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR AI Quiz Platform</span><span class="chip brand" style="font-weight:700">V2</span></div>
         ${nav}
-        <div class="right">${me ? `<a class="btn sm guide-link" href="guide.html#${teacher ? 'trainer' : 'agent'}-${lang}" target="_blank" rel="noopener">${esc(t('guide'))}</a>` : ''}${langSeg()}<span class="muted hide-sm hdr-email">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout title="${esc(me ? me.email : '')}">${esc(t('signOut'))}</button></div>
+        <div class="right">${me ? `<a class="btn sm guide-link" href="guide.html#${teacher || (me && me.isTL) ? 'trainer' : 'agent'}-${lang}" target="_blank" rel="noopener">${esc(t('guide'))}</a>` : ''}${langSeg()}<span class="muted hide-sm hdr-email">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout title="${esc(me ? me.email : '')}">${esc(t('signOut'))}</button></div>
       </header><main id="main">${inner}</main>`;
     bindCommon(app());
     return $('#main');
@@ -189,8 +190,9 @@
     app().innerHTML = `<div class="login"><div class="muted"><span class="spin"></span> ${esc(t('loading'))}</div></div>`;
     try {
       me = await api('me');
-      if (!me.isTeacher && !store.get('rrqp2:lang')) { lang = 'en'; document.documentElement.lang = 'en'; } // 專員預設英文
+      if (!me.isReader && !store.get('rrqp2:lang')) { lang = 'en'; document.documentElement.lang = 'en'; } // 專員預設英文
       if (me.isTeacher && (!location.hash || location.hash === '#/')) location.hash = '#/drafts';
+      if (me.isTL && !/^#\/(results|xresults|agent|xsession)\b/.test(location.hash)) location.hash = '#/results';
       route();
     } catch (e) {
       if (!auth) return;
@@ -217,7 +219,13 @@
     if (page === 's' && arg) return viewQuizEntry(decodeURIComponent(arg));
     // V3 DMS 考題測驗（exam.js）：專員作答 #/x/X001、講師單場 #/xsession/X001
     if (page === 'x' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.entry(decodeURIComponent(arg), caseCtx());
-    if (me.isTeacher && page === 'xsession' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.session(decodeURIComponent(arg), caseCtx());
+    if (me.isReader && page === 'xsession' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.session(decodeURIComponent(arg), caseCtx());
+    if (me.isTL) {
+      if (page === 'xresults' && arg && window.RRQP_EXAM) return window.RRQP_EXAM.results(decodeURIComponent(arg), caseCtx());
+      if (page === 'results' && arg) return viewSessionResults(decodeURIComponent(arg));
+      if (page === 'agent' && arg) return viewAgentHistory(decodeURIComponent(arg));
+      if (page !== 'x' && page !== 's') return viewResults();
+    }
     if (me.isTeacher && page === 'draft' && arg) return viewDraft(decodeURIComponent(arg));
     // V3 DMS 考題（cases.js）：未上架在「案件匯入 → 未上架 DMS 考題」、上架後在「可用題庫 → DMS 考題」；編輯頁 #/case/Cxxx
     if (me.isTeacher && page === 'case' && arg && window.RRQP_CASES) return window.RRQP_CASES.route('case', decodeURIComponent(arg), caseCtx());
@@ -1840,7 +1848,7 @@
   async function viewResults() {
     const params = new URLSearchParams(location.hash.split('?')[1] || '');
     const tab = params.get('tab') === 'agent' ? 'agent' : 'session';
-    const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1><span class="spacer"></span>${refreshBtn()}</div>
+    const main = shell('results', `<div class="row"><h1>${esc(t('results'))}</h1><span class="spacer"></span>${refreshBtn()}</div>${me.isTL ? `<div class="small muted" style="margin:-4px 0 10px">${esc(t('tlListNote'))}</div>` : ''}
       <div class="tabs"><a class="tab ${tab === 'session' ? 'on' : ''}" href="#/results">${esc(t('bySession'))}</a><a class="tab ${tab === 'agent' ? 'on' : ''}" href="#/results?tab=agent">${esc(t('byAgent'))}</a></div>
       <div class="card scroll-x" id="rl"><div class="empty-state"><span class="spin"></span></div></div>`);
     let d, x;
@@ -1908,8 +1916,8 @@
     const s = d.session, st = d.stats;
     const rows = d.rows.slice().sort((a, b) => (a.score === null ? -1 : b.score === null ? 1 : a.score - b.score));
     main.innerHTML = `<div class="row"><a href="#/results">← ${esc(t('results'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}<span class="spacer"></span>
-        ${refreshBtn()}<button class="btn" id="csv">${esc(t('exportCsv'))}</button><button class="btn brand" id="mk">${esc(t('makeupForChecked'))}</button></div>
-      ${s.released ? '' : `<div class="banner warn">${esc(t('notReleasedChip'))} · <a href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))} →</a></div>`}
+        ${refreshBtn()}<button class="btn" id="csv">${esc(t('exportCsv'))}</button>${me.isTL ? '' : `<button class="btn brand" id="mk">${esc(t('makeupForChecked'))}</button>`}</div>
+      ${s.released ? '' : me.isTL ? `<div class="banner warn">${esc(t('tlNotReleased'))}</div>` : `<div class="banner warn">${esc(t('notReleasedChip'))} · <a href="#/grading/${esc(s.sessionId)}">${esc(t('goGrading'))} →</a></div>`}
       <div class="stats five">
         <div class="card pad"><div class="small soft">${esc(t('avgScore'))}</div><div class="big">${st.avg === null ? t('none') : r2(st.avg)}</div></div>
         <div class="card pad"><div class="small soft">${esc(t('colSubmitted'))}</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
@@ -1921,20 +1929,20 @@
         <div class="rates">${d.questions.map((q) => `<div class="rate" title="${esc(L(q.point))}"><div class="rbar"><i style="height:${q.rate === null ? 0 : Math.round(q.rate * 100)}%;background:${rateColor(q.rate)}"></i></div>
           <b>${q.rate === null ? t('none') : Math.round(q.rate * 100) + '%'}</b><span>Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}</span></div>`).join('')}</div>
         <div class="small soft">${esc(t('qRatesNote'))}</div></div>
-      <div class="card scroll-x"><table class="list"><thead><tr><th style="width:36px"><input type="checkbox" id="all" aria-label="select all"></th><th>${esc(t('colAgent'))}</th><th>${esc(t('colScore'))}</th><th>${esc(t('colWrong'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
-        rows.map((r) => `<tr><td><input type="checkbox" class="pick" value="${esc(r.email)}" ${r.status !== 'submitted' ? 'checked' : ''}></td><td>${esc(r.email)}</td>
+      <div class="card scroll-x"><table class="list"><thead><tr>${me.isTL ? '' : '<th style="width:36px"><input type="checkbox" id="all" aria-label="select all"></th>'}<th>${esc(t('colAgent'))}</th><th>${esc(t('colScore'))}</th><th>${esc(t('colWrong'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
+        rows.map((r) => `<tr>${me.isTL ? '' : `<td><input type="checkbox" class="pick" value="${esc(r.email)}" ${r.status !== 'submitted' ? 'checked' : ''}></td>`}<td>${esc(r.email)}</td>
           <td>${r.score === null ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : `<b style="font-size:18px">${r2(r.score)}</b>`}</td>
           <td class="small">${esc(wrongText(r.wrong)) || (r.score !== null ? '—' : '')}</td>
           <td class="small muted">${esc(fmtDT(r.submittedAt))}${r.autoSubmitted ? ' · ' + esc(t('autoSub')) : ''}</td>
           <td style="text-align:right;white-space:nowrap">${r.coaching ? `<span class="chip warn">${esc(t('needCoach'))}</span> ` : ''}${r.score !== null ? `<button class="btn sm" data-det="${esc(r.email)}">${esc(t('detail'))}</button>` : ''}</td></tr>`).join('')}</tbody></table>
         <div class="small soft" style="padding:10px 14px">${esc(t('showingN', { n: rows.length }))}</div></div>`;
-    $('#all').addEventListener('change', (e) => $$('.pick').forEach((c) => { c.checked = e.target.checked; }));
+    if ($('#all')) $('#all').addEventListener('change', (e) => $$('.pick').forEach((c) => { c.checked = e.target.checked; }));
     $$('[data-det]').forEach((b) => b.addEventListener('click', () => attemptModal(s.sessionId, b.dataset.det)));
     $('#csv').onclick = () => downloadCsv(`${s.sessionId}_results.csv`, [
       ['Email', 'Status', 'Score', 'Needs coaching', 'Missed', 'Started', 'Submitted', 'Auto-submitted'],
       ...rows.map((r) => [r.email, r.status, r.score ?? '', r.coaching ? 'Y' : '', wrongText(r.wrong), fmtDT(r.startedAt), fmtDT(r.submittedAt), r.autoSubmitted ? 'Y' : '']),
     ]);
-    $('#mk').onclick = () => {
+    if ($('#mk')) $('#mk').onclick = () => {
       const emails = $$('.pick:checked').map((c) => c.value);
       if (!emails.length) { toast(t('noneSel')); return; }
       makeupModal(s, emails);
@@ -1954,7 +1962,7 @@
           ${!sub ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : prac ? `<span class="tlscore ${r.mcRate !== null && r.mcRate * 100 < (xh.coachLine || 70) ? 'low' : ''}">${r.mcRate === null ? '-' : Math.round(r.mcRate * 100) + '%'}</span>` : `<span class="tlscore ${r.coaching ? 'low' : ''}">${r.score} / ${r.total}</span>`}</div>
         ${sub && r.wrong.length ? `<div class="small" style="margin-top:6px"><span class="soft">${prac ? '答錯的題目' : esc(t('wrongPoints'))}：</span>${r.wrong.map((w) => `<span class="chip warn" style="margin:2px">${esc(w.label)}${w.pending ? '（待給分）' : w.partial ? '（部分）' : ''}</span>`).join('')}</div>` : ''}
         ${sub && r.flags.length ? `<div class="small" style="margin-top:6px;color:#b45309">${r.flags.map(esc).join('；')}</div>` : ''}
-        ${sub ? `<div style="margin-top:8px"><a class="btn sm" href="#/xsession/${esc(s.sessionId)}?agent=${encodeURIComponent(d.email)}">${esc(t('detail'))}</a> <a class="small" href="#/xresults/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
+        ${sub ? `<div style="margin-top:8px"><a class="btn sm" href="#/xsession/${esc(s.sessionId)}?view=grade&by=a&agent=${encodeURIComponent(d.email)}">${esc(t('detail'))}</a> <a class="small" href="#/xresults/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
     };
     main.innerHTML = `<div class="row"><a href="#/results?tab=agent">← ${esc(t('byAgent'))}</a><h1>${esc(d.email)}</h1><span class="spacer"></span>${refreshBtn()}<button class="btn" id="hCsv">匯出 CSV</button></div>
       <div class="timeline">${all.map((it) => {
@@ -3285,6 +3293,10 @@
       };
     } });
   }
+  Object.assign(I18N.zh, { roleTl: 'TL（看成績）', roleTlHint: 'TL：只能看歷史成績（含每位專員的作答明細、匯出 CSV），不能改分數、公布成績或刪除；還沒公布的測驗也看得到。',
+    tlNotReleased: '尚未公布：分數可能還會調整，專員也還看不到。', tlListNote: '「尚未公布」的測驗分數可能還會調整。' });
+  Object.assign(I18N.en, { roleTl: 'TL (view results)', roleTlHint: 'TL: view results only (including each agent\'s answers and CSV export); cannot change scores, release results or delete. Unreleased quizzes are visible too.',
+    tlNotReleased: 'Not released: scores may still change, and agents cannot see them yet.', tlListNote: 'Scores of quizzes that are not released yet may still change.' });
   Object.assign(I18N.zh, { setQtpl: '題目範本', qtAdd: '新增題目範本', qtEdit: '編輯題目範本', qtType: '題型', qtMc: '選擇題', qtShort: '簡答題', qtQ: '題目', qtSrc: '選項',
     qtOwn: '自己寫選項', qtFromSet: '選項範本：{n}', qtSetMissing: '選項範本已刪除', qtSetNote: '選項範本之後改了，這個題目範本會跟著變；已經套用到案件的題目不會變。',
     qtShortNote: '簡答題範本只有題目；標準答案在案件裡依案件填寫。', qtDel: '刪除範本', qtDelConfirm: '刪除題目範本「{n}」？已經套用到案件的題目不受影響。',
@@ -3332,12 +3344,12 @@
 
   async function setRolesTab(box) {
     const r = await api('tw_listRoles');
-    const roleName = (x) => t(x === 'admin' ? 'roleAdmin' : x === 'tw' ? 'roleTw' : 'roleBpo');
+    const roleName = (x) => t(x === 'admin' ? 'roleAdmin' : x === 'tw' ? 'roleTw' : x === 'tl' ? 'roleTl' : 'roleBpo');
     const fld = 'height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px';
-    box.innerHTML = `<div class="card pad" style="margin-bottom:12px"><form id="rf" class="row" style="gap:8px"><b>${esc(t('roleAdd'))}</b><input id="r_email" type="email" placeholder="name@shopee.com" required style="${fld};width:min(300px,100%)"><select id="r_role" style="${fld}"><option value="admin">${esc(t('roleAdmin'))}</option><option value="tw">${esc(t('roleTw'))}</option><option value="bpo" selected>${esc(t('roleBpo'))}</option></select><button class="btn brand" type="submit">${esc(t('add'))}</button></form><div class="small muted" style="margin-top:8px">${esc(t('roleHint'))}<br>${esc(t('roleAdminHint'))}</div></div>
+    box.innerHTML = `<div class="card pad" style="margin-bottom:12px"><form id="rf" class="row" style="gap:8px"><b>${esc(t('roleAdd'))}</b><input id="r_email" type="email" placeholder="name@shopee.com" required style="${fld};width:min(300px,100%)"><select id="r_role" style="${fld}"><option value="admin">${esc(t('roleAdmin'))}</option><option value="tw">${esc(t('roleTw'))}</option><option value="bpo" selected>${esc(t('roleBpo'))}</option><option value="tl">${esc(t('roleTl'))}</option></select><button class="btn brand" type="submit">${esc(t('add'))}</button></form><div class="small muted" style="margin-top:8px">${esc(t('roleHint'))}<br>${esc(t('roleAdminHint'))}<br>${esc(t('roleTlHint'))}</div></div>
       <div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('roleEmail'))}</th><th>${esc(t('roleRole'))}</th><th class="hide-sm">${esc(t('roleBy'))}</th><th></th></tr></thead><tbody>
       ${r.owner && !r.roles.some((x) => x.email === r.owner) ? `<tr><td>${esc(r.owner)}</td><td><span class="chip brand">${esc(t('roleOwner'))}</span></td><td class="hide-sm"></td><td></td></tr>` : ''}
-      ${r.roles.map((x) => `<tr><td>${esc(x.email)}</td><td><span class="chip ${x.role === 'admin' ? 'warn' : x.role === 'tw' ? 'brand' : 'info'}">${esc(roleName(x.role))}</span>${x.email === r.owner ? ` <span class="chip">${esc(t('roleOwner'))}</span>` : ''}${x.company === false ? ` <span class="chip danger">${esc(t('roleNotCompany'))}</span>` : ''}</td><td class="hide-sm small muted">${esc(x.addedBy)}</td><td style="text-align:right">${x.email === me.email ? '' : `<button class="btn sm danger" data-rm="${esc(x.email)}">${esc(t('roleRemove'))}</button>`}</td></tr>`).join('')}
+      ${r.roles.map((x) => `<tr><td>${esc(x.email)}</td><td><span class="chip ${x.role === 'admin' ? 'warn' : x.role === 'tw' ? 'brand' : x.role === 'tl' ? '' : 'info'}">${esc(roleName(x.role))}</span>${x.email === r.owner ? ` <span class="chip">${esc(t('roleOwner'))}</span>` : ''}${x.company === false ? ` <span class="chip danger">${esc(t('roleNotCompany'))}</span>` : ''}</td><td class="hide-sm small muted">${esc(x.addedBy)}</td><td style="text-align:right">${x.email === me.email ? '' : `<button class="btn sm danger" data-rm="${esc(x.email)}">${esc(t('roleRemove'))}</button>`}</td></tr>`).join('')}
       </tbody></table></div>`;
     $('#rf').addEventListener('submit', async (e) => {
       e.preventDefault();

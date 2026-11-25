@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-25b';
+const VERSION = 'V2-2026-11-25c';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -147,7 +147,7 @@ async function whoAmI() {
   const email = currentEmail;
   if (!email) fail('Not signed in');
   let role = 'agent', isAdmin = false;
-  try { const r = await S.get('roles/' + email); if (r && ['tw', 'bpo', 'admin'].includes(r.role)) role = r.role; } catch (_) { /* 專員讀不到別人的，讀自己的沒有時也是 agent */ }
+  try { const r = await S.get('roles/' + email); if (r && ['tw', 'bpo', 'admin', 'tl'].includes(r.role)) role = r.role; } catch (_) { /* 專員讀不到別人的，讀自己的沒有時也是 agent */ }
   if (email === String(CFG.OWNER || '').toLowerCase()) role = 'admin';
   // 管理員 = TW 講師的全部權限 + 刪除（題庫題目、草稿、測驗、範例）與管理員名單；畫面上 role 仍是 'tw'
   if (role === 'admin') { isAdmin = true; role = 'tw'; }
@@ -155,11 +155,14 @@ async function whoAmI() {
   let perms = DEFAULT_PERMS;
   if (isTeacher) { try { perms = permsOf(await S.get('settings/permissions')); } catch (_) { /* 用預設 */ } }
   const can = {}; PERM_KEYS.forEach((k) => { can[k] = isAdmin || (isTeacher && perms[k].includes(role)); });
-  ME = { email, role, isAdmin, isTeacher, can, version: VERSION };
+  // TL（2026-11-25）：只能看歷史成績（含作答明細、匯出），不能改任何東西；isReader＝講師或 TL
+  const isTL = role === 'tl';
+  ME = { email, role, isAdmin, isTeacher, isTL, isReader: isTeacher || isTL, can, version: VERSION };
   return ME;
 }
 const needTeacher = async () => { const m = await whoAmI(); if (!m.isTeacher) fail('Teacher access only / 僅限講師'); return m; };
 const needTW = async () => { const m = await whoAmI(); if (m.role !== 'tw') fail('TW teacher access only / 僅限 TW 講師'); return m; };
+const needReader = async () => { const m = await whoAmI(); if (!m.isReader) fail('Teacher or TL access only / 僅限講師或 TL'); return m; };
 const needAdmin = async () => { const m = await whoAmI(); if (!m.isAdmin) fail('只有管理員可以使用 / Admins only'); return m; };
 const needDelete = async (k) => { const m = await whoAmI(); if (!m.can[k]) fail('你沒有刪除權限（管理員可在「管理 → 刪除權限」設定） / You do not have delete permission'); return m; };
 
@@ -1253,7 +1256,7 @@ const ACTIONS = {
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail('Email 格式不正確 / Invalid email');
     if (!isCompanyEmail(email)) fail(COMPANY_ONLY + '：' + email);
-    if (!['tw', 'bpo', 'admin'].includes(b.role)) fail('身分只能是 admin、tw 或 bpo / Role must be admin, tw or bpo');
+    if (!['tw', 'bpo', 'admin', 'tl'].includes(b.role)) fail('身分只能是 admin、tw、bpo 或 tl / Role must be admin, tw, bpo or tl');
     const cur = await S.get('roles/' + email).catch(() => null);
     if (!m.isAdmin && (b.role === 'admin' || (cur && cur.role === 'admin'))) fail('只有管理員可以設定管理員 / Only admins can manage admins');
     await S.set('roles/' + email, { role: b.role, addedBy: m.email, addedAt: now() });
@@ -1922,7 +1925,7 @@ async function resultsOf(sid) { const { s, qs, atts, g } = await gradingData(sid
 const M6 = {
   /** 成績首頁：各場次摘要 + 各專員摘要（尚未開始的測驗不列） */
   t_resultsIndex: async () => {
-    await needTeacher();
+    await needReader();
     const items = ((await S.get('meta/sessionIndex')) || {}).items || {}, t = now(), line = await coachLine();
     const ids = Object.keys(items).filter((id) => sessionState(items[id], t) !== 'scheduled').sort();
     const list = await Promise.all(ids.map(async (id) => { const { s, qs, atts, g } = await gradingData(id); return sessionResults(id, s, qs, atts, g, line); }));
@@ -1938,11 +1941,11 @@ const M6 = {
       rows: list.flatMap((r) => r.rows.map((x) => Object.assign({ sessionId: r.session.sessionId, title: r.session.title, startAt: r.session.startAt, state: r.session.state }, x))) };
   },
 
-  t_results: async (b) => { await needTeacher(); const [sid] = await sessionDoc(b.sessionId); return resultsOf(sid); },
+  t_results: async (b) => { await needReader(); const [sid] = await sessionDoc(b.sessionId); return resultsOf(sid); },
 
   /** 某位專員的歷次成績與錯誤重點 */
   t_agentHistory: async (b) => {
-    await needTeacher();
+    await needReader();
     const email = String(b.email || '').trim().toLowerCase();
     const rows = await S.query('sessions', 'assignees', 'array-contains', email), line = await coachLine();
     const items = await Promise.all(rows.map(async (s) => { const { qs, atts, g } = await gradingData(s.id); const r = sessionResults(s.id, s, qs, atts, g, line); return { session: r.session, row: r.rows.find((x) => x.email === email) }; }));
@@ -1951,7 +1954,7 @@ const M6 = {
 
   /** 某位專員在某場測驗的作答明細 */
   t_attemptDetail: async (b) => {
-    await needTeacher();
+    await needReader();
     const [sid] = await sessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
     const { s, qs, atts, g } = await gradingData(sid), t = now();
     return { session: sessionOut(sid, s, t), email, attempt: attemptOut(s, atts.find((a) => a.id === email), t), questions: qs,
@@ -3057,7 +3060,7 @@ const EXAM = {
 
   /** 講師看單場：名單、作答（含足跡）、解答、專員版案件（算照片影片總數用）、給分 */
   x_get: async (b) => {
-    await needTeacher();
+    await needReader();
     const [sid, s] = await xSessionDoc(b.sessionId), t = now();
     const [atts, key, pub, grades, sopRows] = await Promise.all([S.list(`v3sessions/${sid}/attempts`), S.get(`v3sessions/${sid}/paper/key`), S.get(`v3sessions/${sid}/paper/public`), S.list(`v3sessions/${sid}/grades`),
       S.list(`v3sessions/${sid}/sops`).catch(() => [])]);
@@ -3375,7 +3378,7 @@ async function xResultsOf(sid, s) {
 const EXAM_RESULTS = {
   /** 歷史成績・閱卷發佈：已開始的 DMS 考題測驗摘要＋所有作答列（依專員、匯出用） */
   x_resultsIndex: async () => {
-    await needTeacher();
+    await needReader();
     const items = ((await S.get('meta/v3SessionIndex')) || {}).items || {}, t = now();
     const ids = Object.keys(items).filter((id) => sessionState(items[id], t) !== 'scheduled').sort();
     const list = await Promise.all(ids.map(async (id) => { const s = await S.get('v3sessions/' + id); return s ? xResultsOf(id, s) : null; }));
@@ -3383,9 +3386,9 @@ const EXAM_RESULTS = {
     return { coachLine: await coachLine(), sessions: ok.map((r) => Object.assign({}, r.session, r.stats)).reverse(),
       rows: ok.flatMap((r) => r.rows.map((x) => Object.assign({ sessionId: r.session.sessionId, title: r.session.title, mode: r.session.mode, startAt: r.session.startAt }, x))) };
   },
-  x_results: async (b) => { await needTeacher(); const [sid, s] = await xSessionDoc(b.sessionId); return xResultsOf(sid, s); },
+  x_results: async (b) => { await needReader(); const [sid, s] = await xSessionDoc(b.sessionId); return xResultsOf(sid, s); },
   x_agentHistory: async (b) => {
-    await needTeacher();
+    await needReader();
     const email = String(b.email || '').trim().toLowerCase();
     const rows = await S.query('v3sessions', 'assignees', 'array-contains', email);
     const items = await Promise.all(rows.map(async (s) => { const r = await xResultsOf(s.id, s); return { session: r.session, row: r.rows.find((x) => x.email === email) }; }));

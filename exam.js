@@ -167,7 +167,9 @@
   // ═════════════════════════════ 單場（講師） ═════════════════════════════
   async function session(id, ctx) {
     X = ctx;
-    const main = X.shell('sessions', '<div class="empty-state"><span class="spin"></span></div>');
+    // TL（2026-11-25）：唯讀看作答明細（從成績頁進來），沒有任何操作按鈕、不能給分
+    const ro = !!X.me.isTL;
+    const main = X.shell(ro ? 'results' : 'sessions', '<div class="empty-state"><span class="spin"></span></div>');
     const qp = new URLSearchParams(location.hash.split('?')[1] || '');
     const want = qp.get('agent') || '';
     // 2026-11-24 Chris：分頁照測驗的階段排「考題內容｜作答進度｜閱卷批改｜成績與分析」；閱卷批改裡切換依題目／依專員
@@ -181,31 +183,31 @@
     try { d = await X.api('x_get', { sessionId: id }); } catch (e) { X.showError(e, main); return; }
     const s = d.session, sub = d.roster.filter((r) => r.status === 'submitted').length;
     const exam = s.mode === 'exam';
-    if (!['content', 'progress', 'grade'].includes(view)) view = s.state === 'scheduled' ? 'content' : s.state === 'open' ? 'progress' : 'grade';
+    if (!['content', 'progress', 'grade'].includes(view)) view = ro ? 'grade' : s.state === 'scheduled' ? 'content' : s.state === 'open' ? 'progress' : 'grade';
     if (by !== 'a') by = 'q';
     const href = (v, b) => `#/xsession/${esc(s.sessionId)}?view=${v}${b ? '&by=' + b : ''}`;
-    main.innerHTML = `<div class="row"><a href="#/sessions">← 測驗管理</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
+    main.innerHTML = `<div class="row">${ro ? `<a href="#/xresults/${esc(s.sessionId)}">← 成績與分析</a>` : '<a href="#/sessions">← 測驗管理</a>'}<h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}
         ${s.answersOpen ? '<span class="chip ok">已公布解答</span>' : ''}<span class="spacer"></span>
         <button class="btn icon" id="xr" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button>
-        ${!s.released ? '<button class="btn" id="xAdd">加入專員</button><button class="btn" id="xMin">延長作答時間</button><button class="btn" id="xExt">延長結束時間</button>' : ''}
+        ${ro ? `${s.released || !exam ? '' : '<span class="chip warn">尚未公布，分數可能還會調整</span>'}` : `${!s.released ? '<button class="btn" id="xAdd">加入專員</button><button class="btn" id="xMin">延長作答時間</button><button class="btn" id="xExt">延長結束時間</button>' : ''}
         ${s.state === 'open' || s.state === 'scheduled' ? '<button class="btn danger" id="xEnd">提前結束</button>' : ''}
         ${!exam && s.review === 'unified' ? `<button class="btn ${s.answersOpen ? '' : 'brand'}" id="xOpen">${s.answersOpen ? '收回解答' : '公布解答'}</button>` : ''}
         ${exam && s.state === 'closed' ? '<button class="btn brand" id="xRel">公布成績</button>' : ''}
-        ${X.me.can && X.me.can.session ? '<button class="btn ghost danger" id="xDel">刪除</button>' : ''}</div>
+        ${X.me.can && X.me.can.session ? '<button class="btn ghost danger" id="xDel">刪除</button>' : ''}`}</div>
       <div id="xPanel"></div>
-      <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
+      <div class="cmd" ${ro ? 'hidden' : ''}><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
       <div class="stats">
         <div class="card pad"><div class="small soft">開放時間</div><div><b>${fmtDT(s.startAt)}</b><br>– <b>${fmtDT(s.endAt)}</b></div></div>
         <div class="card pad"><div class="small soft">作答時間</div><div class="big">${s.minutes} 分</div><a class="small soft xs-lnk" href="${href('content')}" title="看考題內容">${s.caseCount} 個案件・${s.questionCount} 題${exam ? '・滿分 100 分' : ''}</a></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${sub} <span class="soft" style="font-size:16px">/ ${d.roster.length}</span></div></div>
       </div>
       <div class="tabs"><a class="tab ${view === 'content' ? 'on' : ''}" href="${href('content')}">考題內容</a><a class="tab ${view === 'progress' ? 'on' : ''}" href="${href('progress')}">作答進度</a>
-        <a class="tab ${view === 'grade' ? 'on' : ''}" href="${href('grade', by)}">${exam ? '閱卷批改' : '作答明細'}</a><a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
+        <a class="tab ${view === 'grade' ? 'on' : ''}" href="${href('grade', by)}">${exam && !ro ? '閱卷批改' : '作答明細'}</a><a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
       ${view === 'content' ? `<div id="xcBox">${contentPanel(d)}</div>` : view === 'progress' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>離開頁面</th><th></th></tr></thead><tbody>
         ${d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${ro ? '' : `${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="row" style="margin-bottom:10px"><span class="seg xs-seg"><a class="${by === 'q' ? 'on' : ''}" href="${href('grade', 'q')}">依題目</a><a class="${by === 'a' ? 'on' : ''}" href="${href('grade', 'a')}">依專員</a></span>
           <span class="small muted">${sub} / ${d.roster.length} 人交卷${exam ? gradeLeft(d) : ''}</span></div>
         ${by === 'a' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>交卷</th><th>${exam ? '成績' : '答對'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
@@ -213,9 +215,10 @@
             <td class="small muted">${fmtDT(r.submittedAt)}</td>
             <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}<div class="soft">原始 ${r.result.raw} / ${r.result.rawTotal}</div>${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
             <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-            <td style="text-align:right;white-space:nowrap">${r.status !== 'not_started' ? `<a class="btn sm" href="${href('grade', 'a')}&agent=${encodeURIComponent(r.email)}">${exam && !s.released ? '批改' : '查看作答'}</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`}
+            <td style="text-align:right;white-space:nowrap">${r.status !== 'not_started' ? `<a class="btn sm" href="${href('grade', 'a')}&agent=${encodeURIComponent(r.email)}">${exam && !s.released && !ro ? '批改' : '查看作答'}</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`}
       <div id="xAgent" style="margin-top:14px"></div>`;
     $('#xr').onclick = () => session(id, ctx);
+    if (ro) { $('#xr').onclick = () => session(id, ctx); if (view === 'content') bindContent(d); else if (view === 'grade') { if (by === 'q') questionPanel($('#xAgent'), d, false); else { const r = d.roster.find((x) => x.email === want); if (r) agentPanel($('#xAgent'), d, r, false); } } return; }
     $('#xCopy').onclick = () => navigator.clipboard.writeText(xLink(s.sessionId)).then(() => X.toast('已複製'));
     const act = (btn, fn) => { const b = $(btn); if (b) b.onclick = fn; };
     act('#xEnd', async () => { if (!(await X.confirmBox(`提前結束 ${s.sessionId}？作答中的專員會自動交卷。`, '提前結束', undefined, true))) return; await run('x_end'); });
@@ -324,7 +327,7 @@
         ans = m.standard ? `<div class="xc-std">${esc(m.standard)}</div>` : '標準答案：（沒有填）';
       }
       // 2026-11-24 Chris：案件編號、案件標題各一欄，同一案件的題目合併成一格；題號用「案件-題」（和依題目批改、成績與分析一致）
-      const n = kc.mods.length, caseCells = qi > 0 ? '' : `<td rowspan="${n}" class="xc-cid"><a href="#/case/${esc(kc.caseId)}" target="_blank" rel="noopener" title="在新分頁打開案件的「答案與詳解」（顯示的是案件目前的內容）"><b class="mono">${esc(kc.caseId)}</b></a></td>
+      const n = kc.mods.length, caseCells = qi > 0 ? '' : `<td rowspan="${n}" class="xc-cid">${X.me.isTL ? `<b class="mono">${esc(kc.caseId)}</b>` : `<a href="#/case/${esc(kc.caseId)}" target="_blank" rel="noopener" title="在新分頁打開案件的「答案與詳解」（顯示的是案件目前的內容）"><b class="mono">${esc(kc.caseId)}</b></a>`}</td>
         <td rowspan="${n}" class="xc-case">${esc(kc.title || '')}<div class="small soft">${exam && kc.weight !== undefined ? `案件 ${kc.weight} 分・` : ''}${n} 題</div></td>`;
       return `<tr class="${qi === 0 && i > 0 ? 'xc-first' : ''}">${caseCells}<td class="xc-no">${i + 1}-${qi + 1}</td>
         <td><span class="chip">${QTYPE(m.type)}${MC().mcMulti(m) && m.type === 'mc' ? '・複選' : ''}</span></td>
@@ -437,8 +440,8 @@
     const s = d.session, st = d.stats, practice = s.mode === 'practice';
     const rows = d.rows.slice().sort((a, b) => (a.pct === null ? -1 : b.pct === null ? 1 : a.pct - b.pct));
     main.innerHTML = `<div class="row"><a href="#/results">← 歷史成績</a><h1>${esc(s.sessionId)} ${esc(s.title)}</h1><span class="chip">${MODE(s)}</span>${stChip(s.state)}<span class="spacer"></span>
-        <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}?view=grade" style="display:inline-grid;place-items:center;text-decoration:none">批改／作答明細</a><button class="btn" id="xCsv">匯出 CSV</button></div>
-      ${!practice && !s.released ? `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}?view=grade">前往批改 →</a></div>` : ''}
+        <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}?view=grade" style="display:inline-grid;place-items:center;text-decoration:none">${X.me.isTL ? '作答明細' : '批改／作答明細'}</a><button class="btn" id="xCsv">匯出 CSV</button></div>
+      ${!practice && !s.released ? (X.me.isTL ? '<div class="banner warn">尚未公布：分數可能還會調整，專員也還看不到。</div>' : `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}?view=grade">前往批改 →</a></div>`) : ''}
       <div class="stats five">
         <div class="card pad"><div class="small soft">${practice ? '平均答對率' : '平均（百分比）'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
