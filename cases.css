@@ -592,3 +592,8 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .qt-ol{margin:4px 0 6px;padding-left:22px;font-size:13px;line-height:1.7}
 .qt-ol .soft{color:#8a8f99}
 .qt-h{font-size:12px;color:#8a8f99;margin-top:2px}
+/* 欄位第二行（Proof Status 的到期時間等）在編輯模式拆成可編輯的框（2026-11-25） */
+.cq .dt-line .fl-ed{display:inline-block;min-width:40px}
+.cq .dt-line .fl-ed:empty::before{content:attr(data-ph);color:#b0b4bc}
+.cq .dt-line .fl-x,.cq .dt-line .fl-add{border:1px solid #e3e3e8;background:#fff;border-radius:4px;font-size:11px;line-height:18px;padding:0 6px;margin-left:4px;color:#e11d48;cursor:pointer}
+.cq .dt-line .fl-add{color:#555;margin-left:0}

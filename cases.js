@@ -915,7 +915,14 @@
       if (fd.tags) val += ' ' + fd.tags.map((t, i) => tagHtml(t, fd.tagColor, i, fd, bi, fi)).join('');
       if (fd.popup) val += `<span class="vd" onclick="CQ.showFieldPop(event,${bi},${fi})">${esc(T('View Detail'))}</span>`;
       // 第二行起（例如 Proof Status 的 Due time、CS Case New Updates 的其他項目）：文字，或 [名稱, 時間]
-      (fd.lines || []).forEach((ln) => { val += `<div class="dt-line">${Array.isArray(ln) ? esc(T(ln[0])) + ' ' + esc(ln[1]) : esc(T(ln))}</div>`; });
+      // 講師編輯：每一行一個框（例如 Proof Status 的「到期時間 2026-11-26 11:33 +0800」），可以和狀態一起調整（2026-11-25 Chris）
+      // 存檔時再拆回 [名稱, 時間]（見 onFocusOut 的 fline），專員畫面的翻譯照舊
+      (fd.lines || []).forEach((ln, li) => {
+        if (!isEdit()) { val += `<div class="dt-line">${Array.isArray(ln) ? esc(T(ln[0])) + ' ' + esc(ln[1]) : esc(T(ln))}</div>`; return; }
+        const t = Array.isArray(ln) ? `${ln[0]} ${ln[1]}`.trim() : ln;
+        val += `<div class="dt-line"><span contenteditable data-set="fline" data-b="${bi}" data-f="${fi}" data-l="${li}" data-ph="到期時間 YYYY-MM-DD HH:mm +0800" class="fl-ed">${esc(t)}</span><button class="fl-x" onclick="CQ.delLine(${bi},${fi},${li})" title="刪除這一行">✕</button></div>`;
+      });
+      if (isEdit() && /Proof Status/i.test(fd.k) && !(fd.lines || []).length) val += `<div class="dt-line"><button class="fl-add" onclick="CQ.addLine(${bi},${fi})" title="狀態需要時間時（例如待上傳的到期時間）加一行">＋ 時間</button></div>`;
       if (isEdit() && isMasked(fd.mask)) val += `<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看到 ***</span>`;
     }
     let ctl = '';
@@ -1068,6 +1075,13 @@
     const d = el.dataset, v = el.innerText.trim();
     const b = d.b != null ? C.blocks[+d.b] : null;
     if (d.set === 'field') b.fields[+d.f].v = v;
+    if (d.set === 'fline') {
+      const fd = b.fields[+d.f], ln = (fd.lines || [])[+d.l];
+      if (ln === undefined) return;
+      // 「名稱 時間」：時間從第一個日期（YYYY-MM-DD 或 YYYY/MM/DD）開始；沒有日期就存成一般文字
+      const m = v.match(/^(.*?)\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2}.*)$/);
+      fd.lines[+d.l] = m ? [m[1].trim() || (Array.isArray(ln) ? ln[0] : '到期時間'), m[2].trim()] : v;
+    }
     if (d.set === 'cell') {
       const row = b.tables[+d.t].rows[+d.r];
       if (typeof row[+d.c] === 'string') row[+d.c] = v; else row[+d.c].text = v;
@@ -1078,6 +1092,14 @@
     if (d.set === 'opkv') C.ops[+d.i].kv[+d.k][1] = v;
     if (d.set === 'msg') msgList(d.room)[+d.i].text = v;
     saveCase();
+  }
+  // 欄位的第二行（例如 Proof Status 的到期時間）：刪除、新增（名稱沿用同區塊其他 Proof Status 的，沒有就用「到期時間」）
+  function delLine(bi, fi, li) { C.blocks[bi].fields[fi].lines.splice(li, 1); saveCase(); renderMain(); }
+  function addLine(bi, fi) {
+    const fd = C.blocks[bi].fields[fi];
+    const other = C.blocks[bi].fields.find((x) => x !== fd && /Proof Status/i.test(x.k) && Array.isArray((x.lines || [])[0]));
+    (fd.lines = fd.lines || []).push([other ? other.lines[0][0] : '到期時間', '']);
+    saveCase(); renderMain();
   }
   function addField(bi) {
     const k = prompt('欄位名稱（例如 Order Type）');
@@ -2740,7 +2762,7 @@
     dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
-    addField, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
+    addField, delLine, addLine, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
     delRow, showTrack, delCardRow, delMsg, cutAfter, toggleOp, delOp, cutOp, delOpMedia,
     pickMc, togAns, applySet, applyQTpl, saveQTpl: qtsOpen, undo, redo, moreToggle, copyRid, setToggle, alertOpen, alertStep, alertClose, shortAns: (id, v) => { A.short[id] = v; exEdit(id); saveAnswer(); }, submitAnswer, retry,
     paste: (id, ev) => exPaste(id, ev), exCase: (i) => exSwitch(i), exSubmit: () => exSubmit(false),
