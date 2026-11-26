@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-25c';
+const VERSION = 'V2-2026-11-26a';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -3201,11 +3201,30 @@ const EXAM = {
     return { released: ops.length - 2 };
   },
 
+  /**
+   * 退回重考（2026-11-26 Chris）：原本的作答、足跡、分數搬到 returned 保存（不再計分），專員可以在測驗開放期間從頭重新作答（重新計時）。
+   * 例如專員被誤交卷。成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。
+   */
+  x_returnAttempt: async (b) => {
+    const m = await needTeacher();
+    const [sid, s] = await xSessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
+    const reason = String(b.reason || '').trim().slice(0, 200);
+    if (!reason) fail('請填退回原因 / A reason is required');
+    if (s.released) fail('成績已公布，請先取消公布 / Withdraw the results first');
+    const a = await S.get(`v3sessions/${sid}/attempts/${email}`) || fail('這位專員還沒有作答紀錄 / No attempt to return');
+    const g = await S.get(`v3sessions/${sid}/grades/${email}`), t = now();
+    await S.batch([
+      { op: 'set', path: `v3sessions/${sid}/returned/${email}_${t}`, data: { email, attempt: a, grades: g || null, reason, by: m.email, at: t } },
+      { op: 'del', path: `v3sessions/${sid}/attempts/${email}` }, { op: 'del', path: `v3sessions/${sid}/grades/${email}` }]);
+    const open = sessionState(s, t) === 'open';
+    return { returned: email, sessionOpen: open, hint: open ? '' : '測驗已結束，專員進不去；請先延長結束時間 / The quiz is closed: extend the end time first' };
+  },
   x_delete: async (b) => {
     await needDelete('session');
     const [sid] = await xSessionDoc(b.sessionId);
-    const [atts, grades, imgs, sops] = await Promise.all(['attempts', 'grades', 'images', 'sops'].map((c) => S.list(`v3sessions/${sid}/${c}`).catch(() => [])));
+    const [atts, grades, imgs, sops, rets] = await Promise.all(['attempts', 'grades', 'images', 'sops', 'returned'].map((c) => S.list(`v3sessions/${sid}/${c}`).catch(() => [])));
     const ops = sops.map((x) => ({ op: 'del', path: `v3sessions/${sid}/sops/${x.id}` }));
+    rets.forEach((x) => ops.push({ op: 'del', path: `v3sessions/${sid}/returned/${x.id}` }));
     atts.forEach((a) => ops.push({ op: 'del', path: `v3sessions/${sid}/attempts/${a.id}` }, { op: 'del', path: `v3results/${sid}_${a.id}` }));
     grades.forEach((g) => ops.push({ op: 'del', path: `v3sessions/${sid}/grades/${g.id}` }));
     imgs.forEach((im) => { for (let i = 0; i < (im.n || 0); i++) ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}/chunks/${i}` }); ops.push({ op: 'del', path: `v3sessions/${sid}/images/${im.id}` }); });

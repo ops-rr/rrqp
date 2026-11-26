@@ -207,7 +207,7 @@
         ${d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${ro ? '' : `${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
+          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${ro ? '' : `${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}${exam && !s.released && (r.status === 'submitted' || r.status === 'expired') ? `<button class="btn sm ghost" data-ret="${esc(r.email)}" title="原本的作答另外保存、不再計分，專員從頭重新作答">退回重考</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="row" style="margin-bottom:10px"><span class="seg xs-seg"><a class="${by === 'q' ? 'on' : ''}" href="${href('grade', 'q')}">依題目</a><a class="${by === 'a' ? 'on' : ''}" href="${href('grade', 'a')}">依專員</a></span>
           <span class="small muted">${sub} / ${d.roster.length} 人交卷${exam ? gradeLeft(d) : ''}</span></div>
         ${by === 'a' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>交卷</th><th>${exam ? '成績' : '答對'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
@@ -264,6 +264,15 @@
       <div class="small muted">例如當機、斷線。只加在這位專員身上；他的畫面一分鐘內會更新倒數。已經被自動交卷的人沒辦法再加時。</div>`, async () => {
       const r = await X.api('x_addTime', { sessionId: s.sessionId, email: b.dataset.add, minutes: Number($('#xpAdd').value) });
       X.toast(`已加時，這位專員累計多 ${r.extraMin} 分鐘${endHint(r.overEnd)}`, r.overEnd ? 8000 : 3000); session(id, ctx);
+    })));
+    // 退回重考（2026-11-26）：例如被誤交卷；原本的作答搬到 returned 保存
+    $$('[data-ret]').forEach((b) => b.addEventListener('click', () => panel(`<b>退回重考：${esc(b.dataset.ret)}</b>
+      <div class="row">原因 <input type="text" id="xpRet" maxlength="200" placeholder="例如：電腦時鐘不準被自動交卷" style="flex:1;min-width:260px"></div>
+      <div class="small muted">原本的作答、足跡和分數會另外保存，不再計分；專員要從頭重新作答，重新計 ${s.minutes} 分鐘。測驗已結束的話，要先延長結束時間專員才進得去。</div>`, async () => {
+      const reason = $('#xpRet').value.trim();
+      if (!reason) throw new Error('請填退回原因');
+      const r = await X.api('x_returnAttempt', { sessionId: s.sessionId, email: b.dataset.ret, reason });
+      X.toast('已退回，專員可以重新作答' + (r.hint ? '。' + r.hint : ''), r.hint ? 8000 : 3000); session(id, ctx);
     })));
     $$('[data-rm]').forEach((b) => b.addEventListener('click', async () => {
       if (!(await X.confirmBox(`把 ${b.dataset.rm} 從這場測驗移除？`, '移除', undefined, true))) return;
