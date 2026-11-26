@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-26b';
+const VERSION = 'V2-2026-11-26c';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -134,9 +134,10 @@ const friendly = (e) => {
 const STUCK_MIN = 15;              // 「處理中」超過幾分鐘可以在網站上按重試
 const REQ_DELETABLE = ['queued', 'failed', 'cancelled', 'deleted'];
 // case＝DMS 考題（v3cases）：2026-11-23 以前跟著「刪除範例」，所以還沒設定過時沿用 sample 的勾選
-const PERM_KEYS = ['bankQ', 'case', 'draft', 'draftQ', 'session', 'sample', 'request'];
+// retake＝退回重考（2026-11-26 Chris）：預設只有管理員，避免講師讓特定專員重考
+const PERM_KEYS = ['bankQ', 'case', 'draft', 'draftQ', 'session', 'sample', 'request', 'retake'];
 const PERM_TW_ONLY = ['case', 'sample', 'request'];    // DMS 考題、範例生成只有 TW 講師能改
-const DEFAULT_PERMS = { bankQ: [], case: [], draft: [], draftQ: ['tw', 'bpo'], session: [], sample: [], request: [] };
+const DEFAULT_PERMS = { bankQ: [], case: [], draft: [], draftQ: ['tw', 'bpo'], session: [], sample: [], request: [], retake: [] };
 function permsOf(doc) {
   const d = (doc && doc.delete) || {}, out = {};
   PERM_KEYS.forEach((k) => { const v = k === 'case' && !Array.isArray(d.case) ? d.sample : d[k]; out[k] = Array.isArray(v) ? v.filter((r) => r === 'tw' || (r === 'bpo' && !PERM_TW_ONLY.includes(k))) : DEFAULT_PERMS[k].slice(); });
@@ -162,9 +163,10 @@ async function whoAmI() {
 }
 const needTeacher = async () => { const m = await whoAmI(); if (!m.isTeacher) fail('Teacher access only / 僅限講師'); return m; };
 const needTW = async () => { const m = await whoAmI(); if (m.role !== 'tw') fail('TW teacher access only / 僅限 TW 講師'); return m; };
+const needRetake = async () => { const m = await whoAmI(); if (!m.can.retake) fail('你沒有退回重考的權限（管理員可在「管理 → 權限設定」開放） / You do not have permission to return attempts'); return m; };
 const needReader = async () => { const m = await whoAmI(); if (!m.isReader) fail('Teacher or TL access only / 僅限講師或 TL'); return m; };
 const needAdmin = async () => { const m = await whoAmI(); if (!m.isAdmin) fail('只有管理員可以使用 / Admins only'); return m; };
-const needDelete = async (k) => { const m = await whoAmI(); if (!m.can[k]) fail('你沒有刪除權限（管理員可在「管理 → 刪除權限」設定） / You do not have delete permission'); return m; };
+const needDelete = async (k) => { const m = await whoAmI(); if (!m.can[k]) fail('你沒有刪除權限（管理員可在「管理 → 權限設定」設定） / You do not have delete permission'); return m; };
 
 /** 主題用途：sample = 範例出題（AI）、case = DMS 考題；舊資料沒有設定 = 兩種都用 */
 const TOPIC_USAGE = ['sample', 'case'];
@@ -1413,6 +1415,8 @@ function attemptOut(s, a, now) {
   const status = a.submittedAt ? 'submitted' : now > dl + (s.graceMin || GRACE_MIN) * 60000 ? 'expired' : 'in_progress';
   return { status, startedAt: a.startedAt, submittedAt: a.submittedAt || null, deadline: dl, autoSubmitted: !!a.autoSubmitted };
 }
+/** 退回重考紀錄（session 的 retakeLog），只給講師／TL 的 API；舊作答在 returned/，只有管理員讀得到 */
+const retakesOf = (s, email) => ((s && s.retakeLog) || []).filter((x) => x.email === email).map((x) => ({ by: x.by, at: x.at, reason: x.reason }));
 async function sessionDoc(id) {
   const sid = String(id || '').trim().toUpperCase();
   const s = await S.get('sessions/' + sid);
@@ -1601,7 +1605,7 @@ const M4 = {
     await needTeacher();
     const [sid, s] = await sessionDoc(b.sessionId), t = now();
     const [atts, key] = await Promise.all([S.list('sessions/' + sid + '/attempts'), S.get('sessions/' + sid + '/paper/key')]);
-    const roster = (s.assignees || []).map((email) => Object.assign({ email }, attemptOut(s, atts.find((a) => a.id === email), t)));
+    const roster = (s.assignees || []).map((email) => Object.assign({ email, retakes: retakesOf(s, email) }, attemptOut(s, atts.find((a) => a.id === email), t)));
     return { session: Object.assign(sessionOut(sid, s, t), { assignees: s.assignees || [] }), roster, questions: (key && key.questions) || [], serverNow: t };
   },
 
@@ -1882,13 +1886,15 @@ const M5 = {
 
   /** 退回作答：原本的作答與分數搬到 returned 保存，專員可以在測驗開放期間重新作答 */
   t_returnAttempt: async (b) => {
-    const m = await needTeacher();
+    const m = await needRetake();
     const [sid, s] = await sessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
+    if (!String(b.reason || '').trim()) fail('請填退回原因 / A reason is required');
     const a = await S.get('sessions/' + sid + '/attempts/' + email) || fail('這位專員還沒有作答紀錄 / No attempt to return');
     if (s.released) fail('成績已公布，請先取消公布 / Withdraw the results first');
     const g = await S.get('sessions/' + sid + '/grades/' + email), t = now();
     await S.batch([
       { op: 'set', path: 'sessions/' + sid + '/returned/' + email + '_' + t, data: { email, attempt: a, grades: g || null, reason: String(b.reason || '').slice(0, 200), by: m.email, at: t } },
+      { op: 'update', path: 'sessions/' + sid, data: { retakeLog: ((s.retakeLog || []).concat({ email, by: m.email, at: t, reason: String(b.reason || '').trim().slice(0, 200) })).slice(-200) } },
       { op: 'del', path: 'sessions/' + sid + '/attempts/' + email }, { op: 'del', path: 'sessions/' + sid + '/grades/' + email }]);
     const open = sessionState(s, t) === 'open';
     return { returned: email, sessionOpen: open, hint: open ? '' : '測驗已結束，專員無法重新作答；請延長結束時間 / The quiz is closed: extend it so the agent can retake it' };
@@ -1914,6 +1920,7 @@ function sessionResults(sid, s, qs, atts, g, line) {
     return { qid: q.qid, seq: q.seq, type: q.type, point: q.point || null, rate: got.length ? r2(got.reduce((n, x) => n + x, 0) / got.length) : null };
   });
   const mid = scores.length % 2 ? scores[(scores.length - 1) / 2] : (scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2;
+  out.forEach((r) => { r.retakes = retakesOf(s, r.email); });      // 退回重考紀錄（誰、何時、原因）
   return { session: Object.assign(sessionOut(sid, s, t), { released: !!s.released, parentSession: s.parentSession || '' }), coachLine: line, rows: out, questions: qstats,
     stats: { assigned: out.length, submitted: done.length, auto: done.filter((r) => r.autoSubmitted).length, coaching: done.filter((r) => r.coaching).length,
       avg: scores.length ? r2(scores.reduce((n, x) => n + x, 0) / scores.length) : null, median: scores.length ? r2(mid) : null,
@@ -3068,7 +3075,7 @@ const EXAM = {
     sopRows.forEach((x) => { try { sops[x.id] = JSON.parse(x.json || '{}'); } catch (_) { /* 略過 */ } });
     const roster = (s.assignees || []).map((email) => {
       const a = atts.find((x) => x.id === email), g = grades.find((x) => x.id === email);
-      return Object.assign({ email }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {}, ai: (g && g.ai) || {},
+      return Object.assign({ email, retakes: retakesOf(s, email) }, attemptOut(s, a, t), { extraMin: (a && Number(a.extraMin)) || 0, answers: (a && a.answers) || {}, track: xTrackOut(a && a.track), scores: (g && g.scores) || {}, ai: (g && g.ai) || {},
         result: a && a.submittedAt ? xScore(key || {}, a, g) : null });
     });
     return { serverNow: t, session: Object.assign(xSessionOut(sid, s, t), { assignees: s.assignees || [], caseIds: s.caseIds || [] }), roster, key: key || { cases: [] }, paper: pub || { cases: [] }, sops };
@@ -3206,7 +3213,7 @@ const EXAM = {
    * 例如專員被誤交卷。成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。
    */
   x_returnAttempt: async (b) => {
-    const m = await needTeacher();
+    const m = await needRetake();
     const [sid, s] = await xSessionDoc(b.sessionId), email = String(b.email || '').trim().toLowerCase();
     const reason = String(b.reason || '').trim().slice(0, 200);
     if (!reason) fail('請填退回原因 / A reason is required');
@@ -3215,6 +3222,7 @@ const EXAM = {
     const g = await S.get(`v3sessions/${sid}/grades/${email}`), t = now();
     await S.batch([
       { op: 'set', path: `v3sessions/${sid}/returned/${email}_${t}`, data: { email, attempt: a, grades: g || null, reason, by: m.email, at: t } },
+      { op: 'update', path: 'v3sessions/' + sid, data: { retakeLog: ((s.retakeLog || []).concat({ email, by: m.email, at: t, reason })).slice(-200) } },
       { op: 'del', path: `v3sessions/${sid}/attempts/${email}` }, { op: 'del', path: `v3sessions/${sid}/grades/${email}` }]);
     const open = sessionState(s, t) === 'open';
     return { returned: email, sessionOpen: open, hint: open ? '' : '測驗已結束，專員進不去；請先延長結束時間 / The quiz is closed: extend the end time first' };
@@ -3387,6 +3395,7 @@ async function xResultsOf(sid, s) {
   const pcts = done.map((x) => x.pct).filter((v) => v !== null).sort((a, b) => a - b);
   const mid = pcts.length ? (pcts.length % 2 ? pcts[(pcts.length - 1) / 2] : (pcts[pcts.length / 2 - 1] + pcts[pcts.length / 2]) / 2) : null;
   const rates = done.map((x) => x.mcRate).filter((v) => v !== null);
+  rows.forEach((r) => { r.retakes = retakesOf(s, r.email); });      // 退回重考紀錄（誰、何時、原因）
   return { session: xSessionOut(sid, s, t), coachLine: line, rows, questions,
     stats: { assigned: rows.length, submitted: done.length, auto: done.filter((x) => x.autoSubmitted).length, coaching: done.filter((x) => x.coaching).length,
       avg: pcts.length ? r2(pcts.reduce((n, v) => n + v, 0) / pcts.length) : null, median: mid === null ? null : r2(mid),

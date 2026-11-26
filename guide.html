@@ -303,7 +303,7 @@
   <ul>
     <li><span class="btnlike">加入專員</span>；還沒開始的專員可以 <span class="btnlike">移除</span>。</li>
     <li><span class="btnlike">延長作答時間</span>：整場加長（只能加長）。<span class="btnlike">加時</span>：只給某一位專員，例如網路斷線、電腦當機。</li>
-    <li><span class="btnlike">退回重考</span>（作答進度，已交卷或逾時未交的專員）：例如被誤交卷。要填原因；原本的作答、足跡和分數另外保存、不再計分，專員從頭重新作答、重新計時。成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。</li>
+    <li><span class="btnlike">退回重考</span>（作答進度，已交卷或逾時未交的專員；<b>預設只有管理員</b>，要開放給講師請到「管理 → 權限設定」勾選）：例如被誤交卷。要填原因，退回紀錄（誰、何時、原因）會在作答進度、成績頁、專員歷程標示「退回重考 N 次」，講師和 TL 都看得到；原本的作答、足跡和分數另外保存、不再計分，專員從頭重新作答、重新計時。成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。</li>
     <li><span class="btnlike">延長結束時間</span>（提前結束後也能重新開放）、<span class="btnlike">提前結束</span>（作答中的人會自動交卷）。</li>
     <li>分頁照測驗的階段排：<b>考題內容</b>（這份考卷用了哪些題目、配分、答對率；勾「顯示正解」才顯示答案）、<b>作答進度</b>（誰在作答、交卷、離開頁面）、<b>閱卷批改</b>（依題目／依專員，看作答與足跡、給分，見⑥）、<b>成績與分析</b>。打開時依狀態停在對應的分頁：尚未開始→考題內容、進行中→作答進度、已結束→閱卷批改。</li>
     <li>成績公布後，上面這些操作都不能再用。</li>
@@ -396,7 +396,7 @@
   <table>
     <tr><th>分頁</th><th>內容</th></tr>
     <tr><td><b>講師名單</b></td><td>新增管理員 / TW / BPO 講師 / TL（只看歷史成績）。新專員不用新增，用 Google 登入後就是專員。</td></tr>
-    <tr><td><b>刪除權限</b></td><td>設定 TW、BPO 講師在哪些頁面看得到刪除按鈕（題庫題目、草稿、校對時刪單題、測驗、範例、範例申請紀錄）。管理員一律可以刪除。沒勾的身分看不到按鈕，也無法用其他方式刪除。</td></tr>
+    <tr><td><b>權限設定</b></td><td>設定 TW、BPO 講師能不能退回重考（預設只有管理員），以及在哪些頁面看得到刪除按鈕（題庫題目、草稿、校對時刪單題、測驗、範例、範例申請紀錄）。管理員一律可以刪除。沒勾的身分看不到按鈕，也無法用其他方式刪除。</td></tr>
     <tr><td><b>系統設定</b></td><td>每批生成題數、AI 低信心門檻、輔導門檻、自動交卷緩衝、每份試卷最多題數等。</td></tr>
     <tr><td><b>V1 資料搬移</b></td><td>匯入舊平台的資料（只能一次）。</td></tr>
     <tr><td><b>重置資料</b></td><td>上線前清除所有測試資料（草稿、題庫、測驗、成績、範例），編號從 001 重新開始；主題、標籤、規則、設定與講師名單會保留。上線後請勿使用。</td></tr>
@@ -622,7 +622,7 @@
   <ul>
     <li><span class="btnlike">加入專員</span> (Add agents); agents who haven't started can be <span class="btnlike">移除</span> (removed).</li>
     <li><span class="btnlike">延長作答時間</span> (Extend time limit) for everyone (longer only), or <span class="btnlike">加時</span> (Add time) for one agent, e.g. after a network drop.</li>
-    <li><span class="btnlike">退回重考</span> (Return for retake, in Progress) for an agent who submitted or timed out, e.g. submitted by mistake. Enter a reason; the old answers, trail and scores are kept aside and no longer count, and the agent starts over with a fresh timer. Withdraw released results first; extend the end time if the quiz has ended.</li>
+    <li><span class="btnlike">退回重考</span> (Return for retake, in Progress; <b>admins only by default</b>, can be granted in Admin → Permissions) for an agent who submitted or timed out, e.g. submitted by mistake. Enter a reason; the agent is marked "Returned N×" for trainers and TLs (who, when, why); the old answers, trail and scores are kept aside and no longer count, and the agent starts over with a fresh timer. Withdraw released results first; extend the end time if the quiz has ended.</li>
     <li><span class="btnlike">延長結束時間</span> (Extend end time) (also reopens a quiz ended early) and <span class="btnlike">提前結束</span> (End now) (agents still answering are submitted).</li>
     <li>Tabs follow the quiz stages: <b>考題內容</b> (Questions: what is in the quiz, points, correct rate; tick "show answers" to see the key), <b>作答進度</b> (Progress), <b>閱卷批改</b> (Grading, by question or by agent, with each agent's answers and activity trail, see ⑥) and <b>成績與分析</b> (Results). The page opens on the tab that fits the quiz state.</li>
     <li>None of these can be used once results are released.</li>

@@ -1335,7 +1335,7 @@
         ${sessTabs(s.sessionId, view)}
         ${view === 'content' ? `<div id="vcBox">${vContent(d)}</div>` : `<div class="card scroll-x"><table class="list"><thead><tr><th>${esc(t('colEmail'))}</th><th>${esc(t('colStatus'))}</th><th>${esc(t('colStarted'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
           d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${attChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td><td class="small muted">${esc(fmtDT(r.startedAt))}</td><td class="small muted">${esc(fmtDT(r.submittedAt))}</td>
-            <td style="text-align:right">${M5_READY && r.status !== 'not_started' && s.state !== 'released' ? `<button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`}`;
+            <td style="text-align:right">${retakeChip(r.retakes)}${M5_READY && me.can && me.can.retake && r.status !== 'not_started' && s.state !== 'released' ? ` <button class="btn sm ghost" data-ret="${esc(r.email)}">${esc(t('returnBtn'))}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`}`;
       if (view === 'content') vContentBind(d);
       $('#cpl').onclick = () => copyText(link);
       $('#reload').onclick = load;
@@ -1813,7 +1813,7 @@
     colTaken: '測驗次數', colAvg: '平均', colFlag: '需要留意', coachTip: '變化題低於 {a} 分、DMS 考題低於 {b}%', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
     wrongPoints: '錯誤重點', notReleasedChip: '成績未公布',
     makeupTitle: '建立補考', makeupNote: '補考沿用原測驗的題目與配分，會建立一個新的測驗場次與連結。', create2: '建立補考', makeupDone: '補考 {id} 已建立',
-    returnBtn: '退回', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會另外保存但不再計分，專員可以在測驗開放期間重新作答。', returnReason: '原因（選填，例如網路中斷）', returnDone: '已退回',
+    returnBtn: '退回重考', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會另外保存但不再計分，專員可以在測驗開放期間重新作答。退回紀錄（誰、何時、原因）講師和 TL 都看得到。', returnReason: '原因（必填，例如網路中斷）', returnDone: '已退回',
     extend: '延長結束時間', extendTitle: '延長 {id} 的結束時間', newEnd: '新的結束時間', extendDone: '已延長', noneSel: '請先勾選專員',
     attemptDetail: '作答明細', choiceLabel: '選擇', textLabel: '文字', aiLabel: 'AI', teacherLabel: '講師', notAnswered: '未作答',
   });
@@ -1825,7 +1825,7 @@
     colTaken: 'Quizzes', colAvg: 'Average', colFlag: 'Needs attention', coachTip: 'Variant below {a} points; DMS questions below {b}%', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
     wrongPoints: 'Missed points', notReleasedChip: 'Not released',
     makeupTitle: 'Create a makeup quiz', makeupNote: 'The makeup reuses the original questions and points, with a new session and link.', create2: 'Create makeup', makeupDone: 'Makeup {id} created',
-    returnBtn: 'Return', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers are kept on file but no longer count. The agent can answer again while the quiz is open.', returnReason: 'Reason (optional, e.g. connection lost)', returnDone: 'Returned',
+    returnBtn: 'Return for retake', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers are kept on file but no longer count. The agent can answer again while the quiz is open. Trainers and TLs can see who returned it, when and why.', returnReason: 'Reason (required, e.g. connection lost)', returnDone: 'Returned',
     extend: 'Extend end time', extendTitle: 'Extend {id}', newEnd: 'New end time', extendDone: 'Extended', noneSel: 'Select agents first',
     attemptDetail: 'Answer details', choiceLabel: 'Choice', textLabel: 'Written', aiLabel: 'AI', teacherLabel: 'Trainer', notAnswered: 'Not answered',
   });
@@ -1930,7 +1930,7 @@
           <b>${q.rate === null ? t('none') : Math.round(q.rate * 100) + '%'}</b><span>Q${String(q.seq).padStart(2, '0')} ${esc(q.type)}</span></div>`).join('')}</div>
         <div class="small soft">${esc(t('qRatesNote'))}</div></div>
       <div class="card scroll-x"><table class="list"><thead><tr>${me.isTL ? '' : '<th style="width:36px"><input type="checkbox" id="all" aria-label="select all"></th>'}<th>${esc(t('colAgent'))}</th><th>${esc(t('colScore'))}</th><th>${esc(t('colWrong'))}</th><th>${esc(t('colSubmittedAt'))}</th><th></th></tr></thead><tbody>${
-        rows.map((r) => `<tr>${me.isTL ? '' : `<td><input type="checkbox" class="pick" value="${esc(r.email)}" ${r.status !== 'submitted' ? 'checked' : ''}></td>`}<td>${esc(r.email)}</td>
+        rows.map((r) => `<tr>${me.isTL ? '' : `<td><input type="checkbox" class="pick" value="${esc(r.email)}" ${r.status !== 'submitted' ? 'checked' : ''}></td>`}<td>${esc(r.email)} ${retakeChip(r.retakes)}</td>
           <td>${r.score === null ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : `<b style="font-size:18px">${r2(r.score)}</b>`}</td>
           <td class="small">${esc(wrongText(r.wrong)) || (r.score !== null ? '—' : '')}</td>
           <td class="small muted">${esc(fmtDT(r.submittedAt))}${r.autoSubmitted ? ' · ' + esc(t('autoSub')) : ''}</td>
@@ -1958,7 +1958,7 @@
     const xCard = (it) => {   // V3 DMS 考題（練習也列入，當作學習歷程）
       const r = it.row || { status: 'not_started', flags: [], wrong: [] }, s = it.session, prac = s.mode === 'practice', sub = r.status === 'submitted';
       return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span><span class="chip brand">DMS 考題</span><span class="chip">${prac ? '練習' : '考試'}</span>${sessChip(s.state)}</div>
-        <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(s.title)}</h2><span class="spacer"></span>
+        <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(s.title)}</h2>${retakeChip(r.retakes)}<span class="spacer"></span>
           ${!sub ? attChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : prac ? `<span class="tlscore ${r.mcRate !== null && r.mcRate * 100 < (xh.coachLine || 70) ? 'low' : ''}">${r.mcRate === null ? '-' : Math.round(r.mcRate * 100) + '%'}</span>` : `<span class="tlscore ${r.coaching ? 'low' : ''}">${r.score} / ${r.total}</span>`}</div>
         ${sub && r.wrong.length ? `<div class="small" style="margin-top:6px"><span class="soft">${prac ? '答錯的題目' : esc(t('wrongPoints'))}：</span>${r.wrong.map((w) => `<span class="chip warn" style="margin:2px">${esc(w.label)}${w.pending ? '（待給分）' : w.partial ? '（部分）' : ''}</span>`).join('')}</div>` : ''}
         ${sub && r.flags.length ? `<div class="small" style="margin-top:6px;color:#b45309">${r.flags.map(esc).join('；')}</div>` : ''}
@@ -1970,7 +1970,7 @@
         const r = it.row, s = it.session;
         const pts = r && r.wrong ? [...new Set(r.wrong.map((w) => L(w.point)).filter(Boolean))] : [];
         return `<div class="card pad tl"><div class="row"><span class="small soft">${esc(fmtDT(s.startAt))}</span>${sessChip(s.state)}${s.parentSession ? `<span class="chip">${esc(t('makeupOf', { id: s.parentSession }))}</span>` : ''}</div>
-          <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(L(s.title))}</h2><span class="spacer"></span>
+          <div class="row" style="margin-top:4px"><h2>${esc(s.sessionId)} ${esc(L(s.title))}</h2>${retakeChip(r && r.retakes)}<span class="spacer"></span>
             ${r && r.score !== null ? `<span class="tlscore ${r.coaching ? 'low' : ''}">${r2(r.score)}</span>` : attChip(r && r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : (r || { status: 'not_started' }))}</div>
           ${pts.length ? `<div class="small" style="margin-top:6px"><span class="soft">${esc(t('wrongPoints'))}：</span>${pts.map((p) => `<span class="chip warn" style="margin:2px">${esc(p)}</span>`).join('')}</div>` : ''}
           ${r && r.score !== null ? `<div style="margin-top:8px"><button class="btn sm" data-det="${esc(s.sessionId)}">${esc(t('detail'))}</button> <a class="small" href="#/results/${esc(s.sessionId)}">${esc(t('bySession'))} →</a></div>` : ''}</div>`;
@@ -2037,12 +2037,21 @@
       };
     } });
   }
+  // 退回重考紀錄（2026-11-26）：講師、TL 都看得到；滑過去看誰、何時、原因
+  function retakeChip(list) {
+    if (!list || !list.length) return '';
+    const tip = list.map((x) => `${fmtDT(x.at)}　${x.by}：${x.reason || '-'}`).join('\n');
+    return `<span class="chip warn" title="${esc(tip)}">${esc(t('retakeN', { n: list.length }))}</span>`;
+  }
+  Object.assign(I18N.zh, { retakeN: '退回重考 {n} 次' });
+  Object.assign(I18N.en, { retakeN: 'Returned {n}×' });
   function returnModal(s, email, done) {
     return modal(`<h2>${esc(t('returnTitle', { email }))}</h2><div class="small muted">${esc(t('returnNote'))}</div>
       <input type="text" id="rt_r" placeholder="${esc(t('returnReason'))}" style="height:38px;border:1px solid var(--line2);border-radius:8px;padding:0 10px">
       <div class="row" style="justify-content:flex-end"><button class="btn" data-close="">${esc(t('cancel'))}</button><button class="btn brand" id="rt_go">${esc(t('returnBtn'))}</button></div>`,
     { onMount: (el, close) => {
       $('#rt_go', el).onclick = async () => {
+        if (!$('#rt_r', el).value.trim()) { toast(t('returnReason')); return; }
         try { const r = await api('t_returnAttempt', { sessionId: s.sessionId, email, reason: $('#rt_r', el).value }); close('ok'); toast(t('returnDone') + (r.hint ? '：' + r.hint : ''), r.hint ? 7000 : 2600); done && done(); }
         catch (e) { toast(e.message, 4000); }
       };
@@ -2889,14 +2898,14 @@
     optAdd: '新增選項範本', optEdit: '編輯選項範本', optName: '範本名稱', optItems: '選項', optAddRow: '＋ 新增選項', optDel: '刪除範本', optDelConfirm: '刪除選項範本「{n}」？已經使用這組選項的題目不受影響。', optSaved: '選項範本已儲存', optDeleted: '選項範本已刪除', optIsDefault: '預設',
     roleEmail: 'Email', roleRole: '身分', roleBy: '加入者', roleAdd: '新增講師', roleAdmin: '管理員', roleAdminHint: '管理員：TW 講師的全部功能，加上這個「管理」頁（講師名單、刪除權限、系統設定、V1 資料搬移），而且一律可以刪除。', roleTw: 'TW 講師', roleBpo: 'BPO 講師', roleOwner: '擁有者（固定是管理員，寫在權限規則裡）', roleRemove: '移除', roleRemoveConfirm: '把 {e} 從講師名單移除？之後他登入只會看到專員畫面。', roleAdded: '已加入 {e}', roleRemoved: '已移除 {e}', roleNotCompany: '非公司帳號，登入後讀不到任何資料，請移除',
     roleHint: '不在名單上的人用 Google 登入後都是專員，只看得到指派給自己的測驗。', sysKey: '項目', sysNote: '說明', sysValue: '數值', sysSaved: '已儲存', save: '儲存',
-    setPerms: '刪除權限', setV1: 'V1 資料搬移', setReset: '重置資料',
+    setPerms: '權限設定', setV1: 'V1 資料搬移', setReset: '重置資料',
     setGroups: '組別', grpHint: '整個系統共用的組別（例如 C2C、Mall、CB），講師用來分類 DMS 考題。停用的組別不能再選，已經選了的案件保留。', grpName: '組別名稱', grpActive: '啟用', grpAdd: '新增組別', grpSaved: '已儲存組別',
     tUsage: '用途', tUsage_sample: '範例出題（AI）', tUsage_case: 'DMS 考題', tUsageHint: '只勾「DMS 考題」的主題不需要判斷標準，也不會出現在範例申請、題庫生成的主題選單。',
     resetTitle: '重置資料（清除測試資料、編號從頭開始）', resetWarn: '會永久刪除下列所有資料，無法復原。編號（D、Q、E、S、R）全部從 001 重新開始，V1 資料搬移也可以重新執行。正式上線、匯入 V1 之前使用；上線後請勿使用。',
     resetResults: '公布的成績', resetSamples: '範例', resetRequests: '範例申請紀錄', resetKeep: '會保留：主題與判斷標準、標籤、選項範本、DMS 規則、系統設定、刪除權限、講師名單。',
     resetBtn: '重置資料', resetConfirm: '確定要刪除所有草稿、題庫、測驗、成績、範例與申請紀錄？無法復原。', resetRunning: '重置中…', resetDone: '已重置，編號從頭開始', adminHint: '只有管理員看得到這一頁',
-    permPage: '頁面', permAction: '刪除項目', permAdminAlways: '管理員一律可以刪除', permTwOnly: '這個頁面只有 TW 講師能進', permSaved: '刪除權限已儲存',
-    permHint: '勾選的身分會在該頁面看到刪除按鈕；沒勾的看不到，也無法透過其他方式刪除（由 Firebase 權限規則把關）。', permLast: '最後修改：{by}（{at}）',
+    permPage: '頁面', permAction: '項目', permAdminAlways: '管理員一律可以', permTwOnly: '這個頁面只有 TW 講師能進', permSaved: '權限已儲存',
+    permHint: '勾選的身分會在該頁面看到按鈕；沒勾的看不到，也無法透過其他方式操作（由 Firebase 權限規則把關）。', permLast: '最後修改：{by}（{at}）',
     perm_bankQ: '刪除題庫題目', permd_bankQ: '已發佈的測驗保留試卷副本，成績不受影響；題目的統計會消失',
     perm_case: '刪除 DMS 考題', permd_case: '未上架、已上架都適用；連同補充圖片與申請紀錄，同一個 Return ID 之後可以重新申請；已發佈的測驗保留試卷副本，成績不受影響', permPageCase: 'DMS 考題',
     perm_draft: '刪除草稿', permd_draft: '題庫與已發佈的測驗不受影響；未入庫的題目一併移除',
@@ -2904,6 +2913,7 @@
     perm_session: '刪除測驗', permd_session: '作答、分數、公布的成績一起刪除，專員的歷史成績也會消失；正式測驗請用「封存」',
     perm_sample: '刪除範例', permd_sample: '連同申請紀錄；同一個 Return ID 之後可以重新申請',
     perm_request: '刪除範例申請紀錄', permd_request: '只限等待中、失敗、已取消、範例已刪除的申請',
+    perm_retake: '退回重考', permd_retake: '原本的作答另外保存、不再計分，專員從頭重考；退回紀錄（誰、何時、原因）講師和 TL 都看得到。預設只有管理員',
     v1Title: '從 V1 搬移資料', v1Hint: '在 V1 的 Apps Script 執行 exportForV2，把產生的 JSON 檔選進來。會先顯示預計匯入的內容，確認後才寫入。編號會重新配發（題庫 Q、範例 S、測驗 E），舊的 V1 測驗連結會自動導到新編號。只能匯入一次。',
     v1Pick: '選擇 V1 匯出檔', v1Plan: '預計匯入：題庫 {b} 題、範例 {s} 筆、測驗 {e} 場（作答 {a} 份，已公布成績 {r} 場）、新標籤 {g} 個',
     v1Done: '匯入完成：題庫 {b} 題、範例 {s} 筆、測驗 {e} 場（作答 {a} 份，已公布成績 {r} 場）、新標籤 {g} 個',
@@ -2938,14 +2948,14 @@
     optAdd: 'Add option set', optEdit: 'Edit option set', optName: 'Name', optItems: 'Options', optAddRow: '＋ Add option', optDel: 'Delete set', optDelConfirm: 'Delete option set "{n}"? Questions that already use it are not affected.', optSaved: 'Option set saved', optDeleted: 'Option set deleted', optIsDefault: 'Default',
     roleEmail: 'Email', roleRole: 'Role', roleBy: 'Added by', roleAdd: 'Add trainer', roleAdmin: 'Admin', roleAdminHint: 'Admin: everything a TW trainer can do, plus this Admin page (trainers, delete permissions, system settings, V1 migration), and can always delete.', roleTw: 'TW trainer', roleBpo: 'BPO trainer', roleOwner: 'Owner (always admin, set in the rules)', roleRemove: 'Remove', roleRemoveConfirm: 'Remove {e} from trainers? They will only see the agent view.', roleAdded: '{e} added', roleRemoved: '{e} removed', roleNotCompany: 'Not a company account: cannot read anything. Please remove.',
     roleHint: 'Anyone not on this list who signs in with Google is an agent and only sees quizzes assigned to them.', sysKey: 'Item', sysNote: 'Description', sysValue: 'Value', sysSaved: 'Saved', save: 'Save',
-    setPerms: 'Delete permissions', setV1: 'V1 migration', setReset: 'Reset data',
+    setPerms: 'Permissions', setV1: 'V1 migration', setReset: 'Reset data',
     setGroups: 'Groups', grpHint: 'Groups shared across the system (e.g. C2C, Mall, CB), used to classify DMS questions. Inactive groups cannot be picked; cases that already use them keep them.', grpName: 'Group name', grpActive: 'Active', grpAdd: 'Add group', grpSaved: 'Groups saved',
     tUsage: 'Use', tUsage_sample: 'Samples (AI)', tUsage_case: 'DMS questions', tUsageHint: 'Topics used only for DMS questions need no criteria and are hidden from sample requests and question generation.',
     resetTitle: 'Reset data (remove test data, restart IDs)', resetWarn: 'Permanently deletes everything listed below. IDs (D, Q, E, S, R) restart from 001 and the V1 migration can run again. Use before going live and before importing V1; do not use after go-live.',
     resetResults: 'Released results', resetSamples: 'Samples', resetRequests: 'Sample requests', resetKeep: 'Kept: topics and criteria, tags, option sets, DMS rules, system settings, delete permissions, trainers.',
     resetBtn: 'Reset data', resetConfirm: 'Delete all drafts, bank questions, quizzes, results, samples and requests? This cannot be undone.', resetRunning: 'Resetting…', resetDone: 'Reset done; IDs restart from 001', adminHint: 'Only admins can see this page',
-    permPage: 'Page', permAction: 'Delete action', permAdminAlways: 'Admins can always delete', permTwOnly: 'Only TW trainers can open this page', permSaved: 'Delete permissions saved',
-    permHint: 'Ticked roles see the delete button on that page; others do not, and cannot delete any other way (enforced by the Firebase rules).', permLast: 'Last changed by {by} ({at})',
+    permPage: 'Page', permAction: 'Action', permAdminAlways: 'Admins can always do this', permTwOnly: 'Only TW trainers can open this page', permSaved: 'Permissions saved',
+    permHint: 'Ticked roles see the button on that page; others do not, and cannot do it any other way (enforced by the Firebase rules).', permLast: 'Last changed by {by} ({at})',
     perm_bankQ: 'Delete bank questions', permd_bankQ: 'Published quizzes keep their own copy; the question stats are lost',
     perm_case: 'Delete DMS questions', permd_case: 'Listed or not; also removes its images and request, so the Return ID can be requested again; published quizzes keep their own copy', permPageCase: 'DMS questions',
     perm_draft: 'Delete drafts', permd_draft: 'The bank and published quizzes are not affected; questions not in the bank are removed',
@@ -2953,6 +2963,7 @@
     perm_session: 'Delete quizzes', permd_session: 'Attempts, scores and released results are deleted, including agents\' history; archive real quizzes instead',
     perm_sample: 'Delete samples', permd_sample: 'Including the request record; the Return ID can be requested again',
     perm_request: 'Delete sample request records', permd_request: 'Queued, failed, cancelled or sample-deleted requests only',
+    perm_retake: 'Return for retake', permd_retake: 'The old attempt is kept aside and no longer counts; the agent starts over. Trainers and TLs can see who returned it, when and why. Admins only by default',
     v1Title: 'Move data from V1', v1Hint: 'Run exportForV2 in the V1 Apps Script and pick the JSON file it creates. You will see what will be imported before anything is written. IDs are reassigned (bank Q, samples S, quizzes E); old V1 quiz links redirect automatically. One-time import.',
     v1Pick: 'Choose V1 export file', v1Plan: 'To import: {b} bank questions, {s} samples, {e} quizzes ({a} attempts, {r} with released results), {g} new tags',
     v1Done: 'Imported: {b} bank questions, {s} samples, {e} quizzes ({a} attempts, {r} with released results), {g} new tags',
@@ -3423,7 +3434,7 @@
   async function setPermsTab(box) {
     const r = await api('ad_getPerms');
     const perms = JSON.parse(JSON.stringify(r.perms));
-    const PAGE = { bankQ: 'navBank', case: 'permPageCase', draft: 'navDrafts', draftQ: 'navDrafts', session: 'navSessions', sample: 'navLibrary', request: 'navLibrary' };
+    const PAGE = { bankQ: 'navBank', case: 'permPageCase', draft: 'navDrafts', draftQ: 'navDrafts', session: 'navSessions', sample: 'navLibrary', request: 'navLibrary', retake: 'navSessions' };
     const ROLES = ['admin', 'tw', 'bpo'], RN = { admin: 'roleAdmin', tw: 'roleTw', bpo: 'roleBpo' };
     const cell = (k, role) => {
       if (role === 'admin') return `<input type="checkbox" checked disabled title="${esc(t('permAdminAlways'))}">`;

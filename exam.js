@@ -204,14 +204,14 @@
       <div class="tabs"><a class="tab ${view === 'content' ? 'on' : ''}" href="${href('content')}">考題內容</a><a class="tab ${view === 'progress' ? 'on' : ''}" href="${href('progress')}">作答進度</a>
         <a class="tab ${view === 'grade' ? 'on' : ''}" href="${href('grade', by)}">${exam && !ro ? '閱卷批改' : '作答明細'}</a><a class="tab" href="#/xresults/${esc(s.sessionId)}">成績與分析</a></div>
       ${view === 'content' ? `<div id="xcBox">${contentPanel(d)}</div>` : view === 'progress' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>開始</th><th>交卷</th><th>離開頁面</th><th></th></tr></thead><tbody>
-        ${d.roster.map((r) => `<tr><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
+        ${d.roster.map((r) => `<tr><td>${esc(r.email)} ${retakeChip(r.retakes)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
           <td class="small muted">${fmtDT(r.startedAt)}</td><td class="small muted">${fmtDT(r.submittedAt)}</td>
           <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
-          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${ro ? '' : `${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}${exam && !s.released && (r.status === 'submitted' || r.status === 'expired') ? `<button class="btn sm ghost" data-ret="${esc(r.email)}" title="原本的作答另外保存、不再計分，專員從頭重新作答">退回重考</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
+          <td style="text-align:right;white-space:nowrap">${r.extraMin ? `<span class="chip">加時 ${r.extraMin} 分</span> ` : ''}${ro ? '' : `${!s.released && (r.status === 'in_progress' || r.status === 'expired') && r.startedAt ? `<button class="btn sm ghost" data-add="${esc(r.email)}">加時</button> ` : ''}${r.status === 'not_started' && !s.released ? `<button class="btn sm ghost danger" data-rm="${esc(r.email)}">移除</button>` : ''}${exam && !s.released && X.me.can && X.me.can.retake && (r.status === 'submitted' || r.status === 'expired') ? `<button class="btn sm ghost" data-ret="${esc(r.email)}" title="原本的作答另外保存、不再計分，專員從頭重新作答">退回重考</button>` : ''}`}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="row" style="margin-bottom:10px"><span class="seg xs-seg"><a class="${by === 'q' ? 'on' : ''}" href="${href('grade', 'q')}">依題目</a><a class="${by === 'a' ? 'on' : ''}" href="${href('grade', 'a')}">依專員</a></span>
           <span class="small muted">${sub} / ${d.roster.length} 人交卷${exam ? gradeLeft(d) : ''}</span></div>
         ${by === 'a' ? `<div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>狀態</th><th>交卷</th><th>${exam ? '成績' : '答對'}</th><th>離開頁面</th><th></th></tr></thead><tbody>
-          ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
+          ${d.roster.map((r) => `<tr class="${r.email === want ? 'sel' : ''}"><td>${esc(r.email)} ${retakeChip(r.retakes)}</td><td>${atChip(r.status === 'not_started' && s.state === 'closed' ? { status: 'expired' } : r)}</td>
             <td class="small muted">${fmtDT(r.submittedAt)}</td>
             <td class="small">${r.result ? (exam ? `<b>${r.result.score}</b> / ${r.result.total}<div class="soft">原始 ${r.result.raw} / ${r.result.rawTotal}</div>${r.result.pending ? `<div class="soft">${r.result.pending} 題簡答待給分</div>` : ''}` : mcRight(d.key, r)) : '-'}</td>
             <td class="small">${r.track ? esc(window.RRQP_CASES.leaveSummary(r.track)) : '-'}</td>
@@ -289,6 +289,11 @@
     if (by === 'q') return questionPanel($('#xAgent'), d, exam && !s.released);
     const r = d.roster.find((x) => x.email === want);
     if (r) agentPanel($('#xAgent'), d, r, exam && !s.released);
+  }
+  // 退回重考紀錄（2026-11-26）：講師、TL 都看得到；滑過去看誰、何時、原因
+  function retakeChip(list) {
+    if (!list || !list.length) return '';
+    return `<span class="chip warn" title="${esc(list.map((x) => `${fmtDT(x.at)}　${x.by}：${x.reason || '-'}`).join('\n'))}">退回重考 ${list.length} 次</span>`;
   }
   // ═════════════════════════════ 單場：考題內容（2026-11-24 Chris） ═════════════════════════════
   // 發佈後看這份考卷用了哪些題目：一題一列；同一案件有多題時，案件只寫在第一題。
@@ -468,7 +473,7 @@
         <b>${q.rate === null ? '-' : Math.round(q.rate * 100) + '%'}</b><span>案件${q.caseNo}-${q.no} ${QTYPE(q.type)}</span></div>`).join('')}</div>
         <div class="small soft">簡答題以已給分的人計算平均得分率；滑過長條可以看題目。</div></div>
       <div class="card scroll-x"><table class="list"><thead><tr><th>專員</th><th>${practice ? '答對率' : '分數'}</th><th>錯在哪</th><th>作答時間</th><th>離開頁面</th><th>需要留意</th><th></th></tr></thead><tbody>
-        ${rows.map((r) => `<tr><td>${esc(r.email)}${r.extraMin ? ` <span class="chip">加時 ${r.extraMin} 分</span>` : ''}</td>
+        ${rows.map((r) => `<tr><td>${esc(r.email)}${r.extraMin ? ` <span class="chip">加時 ${r.extraMin} 分</span>` : ''} ${retakeChip(r.retakes)}</td>
           <td>${r.status !== 'submitted' ? atChip(r.status === 'not_started' && s.state !== 'open' ? { status: 'expired' } : r) : practice ? `<b>${rateTxt(r.mcRate)}</b>` : `<b style="font-size:18px">${r.score}</b> / ${r.total}<div class="small soft">原始 ${r.raw} / ${r.rawTotal}${r.pending ? `・${r.pending} 題待給分` : ''}</div>`}</td>
           <td class="small">${r.wrong.map((w) => esc(w.label) + (w.pending ? '（待給分）' : w.partial ? '（部分）' : '')).join('、') || (r.status === 'submitted' ? '—' : '')}</td>
           <td class="small">${r.status === 'submitted' ? durTxt(r.secs) : ''}</td><td class="small">${r.status === 'submitted' ? (r.leaves ? `${r.leaves} 次（${durTxt(r.leaveSecs)}）` : '0') : ''}</td>
