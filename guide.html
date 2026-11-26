@@ -1,1016 +1,417 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RR AI Quiz Platform 講師使用說明</title>
+<script>
+  // 英文版沿用舊的文字說明（guide-en.html）；中文是圖文版
+  (function () { var m = location.hash.match(/^#(trainer|agent)-en$/); if (m) location.replace('guide-en.html' + location.hash); })();
+</script>
 <style>
+  /* 圖文版使用說明（2026-11-26）：實際畫面截圖＋編號標記，滑過說明會標出畫面上的位置。截圖在 guide/ 資料夾（測試資料，不是真實案件） */
   :root {
     --bg: #F6F5F2; --card: #fff; --ink: #1F1F1F; --muted: #4A4843; --soft: #7A776F;
-    --line: #E4E2DC; --chip: #F2F0EB; --brand: #EA580C; --brand-soft: #FDEEE8;
-    --ok: #15803D; --ok-bg: #EAF6EE; --info: #1D4ED8; --info-bg: #EAF0FD; --warn: #92400E; --warn-bg: #FFF8E6;
+    --line: #E4E2DC; --chip: #F2F0EB; --brand: #EA580C; --brand-dark: #C2410C; --brand-soft: #FDEEE8;
+    --ok: #15803D; --ok-bg: #EAF6EE; --warn-bg: #FFF8E6; --warn-line: #F3D48A;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.75 'Noto Sans TC', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-  header { background: var(--card); border-bottom: 1px solid var(--line); }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
-  .hero { padding-top: 40px; padding-bottom: 32px; }
+  * { box-sizing: border-box; min-width: 0; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.75 'Noto Sans TC', system-ui, -apple-system, 'Segoe UI', sans-serif; overflow-x: clip; }
+  header.top { background: var(--card); border-bottom: 1px solid var(--line); }
+  .hero { max-width: 1240px; margin: 0 auto; padding: 32px 24px 24px; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--muted); font-size: 15px; }
   .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; }
-  h1 { font-size: 32px; line-height: 1.3; margin: 16px 0 8px; }
-  h2 { font-size: 22px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
-  h3 { font-size: 16px; margin: 18px 0 6px; }
-  p { margin: 6px 0; }
-  .lead { color: var(--muted); font-size: 17px; max-width: 720px; }
-  nav.toc { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.95); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
-  nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 8px; padding-bottom: 8px; }
-  nav.toc a { white-space: nowrap; padding: 6px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 14px; }
-  nav.toc a:hover { background: var(--chip); }
-  main { padding: 28px 0 60px; display: flex; flex-direction: column; gap: 22px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px 26px; }
-  .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 14px; }
-  .flow a { display: block; text-decoration: none; color: var(--ink); background: var(--chip); border-radius: 10px; padding: 12px 10px; text-align: center; position: relative; }
+  h1 { font-size: 32px; line-height: 1.25; margin: 14px 0 6px; }
+  .lead0 { color: var(--muted); font-size: 16px; max-width: 760px; margin: 0; }
+  .switches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .switch { display: inline-flex; border: 1px solid #D6D3CC; border-radius: 10px; overflow: hidden; background: #fff; }
+  .switch button, .switch a { border: 0; background: transparent; padding: 8px 18px; font: inherit; font-size: 15px; font-weight: 700; color: var(--muted); cursor: pointer; text-decoration: none; }
+  .switch [aria-pressed="true"] { background: var(--brand); color: #fff; }
+  .wrap { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; max-width: 1240px; margin: 0 auto; padding: 24px 24px 80px; }
+  nav.toc { position: sticky; top: 16px; align-self: start; font-size: 14px; max-height: calc(100vh - 32px); overflow-y: auto; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); }
+  nav.toc a.sub { padding-left: 22px; color: var(--soft); font-size: 13px; }
+  nav.toc a:hover, nav.toc a.on { color: var(--brand); border-color: var(--brand); }
+  main { display: flex; flex-direction: column; gap: 22px; }
+  [data-view][hidden] { display: none !important; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: clamp(18px, 3vw, 32px); scroll-margin-top: 16px; }
+  section h2 { font-size: 24px; line-height: 1.3; margin: 0 0 6px; }
+  section h3 { font-size: 18px; margin: 30px 0 8px; scroll-margin-top: 16px; }
+  .who { display: inline-block; font-size: 13px; font-weight: 500; color: var(--brand); border: 1px solid var(--brand); border-radius: 99px; padding: 0 10px; margin-left: 6px; vertical-align: 3px; }
+  .lead { color: var(--muted); margin: 0 0 16px; max-width: 78ch; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .foot { color: var(--soft); font-size: 14px; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; background: var(--chip); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  .btnlike { display: inline-block; border: 1px solid #D6D3CC; border-radius: 6px; padding: 0 8px; font-size: 14px; background: #fff; white-space: nowrap; }
+  .cnt { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; color: #fff; vertical-align: 1px; }
+  .cnt.g { background: #9CA3AF; } .cnt.o { background: #EA580C; } .okc { color: var(--ok); font-weight: 700; }
+  table.tb { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+  table.tb th, table.tb td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.tb th { background: var(--chip); font-size: 14px; }
+  table.tb td:first-child { white-space: nowrap; }
+  .tip, .note { border-radius: 10px; padding: 11px 15px; margin: 16px 0; font-size: 15px; }
+  .tip { background: var(--ok-bg); }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+  .tip b, .note b:first-child { margin-right: 8px; }
+  .flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 14px 0 18px; }
+  .flow a { display: block; text-decoration: none; color: var(--ink); background: var(--chip); border-radius: 10px; padding: 12px 10px; text-align: center; }
   .flow a:hover { background: var(--brand-soft); }
   .flow b { display: block; font-size: 15px; }
   .flow span { font-size: 12.5px; color: var(--soft); }
   .flow .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
-  .step { display: inline-grid; place-items: center; min-width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 15px; font-weight: 800; }
-  .sub { color: var(--soft); font-size: 14px; margin-bottom: 10px; }
-  ol, ul { margin: 6px 0; padding-left: 22px; }
-  li { margin: 3px 0; }
-  .chip { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; vertical-align: 2px; }
-  .chip.tw { background: var(--brand-soft); color: var(--brand); }
-  .chip.all { background: var(--info-bg); color: var(--info); }
-  .tip { background: var(--ok-bg); border-radius: 10px; padding: 10px 14px; margin-top: 12px; font-size: 15px; }
-  .note { background: var(--warn-bg); border-radius: 10px; padding: 10px 14px; margin-top: 12px; font-size: 15px; }
-  code, kbd { font-family: ui-monospace, Menlo, Consolas, monospace; background: var(--chip); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
-  .btnlike { display: inline-block; border: 1px solid #D6D3CC; border-radius: 6px; padding: 0 8px; font-size: 14px; background: #fff; white-space: nowrap; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { background: var(--chip); font-size: 14px; }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  footer { color: var(--soft); font-size: 13px; text-align: center; padding: 0 0 40px; }
-  .switch { display: inline-flex; border: 1px solid #D6D3CC; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 18px; }
-  .switch button { border: 0; background: transparent; padding: 8px 18px; font: inherit; font-size: 15px; font-weight: 700; color: var(--muted); cursor: pointer; }
-  .switch button[aria-pressed="true"] { background: var(--brand); color: #fff; }
-  [data-view][hidden] { display: none !important; }
-  .chip.agent { background: var(--ok-bg); color: var(--ok); }
-  section.card { scroll-margin-top: 64px; }
-  .foot { color: var(--soft); font-size: 14px; margin-top: 8px; }
-  .cnt { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 700; color: #fff; vertical-align: 1px; }
-  td:first-child > b { white-space: nowrap; }
-  .cnt.g { background: #9CA3AF; } .cnt.o { background: #EA580C; } .okc { color: var(--ok); font-weight: 700; }
-  .qhead { display: inline-block; background: #FDEEE8; color: #9A3412; border: 1px solid #F3C4B2; border-radius: 6px; padding: 0 8px; font-weight: 700; font-size: 14px; }
-  ul.gap { margin-top: 10px; }
-  .zh { color: var(--soft); font-size: 14px; }
-  @media (max-width: 760px) {
-    h1 { font-size: 26px; }
-    .flow { grid-template-columns: repeat(2, 1fr); }
-    .two { grid-template-columns: 1fr; }
-    .card { padding: 18px; }
+  /* 截圖與編號 */
+  figure.fig { margin: 16px 0 24px; }
+  figure.fig > figcaption, figure.fig div > figcaption { font-size: 14px; color: var(--soft); margin-top: 8px; }
+  .shot { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; box-shadow: 0 6px 22px rgba(0, 0, 0, .06); }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot.narrow { max-width: 480px; }
+  .pin { position: absolute; width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; font: 700 13px/26px system-ui, sans-serif; text-align: center; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); cursor: pointer; padding: 0; z-index: 2; }
+  .pin.on, .pin:hover { background: var(--brand-dark); }
+  .box { position: absolute; border: 2px solid var(--brand); border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .15s; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .28); z-index: 1; }
+  .box.on { opacity: 1; }
+  ol.keys { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 22px; }
+  ol.keys.one { grid-template-columns: 1fr; margin-top: 0; }
+  ol.keys li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 8px 10px; border-radius: 8px; margin: 0; }
+  ol.keys li.on { background: var(--brand-soft); }
+  ol.keys .n { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; font: 700 12px/24px system-ui, sans-serif; text-align: center; margin-top: 3px; }
+  ol.keys b { display: block; }
+  ol.keys span.d { color: var(--muted); font-size: 15px; }
+  figure.side { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  figure.side > div > figcaption { margin: 0 0 8px; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0 24px; }
+  .pair figure.fig { margin: 0; }
+  @media (max-width: 960px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; display: flex; flex-wrap: wrap; gap: 4px; max-height: none; }
+    nav.toc a { border: 1px solid var(--line); border-radius: 99px; padding: 3px 12px; }
+    nav.toc a.sub { display: none; }
+    .flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  @media print { nav.toc { display: none; } body { background: #fff; } .card { break-inside: avoid; } }
-  .switches { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  @media (max-width: 700px) {
+    h1 { font-size: 26px; }
+    ol.keys, .pair, figure.side { grid-template-columns: 1fr; }
+    .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pin { width: 20px; height: 20px; font-size: 11px; line-height: 20px; }
+  }
+  @media print { nav.toc, .switches { display: none; } body { background: #fff; } section { break-inside: avoid-page; } .wrap { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .box { transition: none; } }
 </style>
-
 </head>
 <body>
-<header>
-  <div class="wrap hero">
+<header class="top">
+  <div class="hero">
     <div class="brand"><span class="logo">S</span>RR AI Quiz Platform</div>
-    <div data-view="trainer" data-lang="zh"><h1>講師使用說明</h1><p class="lead">從真實 DMS 案件出題，有兩條路：<b>DMS 考題</b>用原案件直接考，講師整理畫面、插入題目後就能組卷；<b>DMS 範例</b>由講師設定正解並鎖定判斷依據，再交給 AI 改寫成變化題。專員作答後，選擇題由系統計分，文字作答由 AI 先批改、講師確認再發佈成績。</p></div><div data-view="trainer" data-lang="en" hidden><h1>Trainer Guide</h1><p class="lead">Real DMS cases become quizzes in two ways: a <b>DMS question</b> asks the real case as is (tidy the screen, insert questions, then use it in a quiz); a <b>DMS sample</b> gets its answer and evidence set by a trainer, then the AI rewrites it into variants. Choices are scored automatically; written answers are graded by the AI first and confirmed by trainers.</p></div><div data-view="agent" data-lang="zh" hidden><h1>專員作答說明</h1><p class="lead">如何登入、作答與查看成績。講師會提供測驗連結給你。</p></div><div data-view="agent" data-lang="en" hidden><h1>Agent Guide</h1><p class="lead">How to sign in, take a quiz and check your results. Your trainer will send you a quiz link.</p></div>
+    <div data-view="trainer"><h1>講師使用說明</h1><p class="lead0">從真實 DMS 案件出題、發佈測驗、批改與查看成績。每一節用實際畫面說明：點畫面上的編號，或把滑鼠移到說明上，會標出對應的位置。截圖用的是測試資料。</p></div>
+    <div data-view="agent" hidden><h1>專員作答說明</h1><p class="lead0">如何登入、作答與查看成績。講師會提供測驗連結給你。</p></div>
     <div class="switches">
-      <div class="switch" role="group" aria-label="說明對象 / Guide for">
-        <button type="button" data-to-view="trainer" aria-pressed="true"><span data-l="zh">講師</span><span data-l="en" hidden>Trainer</span></button>
-        <button type="button" data-to-view="agent" aria-pressed="false"><span data-l="zh">專員</span><span data-l="en" hidden>Agent</span></button>
+      <div class="switch" role="group" aria-label="說明對象">
+        <button type="button" data-to-view="trainer" aria-pressed="true">講師</button>
+        <button type="button" data-to-view="agent" aria-pressed="false">專員</button>
       </div>
       <div class="switch" role="group" aria-label="語言 / Language">
-        <button type="button" data-to-lang="zh" aria-pressed="true">中文</button>
-        <button type="button" data-to-lang="en" aria-pressed="false">EN</button>
+        <button type="button" aria-pressed="true">中文</button>
+        <a href="guide-en.html#trainer-en" id="toEn" aria-pressed="false">EN</a>
       </div>
     </div>
   </div>
 </header>
-<nav class="toc"><div class="wrap" data-view="trainer" data-lang="zh"><a href="#t-overview">整體流程</a><a href="#t1">① 案件匯入</a><a href="#t1b">DMS 考題審核</a><a href="#t2">② 題庫生成</a><a href="#t3">③ 可用題庫</a><a href="#t4">④ 測驗管理</a><a href="#t5">⑤ 閱卷發佈</a><a href="#t6">⑥ 歷史成績</a><a href="#t7">主題設定</a><a href="#t-faq">注意事項</a></div><div class="wrap" data-view="trainer" data-lang="en" hidden><a href="#t-overview">Workflow</a><a href="#t1">① Case import</a><a href="#t1b">DMS questions</a><a href="#t2">② Generate</a><a href="#t3">③ Bank</a><a href="#t4">④ Quizzes</a><a href="#t5">⑤ Grading</a><a href="#t6">⑥ History</a><a href="#t7">Settings</a><a href="#t-faq">Good to know</a></div><div class="wrap" data-view="agent" data-lang="zh" hidden><a href="#a-overview">流程總覽</a><a href="#a1">① 登入</a><a href="#a2">② 開始作答</a><a href="#a3">③ 閱讀案件</a><a href="#a4">④ 作答</a><a href="#a5">⑤ 交卷</a><a href="#a6">⑥ 查看成績</a><a href="#a7">DMS 考題測驗</a><a href="#a-help">遇到問題</a></div><div class="wrap" data-view="agent" data-lang="en" hidden><a href="#a-overview">Overview</a><a href="#a1">① Sign in</a><a href="#a2">② Start</a><a href="#a3">③ Read the case</a><a href="#a4">④ Answer</a><a href="#a5">⑤ Submit</a><a href="#a6">⑥ Results</a><a href="#a7">DMS case quizzes</a><a href="#a-help">Help</a></div></nav>
-<div class="wrap"><main data-view="trainer" data-lang="zh">
-<section class="card" id="t-overview">
-  <h2>整體流程</h2>
-  <p class="sub">後台選單由左到右就是工作順序。「案件匯入」讀取 DMS 案件，產生兩種東西：<b>DMS 考題</b>審核後直接可以考；<b>DMS 範例</b>審核後到「題庫生成」交給 AI 改寫成變化題。最後都放在「可用題庫」，分成兩個分頁。</p>
-  <div class="flow"><a href="#t1"><span class="n">1</span><b>案件匯入</b><span>DMS 案件 → 考題／範例</span></a><a href="#t2"><span class="n">2</span><b>題庫生成</b><span>選範例 → AI 改寫 → 校對</span></a><a href="#t3"><span class="n">3</span><b>可用題庫</b><span>已確認的題目</span></a><a href="#t4"><span class="n">4</span><b>測驗管理</b><span>抽題 → 發佈</span></a><a href="#t5"><span class="n">5</span><b>閱卷發佈</b><span>AI 批改 → 確認</span></a><a href="#t6"><span class="n">6</span><b>歷史成績</b><span>成績、補考</span></a></div>
-  <h3>登入與權限</h3>
-  <ul>
-    <li>用公司 Google 帳號登入；講師名單在「管理 → 講師名單」（只有管理員看得到），不在名單上的人登入後都是專員。右上角可以切換中文 / EN。</li>
-    <li><span class="chip tw">TW 講師</span> 可以使用全部功能，包含「案件匯入」、DMS 考題審核、選範例出題與「主題設定」。</li>
-    <li><span class="chip all">所有講師</span> 可以使用「題庫生成」之後的功能（BPO 講師看不到範例，建草稿時改用選標籤）。</li>
-    <li><b>TL</b>：只看得到「歷史成績」，可以看每場測驗的成績、每題答對率、每位專員的作答明細，也可以匯出 CSV；還沒公布的測驗也看得到（標「尚未公布」，分數可能還會調整）。TL 不能改分數、公布成績或刪除任何東西。</li>
-    <li>講師也是受測者時，可以在「我的測驗」作答。</li>
-  </ul>
-  <h3>SeaTalk 指令（@RR AI Quiz Assistant）</h3>
-  <table>
-    <tr><th>指令</th><th>什麼時候用</th><th>做什麼</th></tr>
-    <tr><td><code>生成考題 D001</code></td><td>建立草稿後</td><td>依選的範例改寫出變化題（一批只看一個範例）</td></tr>
-    <tr><td><code>批改 E001</code></td><td>變化題測驗結束後（有文字作答題時）</td><td>為文字答案評分，附理由與信心度</td></tr>
-    <tr><td><code>批改 X001</code></td><td>DMS 考題測驗結束後（有簡答題時）</td><td>為簡答題給 AI 建議分數，附理由與信心度；講師採用才算數</td></tr>
-    <tr><td><code>處理 D001</code></td><td>備用</td><td>草稿題目的英文也可以用這個指令翻譯；一般請用畫面上的「送翻譯」</td></tr>
-  </table>
-  <p class="foot">指令都可以在網站上直接複製；AI 處理時網站不用重新整理，完成後會自動更新。</p>
-  <h3>畫面上的圖示</h3>
-  <ul>
-    <li><span class="cnt g">3</span> 灰色圓圈＋數字：<b>待處理</b>的數量，例如待審、待給分、未確認。</li>
-    <li><span class="cnt o">2</span> 橘色圓圈＋數字：<b>需要注意</b>的數量，例如 AI 低信心、低於輔導門檻、需要留意。</li>
-    <li><span class="okc">✓</span> 綠勾：這一項都完成了。</li>
-    <li><span class="btnlike">↻</span> 重新整理：重新載入這一頁的資料。編輯頁、設定頁、作答頁沒有這個按鈕，避免洗掉還沒存的內容。</li>
-  </ul>
-  <h3>英文翻譯（送翻譯）</h3>
-  <p>講師只改中文。改過的欄位會列為「英文待翻譯」，按 <span class="btnlike">送翻譯</span> 後由排程下次執行時翻好：聊聊、DRC、申退備註用 DMS 翻譯（和專員在 DMS 英文介面看到的一致），其他欄位用 AI 翻譯。翻譯中的題目不能修改，可以按 <span class="btnlike">取消送翻譯</span>。範例、草稿題目、題庫題目都一樣。</p>
-  <h3>題型與配分</h3>
-  <table>
-    <tr><th>題型</th><th>作答方式</th><th>批改</th></tr>
-    <tr><td><b>G</b>　題組</td><td>依序回答幾個固定的小題（例如協議流程判斷 6 小題）</td><td>系統自動計分：全對得滿分，否則每答對一小題得 滿分 ÷（2 × 小題數）</td></tr>
-    <tr><td><b>A</b>　選擇</td><td>選一個選項</td><td>系統自動計分</td></tr>
-    <tr><td><b>B</b>　選擇 + 原因</td><td>選一個選項並寫原因</td><td>選擇自動計分；原因由 AI 評分、講師確認</td></tr>
-    <tr><td><b>C</b>　文字作答</td><td>寫出答案</td><td>AI 評分、講師確認</td></tr>
-  </table>
-  <p class="foot">每場測驗總分 100 分，系統依題數平均分配；選項最多 8 個。</p>
-  <p class="foot"><b>DMS 考題</b>只有單選與簡答兩種：單選自動計分，簡答由 AI 給建議、講師給分。每題的配分是「佔本案件的百分比」；每個案件佔幾分在發佈測驗時設定，總分 100 分（見⑤）。</p>
+<div class="wrap" data-view="trainer">
+  <nav class="toc"><a href="#t-overview" class="">整體流程</a><a href="#t1" class="">案件匯入</a><a href="#t1-sample" class="sub">審核 DMS 範例</a><a href="#t1b" class="">DMS 考題出題</a><a href="#t1b-edit" class="sub">整理案件畫面</a><a href="#t1b-modules" class="sub">插入考題</a><a href="#t1b-tpl" class="sub">題目範本</a><a href="#t1b-tx" class="sub">上架與英文對照</a><a href="#t2" class="">題庫生成</a><a href="#t3" class="">可用題庫</a><a href="#t4" class="">測驗管理</a><a href="#t4-page" class="sub">單場頁</a><a href="#t4-retake" class="sub">退回重考</a><a href="#t5" class="">閱卷發佈</a><a href="#t6" class="">歷史成績</a><a href="#t6-flags" class="sub">需要留意</a><a href="#t7" class="">主題設定與管理</a><a href="#t-faq" class="">注意事項</a></nav>
+  <main><section id="t-overview"><h2>整體流程</h2><p class=lead>後台選單由左到右就是工作順序。「案件匯入」讀取真實 DMS 案件，產生兩種東西：<b>DMS 考題</b>整理畫面、出題後直接可以考；<b>DMS 範例</b>設定正解後交給 AI 改寫成變化題。專員作答後，選擇題由系統計分，文字作答由 AI 先給建議、講師確認後公布成績。</p>
+<div class="flow">
+  <a href="#t1"><span class="n">1</span><b>案件匯入</b><span>DMS 案件 → 考題／範例</span></a>
+  <a href="#t1b"><span class="n">2</span><b>DMS 考題出題</b><span>整理畫面、插入考題</span></a>
+  <a href="#t2"><span class="n">3</span><b>題庫生成</b><span>範例 → AI 變化題</span></a>
+  <a href="#t4"><span class="n">4</span><b>測驗管理</b><span>組卷 → 發佈</span></a>
+  <a href="#t5"><span class="n">5</span><b>閱卷發佈</b><span>AI 建議 → 講師給分</span></a>
+  <a href="#t6"><span class="n">6</span><b>歷史成績</b><span>成績、足跡、匯出</span></a>
+</div>
+<figure class="fig"><div class="shot"><img src="guide/nav.webp" width="1600" height="58" alt="上方選單。TL 只看得到「歷史成績」，專員只看得到「我的測驗」；「管理」只有管理員看得到。右上角可以切換中文／EN。" loading="lazy"></div><figcaption>上方選單。TL 只看得到「歷史成績」，專員只看得到「我的測驗」；「管理」只有管理員看得到。右上角可以切換中文／EN。</figcaption></figure>
+<h3>登入與角色</h3>
+<table class="tb">
+  <tr><th>角色</th><th>可以做什麼</th></tr>
+  <tr><td><b>管理員</b></td><td>全部功能，加上「管理」：講師名單、權限設定、組別、系統設定。</td></tr>
+  <tr><td><b>TW 講師</b></td><td>全部出題與測驗功能，包含案件匯入、DMS 考題審核、選範例出題、主題設定。</td></tr>
+  <tr><td><b>BPO 講師</b></td><td>「題庫生成」之後的功能；看不到範例，建草稿時改用選標籤。</td></tr>
+  <tr><td><b>TL</b></td><td>只看「歷史成績」：每場成績、每題答對率、每位專員的作答明細，可以匯出 CSV。還沒公布的測驗也看得到（標「尚未公布」）。不能改分數、公布成績或刪除。</td></tr>
+  <tr><td><b>專員</b></td><td>不在講師名單上的人，用公司 Google 帳號登入後就是專員，只看得到「我的測驗」。</td></tr>
+</table>
+<h3>SeaTalk 指令（@RR AI Quiz Assistant）</h3>
+<table class="tb">
+  <tr><th>指令</th><th>什麼時候用</th><th>做什麼</th></tr>
+  <tr><td><code>生成考題 D001</code></td><td>建立草稿後</td><td>依選的範例改寫出變化題</td></tr>
+  <tr><td><code>批改 E001</code></td><td>變化題測驗結束後</td><td>為文字答案評分，附理由與信心度</td></tr>
+  <tr><td><code>批改 X001</code></td><td>DMS 考題測驗結束後（有簡答題時）</td><td>為簡答題給 AI 建議分數；講師採用並儲存才算數</td></tr>
+</table>
+<p class="foot">指令在網站上都有「複製」按鈕。AI 處理時不用重新整理，完成後畫面會自動更新。</p>
+<h3>畫面上的圖示</h3>
+<ul>
+  <li><span class="cnt g">3</span> 灰色圓圈：<b>待處理</b>的數量，例如待審、待給分。</li>
+  <li><span class="cnt o">2</span> 橘色圓圈：<b>需要注意</b>的數量，例如 AI 低信心、需要留意。</li>
+  <li><span class="okc">✓</span> 綠勾：這一項都完成了。</li>
+  <li><span class="btnlike">↻</span> 重新整理這一頁的資料。編輯頁、設定頁、作答頁沒有這個按鈕，避免洗掉還沒存的內容。</li>
+</ul>
+<h3>英文翻譯</h3>
+<p>講師只寫中文。DMS 考題設成「TW＋BPO」並上架後，排程會用 DMS 的翻譯服務把案件內容和講師寫的字翻成英文；變化題則在改了中文後按 <span class="btnlike">送翻譯</span>。講師寫的字可以到「英文對照」確認或修改（見 DMS 考題一節）。</p>
 </section>
-
-<section class="card" id="t1">
-  <h2><span class="step">1</span>案件匯入 <span class="chip tw">TW 講師</span></h2>
-  <p class="sub">讀取真實 DMS 案件，產生兩種東西：<b>DMS 考題</b>（原案件直接考，審核後就能組卷）和 <b>DMS 範例</b>（審核後交給 AI 改寫成變化題）。</p>
-  <table>
-    <tr><th>分頁</th><th>內容</th></tr>
-    <tr><td><b>待審 DMS 考題</b></td><td>匯入完成、等講師整理畫面與出題的案件（下一節「DMS 考題審核與出題」）。</td></tr>
-    <tr><td><b>待審 DMS 範例</b></td><td>等講師設定正解、鎖定判斷依據的範例（本節下方）。</td></tr>
-    <tr><td><b>範例庫</b></td><td>已核准的範例，可以拿到「題庫生成」出變化題。</td></tr>
-    <tr><td><b>申請匯入</b></td><td>送出 Return ID 申請，以及查看申請紀錄。</td></tr>
-  </table>
-  <p class="foot">分頁上的 <span class="cnt g">3</span> 是待審數量。</p>
-  <h3>申請匯入</h3>
-  <ol>
-    <li>勾選 <b>用途</b>，兩個可以都勾：<b>DMS 考題</b>（預設）或 <b>DMS 範例</b>。</li>
-    <li>Return ID 一行一筆，後面空一格接 <b>判斷時點</b>（台北時間），例如 <code>246771802264043  2026-10-29 13:24</code>。<b>勾選 DMS 考題時一次只能申請一筆。</b></li>
-    <li>判斷時點通常是案件判決前。聊聊、DRC、Operation History、Timeline 只保留這個時間以前的內容，<b>該分鐘內的也會移除</b>；同一分鐘內要保留較早的訊息時，可以填到秒（例如 <code>13:24:20</code>）。其他欄位（例如 Case Status）是案件的最終狀態，可能透露結果，審核時請檢查。沒有填時間的案件要勾 <b>不截斷</b> 才會使用完整資料。</li>
-    <li>DMS 考題：<b>前幾次申退</b>（選填）填同一筆訂單之前的 Return ID，用逗號分隔。專員作答時可以切換查看。</li>
-    <li>DMS 範例：選擇 <b>主題</b>，可以勾預期的標籤。</li>
-    <li>按 <span class="btnlike">送出申請</span>。排程定時處理（先處理 DMS 考題，再處理範例；同一筆 Return ID 只讀一次 DMS），完成後在 SeaTalk 通知，案件會出現在對應的待審分頁。<b>匯入時不做 AI 判斷、不翻譯。</b></li>
-  </ol>
-  <p class="foot">DMS 有些資料讀不到時（例如物流）案件仍會匯入，相關欄位留空並在提醒中列出；前一次申退讀不到也不會擋住本次。處理中超過 15 分鐘會出現 <span class="btnlike">重試</span>；等待中或失敗的申請可以 <span class="btnlike">取消</span>。</p>
-  <h3>審核 DMS 範例</h3>
-  <p>在「待審 DMS 範例」點範例進入。範例的畫面照 DMS 呈現，正解與判斷依據由講師設定。</p>
-  <h3>範例會顯示什麼（照 DMS）</h3>
-  <ul>
-    <li><b>聊聊：</b>文字、貼圖（顯示貼圖圖片）、買家傳的照片／影片（只留「📷 照片」區塊，不載入圖片）。DMS 不顯示的系統訊息會略過；沒見過的訊息類型顯示成「[系統訊息]」並在提醒中列出代碼，請對照 DMS 後告訴 Chris。</li>
-    <li><b>DRC：</b>買家第一筆是申請的 <b>System Info</b>（Solution、Refund Amount、Return Reason、Remark）；蝦皮退貨退款小組的訊息標示「蝦皮」。</li>
-    <li><b>申請內容：</b>買家申請時附的照片／影片依張數留下區塊；訂單商品、申退商品前面有「商品照」區塊。</li>
-    <li>照片、影片、貼圖區塊可以填 <b>描述</b>（例如「外箱破損、內容物完好」），影響判斷時再填；描述會跟著送翻譯。</li>
-  </ul>
-  <h3>審核進度 5 步</h3>
-  <p>範例頁上方會依序列出要處理的事，做完的步驟打勾：</p>
-  <ol>
-    <li><b>正解與判斷重點：</b>在下方題組點選每個小題的正解，在「範例資訊」填判斷重點（也用來區分範例）。</li>
-    <li><b>鎖定判斷依據：</b>在案件內容點 🔓 鎖定決定答案的部分（聊聊、DRC、物流、商品、付款、申退備註、照片都可以鎖）。AI 出變化題時，鎖定的內容只會換句話說，意思和數字不變。申請的方案、金額、原因、折抵與 DRC 提案 AI 一律不會改，不用鎖。</li>
-    <li><b>審核前確認：</b>只列要處理的事（自動遮蔽的內容、格式錯誤、單價 0 的贈品、商品名稱是否含品牌或店家）。純資訊收在「匯入細節」。</li>
-    <li><b>英文翻譯：</b>完成第 1 步後按 <span class="btnlike">送翻譯</span>。</li>
-    <li><b>核准：</b>第 1、3、4 步完成並儲存後才能按。沒有鎖定的範例也能核准，但不能拿來選範例出題。</li>
-  </ol>
-  <ul>
-    <li><b>編輯題目：</b>按 <span class="btnlike">✎ 編輯題目</span>，案件畫面原地變成可編輯（只改中文）。可以改文字、時間、說話者，插入／刪除／上下移動訊息，新增商品、物流事件、照片；申請金額依申退商品與折抵自動計算。已鎖定的部分唯讀，要先點 🔒 解鎖。按 <span class="btnlike">儲存</span> 存檔並結束編輯，<span class="btnlike">取消</span> 全部還原。</li>
-    <li><b>儲存：</b>「儲存」按鈕在有修改時才會亮起；改了又改回去會恢復灰色。離開頁面時不會跳提醒，未儲存的修改會直接放棄。</li>
-    <li><b>複製範例：</b>按 <span class="btnlike">⧉ 複製範例</span> 會複製成新的待審範例（鎖定一起複製），用來自己改出變化版，例如把「有協議」改成「沒協議」，或改數字。列表上會標出來源範例。</li>
-    <li><b>退回、刪除：</b>收在 <span class="btnlike">⋯</span> 裡。刪除範例時可以同時用新的判斷時點重新申請（重新匯入後，正解、判斷重點、鎖定要重新設定）。</li>
-    <li><b>DMS 規則：</b>申退原因與申請方案的組合（例如 Damaged item 只能 Return and Refund）會自動檢查。規則在「主題設定 → DMS 規則」維護。</li>
-  </ul>
-  <h3>範例庫</h3>
-  <ul>
-    <li>上方搜尋框可以搜範例代碼、判斷重點、標籤。</li>
-    <li>已核准的範例可以在 <span class="btnlike">⋯</span> 裡 <span class="btnlike">停用</span>，之後就不能用來出題。</li>
-  </ul>
+<section id="t1"><h2>案件匯入 <span class="who">TW 講師</span></h2><p class=lead>輸入 Return ID，排程會自動讀取 DMS 案件。可以匯入成 <b>DMS 考題</b>（原案件直接考）或 <b>DMS 範例</b>（交給 AI 出變化題），兩個可以都勾。</p>
+<figure class="fig"><div class="shot"><img src="guide/lib-request.webp" width="1600" height="960" alt="申請匯入" loading="lazy"></div><ol class="keys"><li data-box="145,95,530,40"><span class="n"></span><div><b>四個分頁</b><span class="d">未上架 DMS 考題、待審 DMS 範例、範例庫、申請匯入。分頁旁的數字是待處理數量。</span></div></li><li data-box="320,272,440,36"><span class="n"></span><div><b>用途</b><span class="d">DMS 考題（預設）或 DMS 範例，可以都勾。勾 DMS 考題時一次只能申請一筆。</span></div></li><li data-box="320,320,522,140"><span class="n"></span><div><b>Return ID 與判斷時點</b><span class="d">一行一筆，Return ID 後面空一格接判斷時點（台北時間），例如 <code>246771802264043 2026-10-29 13:24</code>。聊聊、DRC、Operation History、Timeline 只保留這個時間以前的內容，該分鐘內的也會移除；要保留同一分鐘較早的訊息時可以填到秒。</span></div></li><li data-box="320,560,300,26"><span class="n"></span><div><b>不截斷</b><span class="d">沒有填時間的案件要勾這個，才會使用完整資料。</span></div></li><li data-box="320,605,522,40"><span class="n"></span><div><b>前幾次申退（選填）</b><span class="d">同一筆訂單之前的 Return ID，用逗號分隔，最多 5 筆。專員作答時可以切換查看。</span></div></li><li data-box="165,748,95,40"><span class="n"></span><div><b>送出申請</b><span class="d">排程定時處理，完成後在 SeaTalk 通知，案件會出現在對應的分頁。匯入時不做 AI 判斷、不翻譯。</span></div></li><li data-box="150,815,1300,140"><span class="n"></span><div><b>申請紀錄</b><span class="d">每筆申請的狀態。處理中超過 15 分鐘會出現「重試」；等待中或失敗的可以取消。</span></div></li></ol></figure>
+<div class="note"><b>注意</b>判斷時點通常是案件判決前。Case Status、Execution 這類欄位是案件的最終狀態，可能透露結果，整理畫面時要檢查（見下一節）。DMS 有些資料讀不到時（例如物流）案件仍會匯入，相關欄位留空並在匯入提醒中列出。</div>
+<h3 id="t1-sample">審核 DMS 範例</h3>
+<p>在「待審 DMS 範例」點範例進入。範例的畫面照 DMS 呈現，上方依序列出要處理的 5 步，做完的步驟會打勾。</p>
+<figure class="fig"><div class="shot"><img src="guide/sample.webp" width="1600" height="900" alt="範例審核頁" loading="lazy"></div><ol class="keys"><li data-box="145,95,1305,100"><span class="n"></span><div><b>審核進度 5 步</b><span class="d">① 正解與判斷重點 ② 鎖定判斷依據 ③ 審核前確認 ④ 英文翻譯 ⑤ 核准。第 1、3、4 步完成並儲存後才能核准。</span></div></li><li data-box="1110,35,250,40"><span class="n"></span><div><b>複製範例、編輯題目</b><span class="d">「複製範例」複製成新的待審範例（鎖定一起複製），用來改出另一個版本；「編輯題目」讓案件畫面原地可以修改。退回、刪除收在「⋯」裡。</span></div></li><li data-box="320,288,1110,70"><span class="n"></span><div><b>標籤</b><span class="d">這個範例的判斷重點分類，出題、篩選時會用到。</span></div></li><li data-box="320,375,520,36"><span class="n"></span><div><b>判斷重點</b><span class="d">一句話寫出這題的關鍵，也用來區分範例。</span></div></li><li data-box="320,425,420,38"><span class="n"></span><div><b>正解</b><span class="d">選這個範例的正確答案。AI 改寫時一律沿用，不會更動。</span></div></li><li data-box="145,500,1150,28"><span class="n"></span><div><b>鎖定判斷依據</b><span class="d">在案件內容點鎖頭，鎖定決定答案的部分（聊聊、DRC、物流、商品、付款、申退備註、照片都可以鎖）。AI 改寫時，鎖定的內容只會換句話說，意思和數字不變。</span></div></li></ol></figure>
+<ul>
+  <li><b>編輯題目：</b>可以改文字、時間、說話者，插入、刪除、上下移動訊息，新增商品、物流事件、照片。已鎖定的部分要先解鎖。按「儲存」存檔，「取消」全部還原；離開頁面不會提醒，未儲存的修改會直接放棄。</li>
+  <li><b>照片、影片、貼圖</b>可以填描述（例如「外箱破損、內容物完好」），影響判斷時再填。</li>
+  <li><b>DMS 規則：</b>申退原因與申請方案的組合（例如 Damaged item 只能 Return and Refund）會自動檢查，規則在「主題設定 → DMS 規則」。</li>
+  <li>沒有鎖定的範例也能核准，但不能拿來選範例出題。範例庫裡的範例可以從「⋯」停用。</li>
+</ul>
 </section>
-
-<section class="card" id="t1b">
-  <h2><span class="step">1b</span>DMS 考題審核與出題 <span class="chip tw">TW 講師</span></h2>
-  <p class="sub">在「案件匯入 → 待審 DMS 考題」點案件進入編輯頁。左邊和中間是 DMS 畫面，右邊「考題」分頁放題目。核准後出現在「可用題庫 → DMS 考題」，就能拿去組卷。</p>
-  <h3>整理案件畫面</h3>
-  <ul>
-    <li>每個欄位旁有 <span class="btnlike">隱藏</span>：專員看不到這個欄位。Return ID、帳號這類可以查到原案件的欄位，預設 <b>專員看到 ***</b>。</li>
-    <li>標示 <b>可能洩漏結果</b> 的欄位（例如 Case Status、Execution）是案件的最終狀態，請確認要不要隱藏；核准時還有專員看得到的，會再提醒一次。</li>
-    <li>欄位內容可以直接點選修改；<span class="btnlike">＋ 新增欄位</span> 可以補上 DMS 沒有的資訊。</li>
-    <li>有前幾次申退時，上方可以切換 <b>本次申退／前一次申退</b>，兩邊都可以整理。</li>
-    <li>修改會自動儲存。按 <span class="btnlike">專員預覽</span> 可以看專員實際看到的畫面（已套用隱藏與遮蔽）。</li>
-  </ul>
-  <h3>插入考題（右邊「考題」分頁的 <span class="btnlike">＋ 插入模組</span>）</h3>
-  <table>
-    <tr><th>模組</th><th>用途</th></tr>
-    <tr><td><b>情境說明</b></td><td>黃底文字，給專員背景，例如「買家申退，請判斷」。</td></tr>
-    <tr><td><b>補充資訊</b></td><td>上傳講師整理好的圖片（例如之前的處理紀錄）；專員點圖可以放大。</td></tr>
-    <tr><td><b>單選題</b></td><td>2–8 個選項，點圓圈設定正解；可以寫詳解（交卷後可以看解答時顯示）。</td></tr>
-    <tr><td><b>簡答題</b></td><td>必須填 <b>標準答案</b>，AI 預評分會照它批改，請寫出判斷的關鍵。可以 <b>綁定單選題</b>：專員寫的是「為什麼選這個答案」，批改時會一起看到他選了什麼。</td></tr>
-  </table>
-  <ul class="gap">
-    <li>模組由上往下顯示給專員，可以插入多個、上下調整順序。一個案件可以有多題。</li>
-    <li>每題設定 <b>配分（佔本案件 %）</b>，同一個案件的作答題加起來要 100%；可以按 <span class="btnlike">平均分配</span>。案件在整份試卷佔幾分，發佈測驗時再設定（見⑤）。</li>
-    <li>專員作答時，題目會用 <span class="qhead">淡橘色標頭</span> 標出來，和 DMS 畫面區隔。</li>
-  </ul>
-  <h3>分類與核准</h3>
-  <ul>
-    <li>填 <b>案件標題</b>，選 <b>組別</b>（C2C、新人訓練、Mall、CB、Review；管理員可以在「管理 → 組別」調整）、<b>主題</b>、<b>標籤</b>。組別、主題、標籤和變化題共用同一套。</li>
-    <li><b>用途</b>：練習用或考試用。考試只能放考試用的案件，避免專員在練習時先看過。</li>
-    <li><b>使用對象</b>：TW 或 TW＋BPO。TW＋BPO 的案件上架後由排程用 DMS 翻譯成英文。</li>
-    <li><b>英文對照</b>：TW＋BPO 的案件上架、翻譯完成後，從案件右上角 <span class="btnlike">⋯ → 英文對照</span>（或標題旁的「英文未確認 N 句」）打開。只列講師寫的字（情境說明、題目、選項、詳解、參考答案），可以 <span class="btnlike">確認</span> 機器翻譯或 <span class="btnlike">修改</span> 成自己的英文；人工修改的英文排程不會覆蓋，改了中文那句會回到未確認。改英文不用下架；已發佈的測驗要重新發佈才會換成新的英文。</li>
-    <li><b>題目範本</b>：常用的固定題目在「主題設定 → 題目範本」設定題目與選項的中英文（選項可以選一組選項範本，或自己寫）。選擇題、簡答題右上角 <span class="btnlike">套用題目範本…</span> 直接帶入，英文用範本的、不經過翻譯；改了文字就改走翻譯。寫好的題目也可以按 <span class="btnlike">存成題目範本</span>。範本不含正解與詳解。</li>
-    <li>按 <span class="btnlike">核准</span>。核准前要有標題、組別、主題，至少一題，每題要有題目、配分（合計 100%），以及正解或標準答案；缺什麼畫面會列出來。</li>
-    <li>核准後仍然可以修改。要暫停使用時按 <span class="btnlike">退回待審</span>，退回後就不能拿來組卷，直到再次核准。</li>
-    <li>同一筆 DMS 案件想出成兩份不同的考題：按 <span class="btnlike">複製</span>。案件內容、題目、補充資訊圖片都會複製一份，新案件是待審，改好再核准；兩個案件之後互不影響。</li>
-  </ul>
+<section id="t1b"><h2>DMS 考題審核與出題 <span class="who">TW 講師</span></h2><p class=lead>在「案件匯入 → 未上架 DMS 考題」點案件進入編輯頁。左邊和中間是 DMS 畫面，右邊「考題」分頁放題目。上架後出現在「可用題庫 → DMS 考題」，就能拿去組卷。</p>
+<figure class="fig"><div class="shot"><img src="guide/lib-cases.webp" width="1600" height="400" alt="未上架 DMS 考題列表。左邊可以依組別、主題篩選；「匯入提醒」是匯入時需要講師確認的事項數量。" loading="lazy"></div><figcaption>未上架 DMS 考題列表。左邊可以依組別、主題篩選；「匯入提醒」是匯入時需要講師確認的事項數量。</figcaption></figure>
+<h3 id="t1b-edit">整理案件畫面</h3>
+<p>修改會自動儲存，右上角的復原、重做可以退回上一步。</p>
+<figure class="fig"><div class="shot"><img src="guide/case-edit.webp" width="1600" height="900" alt="DMS 考題編輯畫面" loading="lazy"></div><ol class="keys"><li data-box="1305,87,130,30"><span class="n"></span><div><b>編輯／專員預覽</b><span class="d">切換講師的編輯畫面和專員實際看到的畫面。</span></div></li><li data-box="1445,87,92,30"><span class="n"></span><div><b>上架到題庫</b><span class="d">檢查都通過、作答題配分合計 100% 才能上架。上架後要改內容，先從「⋯」選「下架修改」。</span></div></li><li data-box="15,137,490,22"><span class="n"></span><div><b>案件設定</b><span class="d">點「編輯設定」展開：用途（練習／考試）、使用對象（TW，或 TW＋BPO 會翻成英文）、遮蔽編號與帳號、組別、主題、標籤。考試只能放考試用的案件，避免專員在練習時先看過。</span></div></li><li data-box="1333,137,250,22"><span class="n"></span><div><b>上架前檢查</b><span class="d">個資檢查、可能洩漏、匯入提醒的數量，點下去會跳到該欄位。</span></div></li><li data-box="15,240,120,150" data-side="t"><span class="n"></span><div><b>區塊導覽</b><span class="d">跟 DMS 左側一樣，點了會捲到該區塊。</span></div></li><li data-box="230,277,98,23"><span class="n"></span><div><b>欄位工具</b><span class="d">「隱藏」讓專員看不到這個欄位（位置保留空白）；「✕」刪除欄位。值可以直接點進去修改，「＋ 新增欄位」可以補上 DMS 沒有的資訊。</span></div></li><li data-box="465,253,130,45"><span class="n"></span><div><b>專員看到 ***</b><span class="d">Return ID、帳號這類可以查到原案件的欄位，預設遮蔽，專員畫面顯示 ***。</span></div></li><li data-box="230,302,75,19" data-side="r"><span class="n"></span><div><b>可能洩漏結果</b><span class="d">這個欄位可能透露案件最後怎麼判（例如 Case Status），請確認要不要隱藏。上架時還有專員看得到的，會再提醒一次。</span></div></li><li data-box="1130,195,115,32"><span class="n"></span><div><b>考題分頁</b><span class="d">在這裡插入情境說明、補充資訊、選擇題、簡答題、SOP 路徑，並設定配分。旁邊三個分頁和 DMS 一樣。</span></div></li></ol></figure>
+<div class="tip"><b>小提醒</b>欄位的值顯示 DMS 的英文是正常的：DMS 存的是英文，畫面顯示時才翻成中文。切到專員預覽就會看到中文。有前幾次申退時，上方可以切換「本次申退／前一次申退」，兩邊都可以整理。</div>
+<h3 id="t1b-preview">專員預覽</h3>
+<p>按「專員預覽」，畫面會換成專員作答時看到的樣子：編號變成 ***、隱藏的欄位消失、欄位翻成中文。可以實際作答、按「交卷看結果」試算，不會留下紀錄。右上角切到 EN 就是 BPO 專員看到的英文畫面。</p>
+<div class="pair"><figure class="fig"><div class="shot"><img src="guide/case-edit.webp" width="1600" height="900" alt="編輯：看得到原始編號、所有工具和洩漏提醒。" loading="lazy"></div><figcaption>編輯：看得到原始編號、所有工具和洩漏提醒。</figcaption></figure><figure class="fig"><div class="shot"><img src="guide/case-agent.webp" width="1600" height="900" alt="專員預覽：套用遮蔽與隱藏，題目用淡橘色標頭標出。" loading="lazy"></div><figcaption>專員預覽：套用遮蔽與隱藏，題目用淡橘色標頭標出。</figcaption></figure></div>
+<h3 id="t1b-modules">插入考題</h3>
+<figure class="fig side"><div class="shot narrow"><img src="guide/case-insert.webp" width="480" height="640" alt="考題分頁" loading="lazy"></div><div><ol class="keys one"><li data-box="163,156,177,28"><span class="n"></span><div><b>套用題目範本</b><span class="d">直接帶入「主題設定 → 題目範本」的題目與選項，英文用範本寫好的，不經過翻譯。</span></div></li><li data-box="348,156,93,26"><span class="n"></span><div><b>存成題目範本</b><span class="d">把寫好的題目存成範本，給之後的案件用。</span></div></li><li data-box="37,278,402,28"><span class="n"></span><div><b>綁定選擇題</b><span class="d">簡答題可以綁定一題選擇題：專員寫的是「為什麼選這個答案」，批改時會一起看到他選了什麼。</span></div></li><li data-box="37,339,402,78"><span class="n"></span><div><b>標準答案</b><span class="d">簡答題必填，AI 會照它批改，請寫出判斷的關鍵。</span></div></li><li data-box="37,456,57,30"><span class="n"></span><div><b>配分</b><span class="d">這一題佔本案件的百分比，同一個案件的作答題加起來要 100%。</span></div></li><li data-box="17,553,439,36"><span class="n"></span><div><b>插入模組</b><span class="d">情境說明（黃底文字）、補充資訊（講師上傳的圖片）、選擇題（2–10 個選項，勾兩個以上就是複選）、簡答題、SOP 路徑。模組由上往下顯示，可以調整順序。</span></div></li></ol></div></figure>
+<p class="foot">案件在整份試卷佔幾分，發佈測驗時再設定（見「測驗管理」）。</p>
+<h3 id="t1b-tpl">題目範本</h3>
+<p>常用的固定題目，先在「主題設定 → 題目範本」寫好中英文，出題時直接套用。範本只有題目和選項，不含正解與詳解。</p>
+<figure class="fig"><div class="shot"><img src="guide/set-qtpl.webp" width="1360" height="820" alt="題目範本設定" loading="lazy"></div><ol class="keys"><li data-box="302,73,81,36"><span class="n"></span><div><b>題目範本分頁</b><span class="d">和選項範本、標籤放在一起。</span></div></li><li data-box="1190,133,148,38"><span class="n"></span><div><b>新增題目範本</b><span class="d">選題型（選擇題或簡答題），填中文和英文題目。</span></div></li><li data-box="45,403,137,23" data-side="r"><span class="n"></span><div><b>搭配選項範本</b><span class="d">選擇題可以直接引用一組選項範本；選項範本改了，題目範本會跟著更新。</span></div></li><li data-box="25,222,317,397" data-side="r"><span class="n"></span><div><b>範本卡片</b><span class="d">中英文題目、選項一次看完，按「編輯」修改。已經套用到案件的題目不受影響。</span></div></li></ol></figure>
+<figure class="fig side"><div class="shot narrow"><img src="guide/tpl-apply.webp" width="462" height="350" alt="套用範本" loading="lazy"></div><div><figcaption>案件編輯畫面的考題分頁</figcaption><ol class="keys one"><li data-box="94,28,236,30"><span class="n"></span><div><b>套用題目範本</b><span class="d">選一個範本，題目和選項換成範本的內容（會先詢問是否取代）。</span></div></li><li data-box="342,28,88,30"><span class="n"></span><div><b>存成題目範本</b><span class="d">把這一題存成新範本。</span></div></li><li data-box="300,133,130,27"><span class="n"></span><div><b>套用選項範本</b><span class="d">只換選項，題目保留自己寫的。</span></div></li><li data-box="28,170,30,28"><span class="n"></span><div><b>勾選正解</b><span class="d">範本不含正解，套用後要自己勾。</span></div></li></ol></div></figure>
+<div class="note"><b>注意</b>套用是把範本複製一份進案件，之後改範本不會影響已套用的題目。在案件裡改了題目或選項的文字，那一句的英文就改走機器翻譯。</div>
+<h3 id="t1b-tx">上架與英文對照</h3>
+<ul>
+  <li>上架前要有標題、組別、主題，至少一題，每題要有題目、配分（合計 100%），以及正解或標準答案；缺什麼畫面會列出來。</li>
+  <li>已上架的案件不能直接修改，要先按「⋯ → 下架修改」，改完再上架。下架期間不能拿來組卷。</li>
+  <li>同一筆 DMS 案件想出成兩份不同的考題：用「⋯ → 複製」。內容、題目、補充資訊圖片都會複製一份，兩個案件之後互不影響。</li>
+  <li><b>TW＋BPO</b> 的案件上架後由排程翻成英文。翻譯完成後，標題旁會出現「英文未確認 N 句」，點下去（或「⋯ → 英文對照」）打開下面的表。</li>
+</ul>
+<figure class="fig"><div class="shot"><img src="guide/case-txr.webp" width="1360" height="870" alt="英文對照" loading="lazy"></div><ol class="keys"><li data-box="155,78,315,32"><span class="n"></span><div><b>篩選</b><span class="d">全部、未確認、已確認、人工修改。</span></div></li><li data-box="285,170,305,30"><span class="n"></span><div><b>中文</b><span class="d">只列講師寫的字：情境說明、題目、選項、詳解、參考答案。DMS 案件內容用 DMS 的翻譯，不在這裡。</span></div></li><li data-box="620,170,370,30"><span class="n"></span><div><b>英文</b><span class="d">機器翻譯的結果；人工修改的會在下方灰字保留原本的機器翻譯。</span></div></li><li data-box="1045,170,180,120"><span class="n"></span><div><b>確認／修改</b><span class="d">翻得好就按「確認」，不好就按「修改」寫自己的英文。人工修改的英文排程不會覆蓋；改了中文，那一句會回到未確認。</span></div></li><li data-box="1048,790,152,25"><span class="n"></span><div><b>全部標為已確認</b><span class="d">看過沒問題時，一次確認全部未確認的句子。</span></div></li></ol></figure>
+<div class="tip"><b>小提醒</b>改英文不用下架。已經發佈的測驗用的是發佈當時的英文，要重新發佈才會換成新的英文。</div>
 </section>
-
-<section class="card" id="t2">
-  <h2><span class="step">2</span>題庫生成</h2>
-  <p class="sub">選幾個範例，請 AI 把每個範例改寫成數題變化題。正解直接沿用範例，講師只要確認內容沒有走樣。</p>
-  <ol>
-    <li>按 <span class="btnlike">建立草稿</span>：填名稱、選主題，勾選要用的範例並填題數（每個範例預設 5 題）。只能選已核准、而且有鎖定區域的範例；表格會顯示每個範例的判斷重點、正解、鎖定數，以及題庫已有幾題來自它。</li>
-    <li>按 <span class="btnlike">複製指令</span>，到 SeaTalk 傳 <code>生成考題 D00x</code>。AI 一批只看一個範例，草稿列表的進度會自動更新。</li>
-    <li>AI 改寫的規則（系統會自動檢查，不符合就整批退回重寫）：
-      <ul>
-        <li><b>可以改：</b>買賣家帳號、商品名稱與規格、沒鎖定的訊息（可改寫、合併、刪減）、解析的寫法。</li>
-        <li><b>鎖定的訊息：</b>只能換句話說，說話者、時間、先後順序與數字不變。</li>
-        <li><b>不能改：</b>申請內容、DRC 提案、蝦皮訊息、照片／貼圖、數量與單價。</li>
-        <li><b>系統自動處理：</b>單價與所有金額同比例換算（折抵改成 $30／45／60／90／100 中最接近的），所有日期一起往前或往後挪 7–45 天；正解沿用範例。</li>
-      </ul>
-    </li>
-    <li>校對：每一題上方有 4 步審核進度（按鈕都在每一步的右上角）：
-      <ul>
-        <li><b>檢查內容：</b>來自範例鎖定區域的內容會用 🔒 底色標出，請確認意思沒有改變；格式錯誤也列在這裡。</li>
-        <li><b>正解：</b>顯示目前的正解（沿用範例 Sxxx）。內容不再支持正解時，修改內容或刪除這題。</li>
-        <li><b>英文翻譯：</b>改了中文後按 <span class="btnlike">送翻譯</span>。</li>
-        <li><b>確認校對：</b>按 <span class="btnlike">✓ 確認</span>，自動跳到下一題沒校對的。</li>
-      </ul>
-    </li>
-    <li>需要修改時按 <span class="btnlike">✎ 編輯題目</span> 原地修改（和範例頁相同）。「儲存」有修改時才會亮起；換題或離開時不會跳提醒，未儲存的修改直接放棄。刪除這題在 <span class="btnlike">⋯</span> 裡。</li>
-    <li><b>批次處理（頁面上方）：</b><span class="btnlike">全部送翻譯</span> 一次送出所有英文待翻譯的題目；<span class="btnlike">✓ 全部確認</span> 把可以確認的題目一次標記為已校對（略過格式錯誤、正解未設定、英文待翻譯的題目）。建議先抽看幾題再全部確認。</li>
-    <li>全部完成後按 <span class="btnlike">加入題庫</span>。英文待翻譯或格式錯誤的題目不能入庫。</li>
-    <li>題目都入庫後，管理員可以 <span class="btnlike">刪除草稿</span>，題庫與已發佈的測驗不受影響。校對時刪除單一題目（含「刪除並補題」）所有講師都可以。</li>
-  </ol>
-  <div class="tip">內容改寫後已經不支持原本的正解時，直接修改這題內容或刪除這題即可；正解本身不會被 AI 改動。</div>
+<section id="t2"><h2>題庫生成（變化題）</h2><p class=lead>選幾個範例，請 AI 把每個範例改寫成數題變化題。正解直接沿用範例，講師只要確認內容沒有走樣，再加入題庫。</p>
+<figure class="fig"><div class="shot"><img src="guide/drafts.webp" width="1600" height="290" alt="草稿列表：進度條顯示已校對幾題。" loading="lazy"></div><figcaption>草稿列表：進度條顯示已校對幾題。</figcaption></figure>
+<ol>
+  <li>按 <span class="btnlike">＋ 建立草稿</span>：填名稱、選主題，勾選要用的範例並填題數（每個範例預設 5 題）。只能選已核准、而且有鎖定的範例；表格會顯示每個範例的判斷重點、正解、鎖定數，以及題庫已有幾題來自它。</li>
+  <li>按 <span class="btnlike">複製指令</span>，到 SeaTalk 傳 <code>生成考題 D00x</code>。草稿的進度會自動更新。</li>
+  <li>AI 改寫的規則（不符合會整批退回重寫）：可以改帳號、商品名稱、沒鎖定的訊息；鎖定的訊息只能換句話說；申請內容、DRC 提案、蝦皮訊息、照片、數量與單價不能改。金額會同比例換算，日期一起挪 7–45 天。</li>
+</ol>
+<figure class="fig"><div class="shot"><img src="guide/draft.webp" width="1600" height="900" alt="草稿校對" loading="lazy"></div><ol class="keys"><li data-box="150,140,265,205"><span class="n"></span><div><b>題目清單</b><span class="d">綠勾＝已校對；驚嘆號＝有待處理的事（例如英文待翻譯）。</span></div></li><li data-box="450,205,1000,105"><span class="n"></span><div><b>每題 4 步</b><span class="d">① 檢查內容（來自鎖定的內容會標出）② 正解與判斷重點（沿用範例）③ 英文翻譯 ④ 確認校對。</span></div></li><li data-box="1290,155,85,30"><span class="n"></span><div><b>編輯題目</b><span class="d">原地修改，和範例頁相同。刪除這題在「⋯」裡。</span></div></li><li data-box="940,85,120,35"><span class="n"></span><div><b>全部送翻譯</b><span class="d">一次送出所有英文待翻譯的題目。</span></div></li><li data-box="1105,85,120,35"><span class="n"></span><div><b>全部確認</b><span class="d">把可以確認的題目一次標為已校對（略過格式錯誤、英文待翻譯的）。建議先抽看幾題。</span></div></li><li data-box="1243,85,155,35"><span class="n"></span><div><b>加入題庫</b><span class="d">已校對的題目加入題庫。英文待翻譯或格式錯誤的不能入庫。</span></div></li><li data-box="990,800,445,40"><span class="n"></span><div><b>正解</b><span class="d">綠色是正解。內容改寫後不再支持正解時，修改內容或刪除這題。</span></div></li></ol></figure>
 </section>
-
-<section class="card" id="t3">
-  <h2><span class="step">3</span>可用題庫</h2>
-  <p class="sub">所有已確認、可以拿來出測驗的題目，分成 <b>變化題</b> 和 <b>DMS 考題</b> 兩個分頁。</p>
-  <p><b>DMS 考題</b> 分頁列出已核准的案件，左側可以依組別、主題、標籤篩選；點開可以繼續修改。以下說明的是變化題：</p>
-  <ul>
-    <li>可以依主題、標籤、題型篩選，並看到每題被用過幾次、平均得分率、有幾位專員做過。</li>
-    <li>點開題目按 <span class="btnlike">✎ 編輯題目</span> 可以原地修改，版本號會增加；已發佈的測驗保留當時的版本，不受影響。</li>
-    <li><b>英文待翻譯：</b>改了中文的題目會標示「英文待翻譯」，按 <span class="btnlike">送翻譯</span> 由排程翻譯；<b>翻好之前不能放進新的試卷</b>。</li>
-    <li><b>同一個範例：</b>同一份試卷不會出同一個範例的兩題變化題（自動抽題會避開；手動選到時發佈會提示）。</li>
-    <li>題目過時或有爭議時按 <span class="btnlike">停用</span>，之後抽題就不會再選到。</li>
-    <li>有刪除權限的講師（預設只有管理員）可以勾選題目後 <span class="btnlike">刪除</span>。已發佈的測驗保留自己的試卷副本，成績不受影響。</li>
-    <li>判斷標準更新後，舊題目會標示 <b>需重新確認</b>，自動抽題預設不會選到；看過並儲存後就會更新為新標準。</li>
-  </ul>
+<section id="t3"><h2>可用題庫</h2><p class=lead>所有可以拿來出測驗的題目，分成 <b>變化題</b> 和 <b>DMS 考題</b> 兩個分頁。</p>
+<figure class="fig"><div class="shot"><img src="guide/bank-cases.webp" width="1600" height="360" alt="DMS 考題：已上架的案件。左邊依組別、主題篩選，點開可以看內容或下架修改。" loading="lazy"></div><figcaption>DMS 考題：已上架的案件。左邊依組別、主題篩選，點開可以看內容或下架修改。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/bank-q.webp" width="1600" height="290" alt="變化題：可以依題型、標籤、狀態篩選，看每題用過幾次、平均得分率。" loading="lazy"></div><figcaption>變化題：可以依題型、標籤、狀態篩選，看每題用過幾次、平均得分率。</figcaption></figure>
+<ul>
+  <li>點開變化題按 <span class="btnlike">編輯題目</span> 可以修改，版本號會增加；已發佈的測驗保留當時的版本。</li>
+  <li>改了中文的題目標示「英文待翻譯」，翻好之前不能放進新的試卷。</li>
+  <li>同一份試卷不會放同一個範例的兩題變化題。</li>
+  <li>題目過時按 <span class="btnlike">停用</span>；判斷標準更新後，舊題目標示「需重新確認」，自動抽題預設不會選到。</li>
+  <li>有刪除權限的講師（預設只有管理員）可以刪除題目，已發佈的測驗不受影響。</li>
+</ul>
 </section>
-
-<section class="card" id="t4">
-  <h2><span class="step">4</span>測驗管理</h2>
-  <p class="sub">從可用題庫組卷，指定專員與時間後發佈。</p>
-  <ol>
-    <li>按 <span class="btnlike">發佈測驗</span>，填中英文測驗名稱、開始 / 結束時間、作答時限（分鐘）。</li>
-    <li>貼上受測者 Email，每行一個，可以直接從 Excel 貼上。</li>
-    <li>按 <span class="btnlike">自動抽題</span>：依題型配比與標籤挑題，優先選較少被使用的題目；勾選 <b>避開受測者做過的題目</b> 可以避免考到重複題。也可以手動增減題目。</li>
-    <li>按 <span class="btnlike">發佈並產生測驗連結</span>，把連結傳給專員；專員登入後也會在「我的測驗」看到。</li>
-  </ol>
-  <h3>測驗進行中</h3>
-  <ul>
-    <li>可以看到每位專員的狀態（未開始、作答中、已交卷）；<span class="btnlike">以專員畫面預覽</span> 可以看專員實際看到的畫面（不會留下作答紀錄）。</li>
-    <li>需要時可以 <span class="btnlike">延長結束時間</span> 或 <span class="btnlike">提前結束測驗</span>（作答中的人會自動交卷）。</li>
-    <li>開始時間由伺服器記錄，專員無法透過改電腦時間延長作答。</li>
-    <li>有刪除權限的講師（預設只有管理員）可以 <span class="btnlike">刪除測驗</span>（只用來清除測試測驗）：作答、分數、公布的成績一起刪除，專員的歷史成績也會消失。正式測驗請用閱卷發佈後的「封存」。</li>
-  </ul>
-  <h3>DMS 考題測驗（「DMS 考題測驗」分頁）</h3>
-  <ol>
-    <li>按 <span class="btnlike">＋ DMS 考題測驗</span>，填名稱、選類型、開放時間、整場作答時間（分鐘），貼上受測者 Email。</li>
-    <li>從已核准的 DMS 考題挑案件並排序（每場最多 20 個）。考試只能挑考試用案件。案件旁的 <b>N 人做過</b> 只是提醒，不會擋。</li>
-    <li>每個案件旁邊填這個案件佔幾分：預設平均分配，可以手動改，合計要 100 分才能發佈；按 <span class="btnlike">均分</span> 恢復平均。只有情境說明、沒有作答題的案件是 0 分。</li>
-    <li>發佈後複製專員連結傳給專員；專員也會在「我的測驗」看到。</li>
-  </ol>
-  <table>
-    <tr><th>類型</th><th>專員交卷後</th></tr>
-    <tr><td><b>考試</b></td><td>講師 <span class="btnlike">公布成績</span> 後，才看得到分數、正解與詳解。</td></tr>
-    <tr><td><b>練習・隨時檢討</b></td><td>交卷後馬上看到正解與詳解。不計分，只看單選答對率。</td></tr>
-    <tr><td><b>練習・統一檢討</b></td><td>講師按 <span class="btnlike">公布解答</span> 後才看得到，適合上課時一起檢討。</td></tr>
-  </table>
-  <h3>DMS 考題測驗的單場頁</h3>
-  <ul>
-    <li><span class="btnlike">加入專員</span>；還沒開始的專員可以 <span class="btnlike">移除</span>。</li>
-    <li><span class="btnlike">延長作答時間</span>：整場加長（只能加長）。<span class="btnlike">加時</span>：只給某一位專員，例如網路斷線、電腦當機。</li>
-    <li><span class="btnlike">退回重考</span>（作答進度，已交卷或逾時未交的專員；<b>預設只有管理員</b>，要開放給講師請到「管理 → 權限設定」勾選）：例如被誤交卷。要填原因，退回紀錄（誰、何時、原因）會在作答進度、成績頁、專員歷程標示「退回重考 N 次」，講師和 TL 都看得到；原本的作答、足跡和分數另外保存、不再計分，專員從頭重新作答、重新計時。成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。</li>
-    <li><span class="btnlike">延長結束時間</span>（提前結束後也能重新開放）、<span class="btnlike">提前結束</span>（作答中的人會自動交卷）。</li>
-    <li>分頁照測驗的階段排：<b>考題內容</b>（這份考卷用了哪些題目、配分、答對率；勾「顯示正解」才顯示答案）、<b>作答進度</b>（誰在作答、交卷、離開頁面）、<b>閱卷批改</b>（依題目／依專員，看作答與足跡、給分，見⑥）、<b>成績與分析</b>。打開時依狀態停在對應的分頁：尚未開始→考題內容、進行中→作答進度、已結束→閱卷批改。</li>
-    <li>成績公布後，上面這些操作都不能再用。</li>
-  </ul>
+<section id="t4"><h2>測驗管理</h2><p class=lead>按 <b>＋ 新增測驗</b>，先選要用哪種題目，再填表發佈。</p>
+<figure class="fig"><div class="shot"><img src="guide/sess-new.webp" width="1600" height="290" alt="新增測驗：先選「變化題」或「DMS 考題」。下方列表是所有測驗，進度條是交卷人數。" loading="lazy"></div><figcaption>新增測驗：先選「變化題」或「DMS 考題」。下方列表是所有測驗，進度條是交卷人數。</figcaption></figure>
+<h3 id="t4-x">發佈 DMS 考題測驗</h3>
+<figure class="fig"><div class="shot"><img src="guide/sess-form-x.webp" width="1600" height="1464" alt="DMS 考題測驗表單" loading="lazy"></div><ol class="keys"><li data-box="290,108,185,40"><span class="n"></span><div><b>題目種類</b><span class="d">選「DMS 考題」。</span></div></li><li data-box="320,255,420,35"><span class="n"></span><div><b>測驗名稱</b><span class="d">專員在「我的測驗」看到的名稱。</span></div></li><li data-box="320,300,880,32"><span class="n"></span><div><b>類型</b><span class="d">考試（講師公布成績後才看得到分數與詳解）、練習・隨時檢討（交卷後馬上看到正解）、練習・統一檢討（講師公布解答後才看得到）。</span></div></li><li data-box="320,348,480,80"><span class="n"></span><div><b>開放時間、作答時間</b><span class="d">開放時間內都可以開始；作答時間從專員按「開始作答」起算，開放時間結束也會截止。</span></div></li><li data-box="320,445,520,115"><span class="n"></span><div><b>指派專員</b><span class="d">一行一個 Email，可以直接從 Excel 貼上。給 BPO 專員作答時，請選「TW＋BPO」而且已經翻好英文的案件。</span></div></li><li data-box="175,615,600,320"><span class="n"></span><div><b>可用的案件</b><span class="d">勾選要考的案件，考試只能挑考試用的案件。「N 人做過」只是提醒，不會擋。</span></div></li><li data-box="815,615,620,100"><span class="n"></span><div><b>選進的案件</b><span class="d">可以調整順序（每場最多 20 個），每個案件旁填這個案件佔幾分：預設平均分配，合計要 100 分；按「均分」恢復平均。</span></div></li><li data-box="160,968,100,36"><span class="n"></span><div><b>發佈測驗</b><span class="d">發佈後到單場頁複製專員連結傳給專員；專員登入後也會在「我的測驗」看到。</span></div></li></ol></figure>
+<h3 id="t4-page">DMS 考題測驗的單場頁</h3>
+<p>分頁照測驗的階段排，打開時會停在對應的分頁：尚未開始→考題內容、進行中→作答進度、已結束→閱卷批改。</p>
+<figure class="fig"><div class="shot"><img src="guide/xs-content.webp" width="1600" height="900" alt="考題內容分頁" loading="lazy"></div><ol class="keys"><li data-box="860,82,600,40"><span class="n"></span><div><b>測驗操作</b><span class="d">加入專員；延長作答時間（整場加長）；延長結束時間（提前結束後也能重新開放）；提前結束（作答中的人會自動交卷）；刪除只用來清除測試測驗。</span></div></li><li data-box="1325,165,120,30"><span class="n"></span><div><b>複製專員連結</b><span class="d">把連結傳給專員。</span></div></li><li data-box="145,230,980,120"><span class="n"></span><div><b>測驗摘要</b><span class="d">開放時間、作答時間、交卷人數。</span></div></li><li data-box="145,370,370,32"><span class="n"></span><div><b>四個分頁</b><span class="d">考題內容、作答進度、閱卷批改、成績與分析。</span></div></li><li data-box="1380,428,85,25"><span class="n"></span><div><b>顯示正解</b><span class="d">勾了才顯示正解與參考答案，避免投影時被看到。</span></div></li><li data-box="152,507,60,25"><span class="n"></span><div><b>案件編號</b><span class="d">點了會在新分頁打開這個案件（目前的內容）。</span></div></li><li data-box="1390,505,65,265"><span class="n"></span><div><b>答對率</b><span class="d">交卷的人裡答對的比例，低於 50% 標橘色；簡答題以已給分的人計算。</span></div></li></ol></figure>
+<figure class="fig"><div class="shot"><img src="guide/xs-progress.webp" width="1600" height="860" alt="作答進度分頁" loading="lazy"></div><ol class="keys"><li data-box="232,328,82,32"><span class="n"></span><div><b>作答進度</b><span class="d">每位專員的狀態：未開始、作答中、已交卷、逾時未交。</span></div></li><li data-box="420,505,95,22"><span class="n"></span><div><b>退回重考 N 次</b><span class="d">被退回過的專員會標出次數，講師和 TL 都看得到。</span></div></li><li data-box="1110,505,140,22"><span class="n"></span><div><b>離開頁面</b><span class="d">作答時離開考試頁面的次數與時間。</span></div></li><li data-box="1365,445,72,145"><span class="n"></span><div><b>退回重考</b><span class="d">已交卷或逾時未交的專員才有。預設只有管理員可以用，見下方說明。</span></div></li><li data-box="1390,676,45,22"><span class="n"></span><div><b>加時</b><span class="d">只給某一位專員加時間，例如網路斷線、電腦當機。</span></div></li><li data-box="1385,733,50,22"><span class="n"></span><div><b>移除</b><span class="d">還沒開始的專員可以移除。</span></div></li></ol></figure>
+<h3 id="t4-retake">退回重考</h3>
+<figure class="fig"><div class="shot"><img src="guide/xs-retake.webp" width="1600" height="290" alt="按「退回重考」後，在頁面上方填原因再按「確定」。" loading="lazy"></div><figcaption>按「退回重考」後，在頁面上方填原因再按「確定」。</figcaption></figure>
+<ul>
+  <li>例如專員誤交卷、交卷時網路中斷。<b>原因必填</b>，退回紀錄（誰、何時、原因）會在作答進度、成績頁、專員歷程顯示「退回重考 N 次」。</li>
+  <li>原本的作答、足跡和分數另外保存、不再計分；專員從頭重新作答、重新計時。</li>
+  <li>成績已公布要先取消公布；測驗已結束要先延長結束時間，專員才進得去。</li>
+  <li>預設只有管理員可以退回，要開放給講師請到「管理 → 權限設定」勾選。</li>
+</ul>
+<h3 id="t4-e">發佈變化題測驗</h3>
+<figure class="fig"><div class="shot"><img src="guide/sess-form-e.webp" width="1600" height="1566" alt="變化題測驗：填受測者 Email，選主題與偏好標籤後按「自動抽題」，或從題庫手動加題；勾「避開受測者做過的題目」可以避免考到重複題。最後填中英文測驗名稱、開始與結束時間、作答時限後發佈。" loading="lazy"></div><figcaption>變化題測驗：填受測者 Email，選主題與偏好標籤後按「自動抽題」，或從題庫手動加題；勾「避開受測者做過的題目」可以避免考到重複題。最後填中英文測驗名稱、開始與結束時間、作答時限後發佈。</figcaption></figure>
+<ul>
+  <li>變化題測驗的單場頁可以看每位專員的狀態，<span class="btnlike">以專員畫面預覽</span> 看專員實際看到的畫面。</li>
+  <li>開始時間由伺服器記錄，專員無法透過改電腦時間延長作答。</li>
+  <li>有刪除權限的講師（預設只有管理員）可以刪除測驗（只用來清除測試測驗）；正式測驗請用公布成績後的「封存」。</li>
+</ul>
 </section>
-
-<section class="card" id="t5">
-  <h2><span class="step">5</span>閱卷發佈</h2>
-  <p class="sub">測驗結束後，AI 先批改文字答案，講師確認後發佈成績。</p>
-  <ol>
-    <li>選擇測驗，複製 <code>批改 E00x</code>，到 SeaTalk 傳給 Agent。AI 分數會自動出現在畫面上。</li>
-    <li>每筆文字答案會有分數、理由與信心度；信心度低於門檻的標示 <b>低信心度</b>，請優先檢查。</li>
-    <li>逐筆接受 AI 分數或改成講師分數（可加評語）；沒問題的可以用 <span class="btnlike">本題未標記的全部接受</span>。畫面會顯示每筆是誰確認的。</li>
-    <li>覺得某題 AI 給分太嚴或太鬆：先調整主題的 <b>批改原則</b>，再按 <span class="btnlike">重新批改本題未確認的分數</span>，然後再傳一次批改指令。已確認的分數不受影響。</li>
-    <li>按 <span class="btnlike">發佈成績</span>，專員就能看到分數、錯題與解析。未確認的答案會直接使用 AI 分數。</li>
-  </ol>
-  <div class="note">選擇題由系統自動計分。發佈後若發現給錯分，仍可修改，專員的成績會自動更新；必要時可以按 <span class="btnlike">取消公布</span>。</div>
-  <p class="foot">已公布成績的測驗可以在測驗頁按 <span class="btnlike">封存</span>：從「測驗管理」與「閱卷發佈」列表隱藏（列表下方「顯示已封存的測驗」可找回），成績與歷史成績不受影響。V1 搬過來的已公布測驗會直接封存。</p>
-  <h3>批改原則</h3>
-  <p>在「主題設定 → 主題與判斷標準」的 <b>批改原則</b> 設定，AI 批改時一律遵守。預設原則：</p>
-  <ul>
-    <li>點出正確的判斷關鍵就給滿分，不需要引用條文編號或重述案件細節。</li>
-    <li>簡短、中英文都可以，不因文法、拼字扣分。</li>
-    <li>有兩個以上必要關鍵、只答出一部分時給部分分數；關鍵錯誤、與正解矛盾、只有結論沒有理由時給 0 分或低分。</li>
-  </ul>
-  <h3>DMS 考題測驗</h3>
-  <ol>
-    <li>「閱卷發佈」列出已結束的場次，點進去直接是單場頁的 <b>閱卷批改 → 依題目</b>。</li>
-    <li>上方每一題一個分頁：<span class="cnt g">2</span> 是待給分人數、<span class="cnt o">1</span> 是 AI 低信心人數、<span class="okc">✓</span> 是都給分了。
-      <ul>
-        <li><b>單選題</b>：系統自動計分，可以看到每位專員選了什麼、對或錯，以及各選項的人數。</li>
-        <li><b>簡答題</b>：一列一位專員，依序是答案、AI 建議、給分。綁定單選的簡答，會多一欄顯示他那題選了什麼。</li>
-      </ul>
-    </li>
-    <li>按 <span class="btnlike">複製批改指令</span>，到 SeaTalk 傳 <code>批改 X00x</code>。AI 建議（分數、信心度、理由）會出現在每個答案旁；信心度低於 70% 的是黃底，請優先檢查。</li>
-    <li>按 <span class="btnlike">採用</span> 把 AI 分數填進給分欄，或用 <span class="btnlike">AI 信心度 ≥ 0.85 全部採用</span>（套用到所有題目，只填空白的欄位）。<b>AI 分數只是建議，按 <span class="btnlike">儲存給分</span> 才算數。</b>給分可以切換題目後一起儲存；還沒儲存就離開頁面會提醒。</li>
-    <li>都給完分後，在單場頁上方按 <span class="btnlike">公布成績</span>。還沒給分的簡答以 0 分計算。</li>
-  </ol>
-  <div class="note"><b>成績怎麼算：</b>發佈測驗時，每個案件旁邊填這個案件佔幾分（預設平均分配，可以手動改，按 <span class="btnlike">均分</span> 恢復），合計要 100 分。題目的實際分數＝案件分數 × 題目百分比。例如 A 案 70 分（單選 50%、簡答 50%）、B 案 30 分：A 案單選 35 分、簡答 35 分，B 案各 15 分；專員 A 案單選對、簡答給 20 分，B 案單選錯、簡答 15 分 → 35 ＋ 20 ＋ 15 ＝ <b>70 分</b>。批改時直接用實際分數給分。這個改版前發佈的測驗照舊：每個案件一樣重。</div>
+<section id="t5"><h2>閱卷發佈</h2><p class=lead>測驗結束後，選擇題由系統計分，簡答題（文字答案）由 AI 先給建議，講師給分後公布成績。「閱卷發佈」列出已結束的測驗。</p>
+<figure class="fig"><div class="shot"><img src="guide/grading-list.webp" width="1600" height="290" alt="閱卷發佈列表。DMS 考題測驗點「前往批改」會進入單場頁的「閱卷批改」分頁。" loading="lazy"></div><figcaption>閱卷發佈列表。DMS 考題測驗點「前往批改」會進入單場頁的「閱卷批改」分頁。</figcaption></figure>
+<h3 id="t5-x">DMS 考題測驗：依題目批改</h3>
+<figure class="fig"><div class="shot"><img src="guide/xs-grade-q.webp" width="1600" height="1250" alt="依題目批改" loading="lazy"></div><ol class="keys"><li data-box="145,390,135,25"><span class="n"></span><div><b>依題目／依專員</b><span class="d">依題目：一題一題給分；依專員：一位專員看完所有題目。</span></div></li><li data-box="165,580,555,30"><span class="n"></span><div><b>題目分頁</b><span class="d">每一題一個分頁。灰色數字＝待給分人數，橘色＝AI 低信心人數，綠勾＝都給分了。</span></div></li><li data-box="950,485,125,32"><span class="n"></span><div><b>複製批改指令</b><span class="d">到 SeaTalk 傳 <code>批改 X00x</code>，AI 建議會自動出現在每個答案旁。</span></div></li><li data-box="1085,485,245,32"><span class="n"></span><div><b>依信心度全部採用</b><span class="d">把信心度達到門檻的 AI 分數填進給分欄（套用到所有題目，只填空白的欄位）。</span></div></li><li data-box="975,840,330,52"><span class="n"></span><div><b>AI 建議</b><span class="d">分數、信心度、理由。信心度低於 70% 是黃底，請優先檢查；按「採用」填進給分欄。</span></div></li><li data-box="1330,850,92,30"><span class="n"></span><div><b>給分</b><span class="d">直接填實際分數（案件分數 × 題目百分比）。</span></div></li><li data-box="1340,485,95,35"><span class="n"></span><div><b>儲存給分</b><span class="d">AI 分數只是建議，按這裡儲存才算數。可以切換題目後一起儲存；沒儲存就離開會提醒。</span></div></li><li data-box="160,700,1275,65"><span class="n"></span><div><b>標準答案</b><span class="d">出題時寫的標準答案；綁定選擇題的簡答會顯示對應的正解。</span></div></li><li data-box="1285,40,95,35"><span class="n"></span><div><b>公布成績</b><span class="d">都給完分後按這裡。還沒給分的簡答以 0 分計算。公布後專員看得到分數、正解與詳解。</span></div></li></ol></figure>
+<figure class="fig"><div class="shot"><img src="guide/xs-grade-a.webp" width="1600" height="860" alt="依專員：每位專員的總分、還有幾題待給分、離開頁面紀錄，點「批改」看他的所有答案和作答足跡。" loading="lazy"></div><figcaption>依專員：每位專員的總分、還有幾題待給分、離開頁面紀錄，點「批改」看他的所有答案和作答足跡。</figcaption></figure>
+<div class="note"><b>成績怎麼算</b>發佈測驗時每個案件佔幾分（合計 100 分），題目的實際分數＝案件分數 × 題目百分比。例如 A 案 70 分（選擇 50%、簡答 50%）、B 案 30 分：A 案選擇 35 分、簡答 35 分，B 案各 15 分。</div>
+<h3 id="t5-e">變化題測驗</h3>
+<figure class="fig"><div class="shot"><img src="guide/e-grading.webp" width="1600" height="860" alt="變化題閱卷" loading="lazy"></div><ol class="keys"><li data-box="145,272,230,32"><span class="n"></span><div><b>題目分頁</b><span class="d">只列有文字作答的題目（B、C 題）。</span></div></li><li data-box="145,400,1310,170"><span class="n"></span><div><b>正解與評分標準</b><span class="d">AI 依這裡和主題的「批改原則」評分。</span></div></li><li data-box="885,655,300,45"><span class="n"></span><div><b>AI 判分</b><span class="d">分數、信心度、理由；低信心的整列標黃。</span></div></li><li data-box="1205,645,170,60"><span class="n"></span><div><b>講師確認</b><span class="d">接受 AI 分數或改成講師分數，可以加評語。</span></div></li><li data-box="1225,40,230,38"><span class="n"></span><div><b>發佈成績</b><span class="d">未確認的答案會直接使用 AI 分數。</span></div></li></ol></figure>
+<ul>
+  <li>先到 SeaTalk 傳 <code>批改 E00x</code>，AI 分數會自動出現。</li>
+  <li>覺得 AI 給分太嚴或太鬆：先調整主題的 <b>批改原則</b>，再重新批改本題未確認的分數。已確認的不受影響。</li>
+  <li>公布後發現給錯分仍可修改，專員的成績會自動更新；必要時可以取消公布。公布後可以「封存」，從列表隱藏。</li>
+</ul>
 </section>
-
-<section class="card" id="t6">
-  <h2><span class="step">6</span>歷史成績</h2>
-  <p class="sub">查看每場測驗與每位專員的表現；未發佈的測驗也看得到目前的分數。</p>
-  <div class="two">
-    <div>
-      <h3>依測驗</h3>
-      <ul>
-        <li>平均、中位數、最高 / 最低分、需輔導人數，以及每題得分率。</li>
-        <li>點專員可以看逐題作答與評分。</li>
-        <li><span class="btnlike">退回</span>：讓專員在測驗開放期間重新作答（原作答另外保存，不再計分）。測驗已結束時，請同時延長結束時間。</li>
-        <li>勾選專員後按 <span class="btnlike">為勾選者建立補考</span>：沿用原題目與配分，建立新的測驗與連結。</li>
-      </ul>
-    </div>
-    <div>
-      <h3>依專員</h3>
-      <ul>
-        <li>點專員 Email 查看 <b>歷次成績</b> 與每次的錯誤重點。</li>
-        <li>分數低於輔導門檻（管理 → 系統設定的 coachingThreshold）的會標示 <b>需輔導</b>。</li>
-      </ul>
-    </div>
-  </div>
-  <h3>DMS 考題測驗</h3>
-  <ul>
-    <li><b>依測驗場次</b>：下方是 DMS 考題測驗。考試看平均分數（100 分制），練習看單選答對率；<span class="cnt o">4</span> 是低於門檻或需要留意的人數。點進去有統計、每題答對率，以及每位專員的分數、錯在哪、作答時間、離開頁面次數、需要留意，可以 <span class="btnlike">匯出 CSV</span>。</li>
-    <li><b>依專員</b>：變化題和 DMS 考題合併顯示，練習也會列入，當作學習歷程。<span class="btnlike">匯出全部專員 CSV</span> 一列是一位專員的一場測驗，可以當訪談依據；個人歷程頁也可以單獨匯出。</li>
-  </ul>
-  <h3>作答足跡與「需要留意」</h3>
-  <p>DMS 考題測驗會記錄每個案件看了多久、看了哪些區塊和分頁、打開哪些照片與影片（看了多少）、離開考試頁面的時間，以及簡答貼上的字數。專員作答畫面上有告知。系統會在這些情況標示 <b>需要留意</b>：</p>
-  <ul>
-    <li>一個案件看不到 60 秒就作答。</li>
-    <li>單選題全對，但只看了 2 個以內的區塊、沒有打開照片或影片。</li>
-    <li>離開考試頁面 20 秒以上，回來 30 秒內就作答。</li>
-    <li>簡答題貼上 30 字以上。</li>
-  </ul>
-  <p class="foot">「需要留意」只是提示，不代表作弊，請搭配作答內容一起判斷。</p>
+<section id="t6"><h2>歷史成績</h2><p class=lead>查看每場測驗與每位專員的表現。還沒公布的測驗也看得到目前的分數。</p>
+<figure class="fig"><div class="shot"><img src="guide/results.webp" width="1600" height="760" alt="依測驗場次：考試看平均分數，練習看選擇題答對率；橘色數字是低於門檻或需要留意的人數。" loading="lazy"></div><figcaption>依測驗場次：考試看平均分數，練習看選擇題答對率；橘色數字是低於門檻或需要留意的人數。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/xs-results.webp" width="1600" height="1078" alt="單場成績" loading="lazy"></div><ol class="keys"><li data-box="1205,40,250,35"><span class="n"></span><div><b>明細與匯出</b><span class="d">「批改／作答明細」回到單場頁；「匯出 CSV」下載每位專員的分數與錯在哪。</span></div></li><li data-box="145,105,1310,95"><span class="n"></span><div><b>統計</b><span class="d">平均、交卷人數、低於輔導門檻、需要留意、中位數與最高最低分。</span></div></li><li data-box="145,240,1310,240"><span class="n"></span><div><b>每題答對率</b><span class="d">一題一條，滑過長條可以看題目。</span></div></li><li data-box="650,708,430,40"><span class="n"></span><div><b>錯在哪</b><span class="d">答錯或只拿部分分數的題目。</span></div></li><li data-box="1235,722,40,30" data-side="t"><span class="n"></span><div><b>需要留意</b><span class="d">依作答足跡標示，見下方說明。</span></div></li><li data-box="1315,722,60,26" data-side="r"><span class="n"></span><div><b>需輔導</b><span class="d">分數低於輔導門檻。</span></div></li><li data-box="160,998,100,24"><span class="n"></span><div><b>退回重考紀錄</b><span class="d">被退回過的專員會標出次數。</span></div></li></ol></figure>
+<figure class="fig"><div class="shot"><img src="guide/results-agent.webp" width="1600" height="740" alt="依專員：變化題和 DMS 考題合併顯示，練習也列入，當作學習歷程。「匯出全部專員 CSV」一列是一位專員的一場測驗，可以當訪談依據。" loading="lazy"></div><figcaption>依專員：變化題和 DMS 考題合併顯示，練習也列入，當作學習歷程。「匯出全部專員 CSV」一列是一位專員的一場測驗，可以當訪談依據。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/agent-history.webp" width="1600" height="860" alt="個人歷程：每場測驗的分數、錯誤重點與需要留意的地方，可以單獨匯出。" loading="lazy"></div><figcaption>個人歷程：每場測驗的分數、錯誤重點與需要留意的地方，可以單獨匯出。</figcaption></figure>
+<h3 id="t6-flags">作答足跡與「需要留意」</h3>
+<p>DMS 考題測驗會記錄每個案件看了多久、看了哪些區塊和分頁、打開哪些照片與影片、離開考試頁面的時間，以及簡答貼上的字數。專員作答畫面上有告知。這些情況會標示 <b>需要留意</b>：</p>
+<ul>
+  <li>一個案件看不到 60 秒就作答。</li>
+  <li>選擇題全對，但只看了 2 個以內的區塊、沒有打開照片或影片。</li>
+  <li>離開考試頁面 20 秒以上，回來 30 秒內就作答。</li>
+  <li>簡答題貼上 30 字以上。</li>
+</ul>
+<p class="foot">「需要留意」只是提示，不代表作弊，請搭配作答內容一起判斷。</p>
+<h3 id="t6-tl">TL 看到的畫面</h3>
+<figure class="fig"><div class="shot"><img src="guide/tl-results.webp" width="1600" height="700" alt="TL 只有「歷史成績」一個選單，可以看所有測驗與專員的成績、作答明細並匯出；還沒公布的測驗標「尚未公布」，分數可能還會調整。" loading="lazy"></div><figcaption>TL 只有「歷史成績」一個選單，可以看所有測驗與專員的成績、作答明細並匯出；還沒公布的測驗標「尚未公布」，分數可能還會調整。</figcaption></figure>
 </section>
-
-<section class="card" id="t7">
-  <h2><span class="step">⚙</span>主題設定 <span class="chip tw">TW 講師</span></h2>
-  <table>
-    <tr><th>分頁</th><th>內容</th></tr>
-    <tr><td><b>主題與判斷標準</b></td><td>可以有多個主題，各自的判斷標準、關鍵因素、出題規則、批改原則、預設選項。判斷標準修改後版本號自動 +1，舊題目會標示需重新確認。這裡也會列出 AI 回報的判斷標準建議。可用 <span class="btnlike">匯入主題</span> 一次建立或更新主題、題組範本、標籤與選項範本（題組的小題與選項目前只能用匯入更新）。</td></tr>
-    <tr><td><b>標籤</b></td><td>各主題的判斷重點分類；停用後不再出現在選項中，已使用的範例與題目不受影響。</td></tr>
-    <tr><td><b>選項範本</b></td><td>常用的選項組合（2–8 個），出題時套用。</td></tr>
-    <tr><td><b>DMS 規則</b></td><td>申退原因 × 允許的申請方案，以及其他系統規則文字。出題、匯入範例、存檔時都會檢查。</td></tr>
-  </table>
-  <h3>管理 <span class="chip tw">管理員</span></h3>
-  <p>只有管理員看得到上方選單的「管理」。</p>
-  <table>
-    <tr><th>分頁</th><th>內容</th></tr>
-    <tr><td><b>講師名單</b></td><td>新增管理員 / TW / BPO 講師 / TL（只看歷史成績）。新專員不用新增，用 Google 登入後就是專員。</td></tr>
-    <tr><td><b>權限設定</b></td><td>設定 TW、BPO 講師能不能退回重考（預設只有管理員），以及在哪些頁面看得到刪除按鈕（題庫題目、草稿、校對時刪單題、測驗、範例、範例申請紀錄）。管理員一律可以刪除。沒勾的身分看不到按鈕，也無法用其他方式刪除。</td></tr>
-    <tr><td><b>系統設定</b></td><td>每批生成題數、AI 低信心門檻、輔導門檻、自動交卷緩衝、每份試卷最多題數等。</td></tr>
-    <tr><td><b>V1 資料搬移</b></td><td>匯入舊平台的資料（只能一次）。</td></tr>
-    <tr><td><b>重置資料</b></td><td>上線前清除所有測試資料（草稿、題庫、測驗、成績、範例），編號從 001 重新開始；主題、標籤、規則、設定與講師名單會保留。上線後請勿使用。</td></tr>
-  </table>
-
+<section id="t7"><h2>主題設定與管理</h2><p class=lead>「主題設定」只有 TW 講師看得到；「管理」只有管理員看得到。</p>
+<figure class="fig"><div class="shot"><img src="guide/set-topic.webp" width="1600" height="860" alt="主題與判斷標準：每個主題各自的判斷標準、出題規則、批改原則、預設選項。判斷標準修改後版本號自動 +1，舊題目會標示需重新確認。可以用「匯入主題」一次建立或更新主題、題組範本、標籤與選項範本。" loading="lazy"></div><figcaption>主題與判斷標準：每個主題各自的判斷標準、出題規則、批改原則、預設選項。判斷標準修改後版本號自動 +1，舊題目會標示需重新確認。可以用「匯入主題」一次建立或更新主題、題組範本、標籤與選項範本。</figcaption></figure>
+<table class="tb">
+  <tr><th>分頁</th><th>內容</th></tr>
+  <tr><td><b>標籤</b></td><td>各主題的判斷重點分類；停用後不再出現在選項中，已使用的範例與題目不受影響。</td></tr>
+  <tr><td><b>選項範本</b></td><td>常用的選項組合（中英文），出題時套用，也可以被題目範本引用。</td></tr>
+  <tr><td><b>題目範本</b></td><td>DMS 考題常用的題目與選項（見 DMS 考題一節）。</td></tr>
+  <tr><td><b>DMS 規則</b></td><td>申退原因 × 允許的申請方案，以及其他系統規則文字。出題、匯入範例、存檔時都會檢查。</td></tr>
+</table>
+<div class="pair"><figure class="fig"><div class="shot"><img src="guide/set-options.webp" width="1600" height="790" alt="選項範本" loading="lazy"></div><figcaption>選項範本</figcaption></figure><figure class="fig"><div class="shot"><img src="guide/set-dms.webp" width="1600" height="860" alt="DMS 規則" loading="lazy"></div><figcaption>DMS 規則</figcaption></figure></div>
+<h3 id="t7-admin">管理 <span class="who">管理員</span></h3>
+<figure class="fig"><div class="shot"><img src="guide/adm-roles.webp" width="1600" height="660" alt="講師名單：新增管理員、TW 講師、BPO 講師或 TL。新專員不用新增，用 Google 登入後就是專員。" loading="lazy"></div><figcaption>講師名單：新增管理員、TW 講師、BPO 講師或 TL。新專員不用新增，用 Google 登入後就是專員。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/adm-perms.webp" width="1600" height="860" alt="權限設定：TW、BPO 講師能不能退回重考，以及在哪些頁面看得到刪除按鈕。管理員一律可以。沒勾的身分看不到按鈕，也無法用其他方式操作。" loading="lazy"></div><figcaption>權限設定：TW、BPO 講師能不能退回重考，以及在哪些頁面看得到刪除按鈕。管理員一律可以。沒勾的身分看不到按鈕，也無法用其他方式操作。</figcaption></figure>
+<table class="tb">
+  <tr><th>分頁</th><th>內容</th></tr>
+  <tr><td><b>組別</b></td><td>DMS 考題的組別（C2C、新人訓練、Mall、CB、Review）。</td></tr>
+  <tr><td><b>系統設定</b></td><td>每批生成題數、AI 低信心門檻、輔導門檻、自動交卷緩衝、每份試卷最多題數等。</td></tr>
+  <tr><td><b>V1 資料搬移</b></td><td>匯入舊平台的資料（只能一次）。</td></tr>
+</table>
 </section>
-
-<section class="card" id="t-faq">
-  <h2>注意事項</h2>
-  <ul>
-    <li><b>資料安全：</b>範例和題目都經過去識別化；存檔時也會自動掃描疑似訂單編號、電話、Email 等。審核時若發現殘留，請直接刪改。Return ID 只保留在申請紀錄，只有 TW 講師看得到，不會出現在題目中。</li>
-    <li><b>英文：</b>講師只改中文；改過的欄位按「送翻譯」由排程翻譯（聊聊、DRC、申退備註用 DMS 翻譯）。翻譯中的範例或題目不能修改。</li>
-    <li><b>DMS 考題的資料：</b>DMS 考題用真實案件與照片、影片，不做去識別化；可以查到原案件的欄位預設遮蔽成 ***，專員必須在公司內網或 VPN 才看得到照片與影片。</li>
-    <li><b>舊版連結：</b>舊平台（V1）的資料已搬到這裡，編號改為 E / Q / S 新編號；舊的測驗連結會自動導到新編號。</li>
-    <li><b>問題回報：</b>使用上有任何問題或建議，請聯絡 Chris。</li>
-  </ul>
+<section id="t-faq"><h2>注意事項</h2>
+<ul>
+  <li><b>資料安全：</b>範例和變化題都經過去識別化，存檔時也會自動掃描疑似訂單編號、電話、Email。審核時發現殘留請直接刪改。</li>
+  <li><b>DMS 考題的資料：</b>DMS 考題用真實案件與照片、影片，不做去識別化；可以查到原案件的欄位預設遮蔽成 ***。專員要在公司內網或 VPN 才看得到照片與影片。Return ID、帳號只有 TW 講師看得到。</li>
+  <li><b>英文：</b>講師只寫中文；DMS 考題上架後由排程翻譯，變化題改了中文後按「送翻譯」。翻譯中的範例或題目不能修改。</li>
+  <li><b>舊版連結：</b>舊平台（V1）的資料已搬到這裡，舊的測驗連結會自動導到新編號。</li>
+  <li><b>問題回報：</b>使用上有任何問題或建議，請聯絡 Chris。</li>
+</ul>
+</section></main>
+</div>
+<div class="wrap" data-view="agent" hidden>
+  <nav class="toc"><a href="#a-overview" class="">開始之前</a><a href="#a1" class="">登入與我的測驗</a><a href="#a2" class="">DMS 考題測驗</a><a href="#a2-result" class="sub">交卷之後</a><a href="#a3" class="">變化題測驗</a><a href="#a-help" class="">遇到問題</a></nav>
+  <main><section id="a-overview"><h2>開始之前</h2><p class=lead>講師會傳測驗連結給你，也可以直接到「我的測驗」找。測驗分兩種：<b>DMS 考題測驗</b>的畫面和 DMS 一樣；<b>變化題測驗</b>一題一頁。</p>
+<div class="tip"><b>作答環境</b>請用電腦作答，不要用手機；使用一般（非無痕）瀏覽器視窗，開始前確認網路穩定、公司內網或 VPN 已連上。</div>
+<h3 id="a1">登入與我的測驗</h3>
+<ol>
+  <li>打開講師提供的連結，用 <b>公司 Google 帳號</b> 登入。</li>
+  <li>進入 <b>我的測驗</b>，會列出指派給你的所有測驗。右上角可以切換中文／EN。</li>
+</ol>
+<figure class="fig"><div class="shot"><img src="guide/ag-mine.webp" width="1600" height="900" alt="我的測驗" loading="lazy"></div><ol class="keys"><li data-box="160,155,165,25"><span class="n"></span><div><b>測驗種類與狀態</b><span class="d">DMS 考題或變化題；進行中、已結束、已交卷、已公布成績。</span></div></li><li data-box="160,225,400,90"><span class="n"></span><div><b>測驗資訊</b><span class="d">類型（考試或練習）、開放時間、作答時間、內容。</span></div></li><li data-box="165,335,95,35"><span class="n"></span><div><b>開始作答</b><span class="d">開放時間內才能開始。</span></div></li><li data-box="165,595,95,35"><span class="n"></span><div><b>查看作答</b><span class="d">交卷後可以回來看自己的答案；練習會依講師設定顯示正解。</span></div></li><li data-box="270,850,110,45" data-side="r"><span class="n"></span><div><b>分數</b><span class="d">考試在講師公布成績後才會顯示。</span></div></li></ol></figure>
+<div class="note"><b>注意</b>畫面顯示「目前沒有指派給你的測驗」時，請確認登入的帳號是否正確，再聯絡講師。</div>
 </section>
-</main></div><div class="wrap"><main data-view="trainer" data-lang="en" hidden>
-<section class="card" id="t-overview">
-  <h2>Workflow</h2>
-  <p class="sub">The menu runs left to right in working order. <b>Case import</b> reads DMS cases and produces two things: a <b>DMS question</b> can be used in a quiz once reviewed; a <b>DMS sample</b> is reviewed, then rewritten into variants by the AI under <b>Question Builder</b>. Both end up in the <b>Question Bank</b>, on separate tabs.</p>
-  <div class="flow"><a href="#t1"><span class="n">1</span><b>Case import</b><span>DMS case → question / sample</span></a><a href="#t2"><span class="n">2</span><b>Generate</b><span>Pick samples → AI rewrites → review</span></a><a href="#t3"><span class="n">3</span><b>Bank</b><span>Approved questions</span></a><a href="#t4"><span class="n">4</span><b>Quizzes</b><span>Pick → publish</span></a><a href="#t5"><span class="n">5</span><b>Grading</b><span>AI grades → confirm</span></a><a href="#t6"><span class="n">6</span><b>History</b><span>Results, retakes</span></a></div>
-  <h3>Sign-in and access</h3>
-  <ul>
-    <li>Sign in with your company Google account. Trainers are listed under <b>Admin → Trainers</b> (admins only); anyone else who signs in is an agent. Switch 中文 / EN at the top right.</li>
-    <li><span class="chip tw">TW trainers</span> can use everything, including <b>Case import</b>, DMS question review, generating from samples and <b>Settings</b>.</li>
-    <li><span class="chip all">All trainers</span> can use everything from <b>Question Builder</b> onwards (BPO trainers cannot see samples, so they create drafts by tags).</li>
-    <li>Trainers who are also assigned a quiz can take it under <b>My quizzes</b>.</li>
-  </ul>
-  <h3>SeaTalk commands (@RR AI Quiz Assistant)</h3>
-  <table>
-    <tr><th>Command</th><th>When</th><th>What it does</th></tr>
-    <tr><td><code>生成考題 D001</code></td><td>After creating a draft</td><td>Rewrites the chosen samples into variants (one sample per batch)</td></tr>
-    <tr><td><code>批改 E001</code></td><td>After a variant quiz ends (if it has written answers)</td><td>Scores written answers with a reason and confidence</td></tr>
-    <tr><td><code>批改 X001</code></td><td>After a DMS case quiz ends (if it has short answers)</td><td>Suggests a score for each short answer with a reason and confidence; it counts only once a trainer accepts it</td></tr>
-    <tr><td><code>處理 D001</code></td><td>Backup</td><td>Can also translate draft questions; normally use <b>Translate</b> on the page</td></tr>
-  </table>
-  <p class="foot">Every command can be copied from the site. You do not need to reload: the page updates when the AI finishes.</p>
-  <h3>Icons on the screen</h3>
-  <ul>
-    <li><span class="cnt g">3</span> Grey circle with a number: how many are <b>waiting</b>, e.g. pending review, not yet graded, not confirmed.</li>
-    <li><span class="cnt o">2</span> Orange circle with a number: how many <b>need attention</b>, e.g. low AI confidence, below the coaching line, flagged.</li>
-    <li><span class="okc">✓</span> Green tick: everything here is done.</li>
-    <li><span class="btnlike">↻</span> Refresh: reloads the data on this page. Editing, settings and quiz-taking pages don't have it, so unsaved work isn't lost.</li>
-  </ul>
-  <h3>English (Translate)</h3>
-  <p>Trainers edit Chinese only. Changed fields are listed as <b>English pending</b>; press <span class="btnlike">Translate</span> and the scheduler translates them on its next run (chat, DRC and remark via the DMS translation, as agents see in the DMS English UI; other fields via AI). Items waiting for translation cannot be edited; press <span class="btnlike">Cancel translation</span> if needed. This works the same for samples, draft questions and bank questions.</p>
-  <h3>Question types and points</h3>
-  <table>
-    <tr><th>Type</th><th>How agents answer</th><th>Grading</th></tr>
-    <tr><td><b>G</b>　Question set</td><td>Answer several fixed sub-questions in order (e.g. 6 for the agreement flow topic)</td><td>Automatic: all correct = full points; otherwise each correct part earns full ÷ (2 × parts)</td></tr>
-    <tr><td><b>A</b>　Choice</td><td>Pick one option</td><td>Automatic</td></tr>
-    <tr><td><b>B</b>　Choice + reason</td><td>Pick one option and explain why</td><td>Choice automatic; reason scored by AI, confirmed by a trainer</td></tr>
-    <tr><td><b>C</b>　Written</td><td>Write the answer</td><td>Scored by AI, confirmed by a trainer</td></tr>
-  </table>
-  <p class="foot">Each quiz totals 100 points, split evenly by question; up to 8 options per question.</p>
-  <p class="foot"><b>DMS questions</b> are single choice or short answer only: choices are scored automatically, short answers get an AI suggestion and a trainer's score. Trainers set the points per question, and the result is converted to 100 (every case weighs the same; see ⑤).</p>
+<section id="a2"><h2>DMS 考題測驗</h2><p class=lead>用真實 DMS 案件出題，畫面和 DMS 一樣，要自己在案件裡找資訊再作答。整場測驗一起計時，可以在案件之間切換。</p>
+<figure class="fig"><div class="shot"><img src="guide/ag-x-start.webp" width="1600" height="720" alt="看完說明後按「開始作答」。計時從這時開始，無法暫停。" loading="lazy"></div><figcaption>看完說明後按「開始作答」。計時從這時開始，無法暫停。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/ag-x-exam.webp" width="1600" height="900" alt="DMS 考題作答畫面" loading="lazy"></div><ol class="keys"><li data-box="350,62,140,30"><span class="n"></span><div><b>案件切換</b><span class="d">案件 1、案件 2…，交卷前可以隨時切換、修改答案。</span></div></li><li data-box="1325,68,115,22"><span class="n"></span><div><b>自動儲存</b><span class="d">有修改時最多 30 秒存一次，切換案件、離開頁面時也會存。</span></div></li><li data-box="1440,62,75,30"><span class="n"></span><div><b>剩餘時間</b><span class="d">時間到系統會自動交卷。</span></div></li><li data-box="1530,62,60,32"><span class="n"></span><div><b>交卷</b><span class="d">會提醒還有哪些案件沒答完，確認後送出。</span></div></li><li data-box="10,105,650,24"><span class="n"></span><div><b>作答紀錄告知</b><span class="d">看了哪些區塊和分頁、打開哪些照片與影片、離開考試頁面的時間，講師都看得到。</span></div></li><li data-box="15,155,120,200" data-side="t"><span class="n"></span><div><b>區塊目錄</b><span class="d">和 DMS 左側一樣，點了會跳到那個區塊。</span></div></li><li data-box="160,170,920,700"><span class="n"></span><div><b>案件內容</b><span class="d">照片點了可以放大，影片可以播放。顯示 *** 的是講師遮蔽的資訊。</span></div></li><li data-box="1130,215,440,450"><span class="n"></span><div><b>考題</b><span class="d">淡橘色標頭的是要回答的題目，黃底是情境說明。旁邊的 Operation History、Chat History、Discuss 和 DMS 一樣。</span></div></li></ol></figure>
+<ul>
+  <li><b>選擇題</b>：點選一個選項（標「複選」的要選所有正確的選項）。<b>簡答題</b>：寫出判斷原因，說明是案件裡的哪個內容讓你這樣判斷。標示「說明第 N 題的選擇」的，是寫你為什麼選那個答案。</li>
+  <li>有「本次申退／前一次申退」時可以切換查看之前的申退，題目一律回答「本次」。</li>
+  <li>電腦當機或斷線時，重新打開連結就能繼續，但時間不會停，請立刻聯絡講師。</li>
+</ul>
+<div class="note"><b>注意</b>請自己閱讀案件判斷，不要和其他人討論，也不要把題目或答案分享出去。</div>
+<h3 id="a2-result">交卷之後</h3>
+<div class="pair"><figure class="fig"><div class="shot"><img src="guide/ag-x-practice.webp" width="1600" height="900" alt="練習・隨時檢討：交卷後馬上看到正解與詳解。" loading="lazy"></div><figcaption>練習・隨時檢討：交卷後馬上看到正解與詳解。</figcaption></figure><figure class="fig"><div class="shot"><img src="guide/ag-x-result.webp" width="1600" height="900" alt="考試：講師公布成績後，看得到分數（100 分制）、正解、詳解與參考答案。" loading="lazy"></div><figcaption>考試：講師公布成績後，看得到分數（100 分制）、正解、詳解與參考答案。</figcaption></figure></div>
+<p class="foot">練習・統一檢討要等講師公布解答後才看得到。</p>
 </section>
-
-<section class="card" id="t1">
-  <h2><span class="step">1</span>Case import <span class="chip tw">TW trainers</span></h2>
-  <p class="sub">Read real DMS cases and produce two things: <b>DMS questions</b> (the real case asked as is, ready for quizzes once reviewed) and <b>DMS samples</b> (reviewed, then rewritten into variants by the AI).</p>
-  <table>
-    <tr><th>Tab</th><th>What it holds</th></tr>
-    <tr><td><b>Pending DMS questions</b></td><td>Imported cases waiting for a trainer to tidy the screen and add questions (see "DMS questions" below).</td></tr>
-    <tr><td><b>Pending DMS samples</b></td><td>Samples waiting for the answer and locked evidence (later in this section).</td></tr>
-    <tr><td><b>Library</b></td><td>Approved samples, ready for the Question Builder.</td></tr>
-    <tr><td><b>Requests</b></td><td>Submit Return IDs and see past requests.</td></tr>
-  </table>
-  <p class="foot">The <span class="cnt g">3</span> on a tab is the number waiting for review.</p>
-  <h3>Request an import</h3>
-  <ol>
-    <li>Tick the <b>use</b> (both is fine): <b>DMS question</b> (default) or <b>DMS sample</b>.</li>
-    <li>One Return ID per line, a space, then the <b>cutoff</b> (Taipei time), e.g. <code>246771802264043  2026-10-29 13:24</code>. <b>With DMS question ticked, one Return ID at a time.</b></li>
-    <li>The cutoff is usually just before the case was judged. Chat, DRC, Operation History and Timeline keep only what came <b>before</b> it, so <b>entries within that minute are removed too</b>; add seconds (e.g. <code>13:24:20</code>) to keep earlier ones. Other fields (e.g. Case Status) show the final state and may give the result away, so check them during review. Lines without a time use the full data only if you tick <b>No cutoff</b>.</li>
-    <li>DMS question: <b>Previous returns</b> (optional) takes earlier Return IDs of the same order, separated by commas. Agents can switch to them while answering.</li>
-    <li>DMS sample: choose the <b>topic</b> and, optionally, the expected tags.</li>
-    <li>Press <span class="btnlike">Submit</span>. The scheduler runs DMS questions first, then samples (DMS is read once per Return ID), sends a SeaTalk message when done, and the case appears in the matching pending tab. <b>No AI judgement or translation happens on import.</b></li>
-  </ol>
-  <p class="foot">If some DMS data can't be read (e.g. logistics), the case is still imported with those fields left blank and listed in the notes; an unreadable previous return doesn't block the current one. A request stuck in processing for 15 minutes shows <span class="btnlike">Retry</span>; queued or failed requests can be <span class="btnlike">Cancel</span>led.</p>
-  <h3>Review a DMS sample</h3>
-  <p>Open a sample from <b>Pending DMS samples</b>. It looks like DMS; trainers set the answer and the evidence.</p>
-  <h3>What a sample shows (like DMS)</h3>
-  <ul>
-    <li><b>Chat:</b> text, stickers (shown as the sticker image), photos / videos from the buyer (shown as a “📷 Photo” block; images are not loaded). System messages DMS does not show are skipped; unknown message types appear as “[System message]” with their code in the notes — tell Chris what they look like in DMS.</li>
-    <li><b>DRC:</b> the buyer's first entry is the request's <b>System Info</b> (Solution, Refund Amount, Return Reason, Remark); messages from Shopee's return &amp; refund team are labelled “Shopee”.</li>
-    <li><b>Request:</b> photos / videos attached to the request appear as blocks; order and requested items have a “Product photo” block.</li>
-    <li>Photo, video and sticker blocks can have a <b>description</b> (e.g. “outer box damaged, contents fine”) when it matters; descriptions are translated with Translate.</li>
-  </ul>
-  <h3>The 5 review steps</h3>
-  <p>The top of the sample page lists what to do, in order; finished steps get a tick:</p>
-  <ol>
-    <li><b>Answer &amp; key point:</b> pick each sub-question's answer in the question set below and fill in the key point (it also tells samples apart).</li>
-    <li><b>Lock the evidence:</b> click 🔓 on the parts of the case that decide the answer (chat, DRC, logistics, items, payment, remark and photos can be locked). When generating variants the AI may only reword locked content, keeping its meaning and numbers. The request solution, amount, reason, deduction and DRC offers are never changed by the AI, so they need no lock.</li>
-    <li><b>Check before approving:</b> only things you need to act on (masked text, format errors, zero-price free gifts, brand or shop names in product names). Plain information is under <b>Import details</b>.</li>
-    <li><b>English:</b> after step 1, press <span class="btnlike">Translate</span>.</li>
-    <li><b>Approve:</b> available once steps 1, 3 and 4 are done and saved. Samples without locks can be approved but cannot be used to generate questions.</li>
-  </ol>
-  <ul>
-    <li><b>Edit question:</b> press <span class="btnlike">✎ Edit question</span> and the case becomes editable in place (Chinese only). Change text, times and speakers; insert, delete or move messages; add items, logistics events and photos. The request amount is calculated from the requested items and deduction. Locked parts are read-only; click 🔒 to unlock first. <span class="btnlike">Save</span> saves and ends editing; <span class="btnlike">Cancel</span> discards everything.</li>
-    <li><b>Save:</b> the Save button lights up only when something changed; changing it back greys it out again. Leaving the page does not ask: unsaved changes are discarded.</li>
-    <li><b>Copy sample:</b> <span class="btnlike">⧉ Copy sample</span> creates a new pending sample (locks included) for you to edit into a variant, e.g. turn “agreement” into “no agreement” or change the numbers. The list shows the source sample.</li>
-    <li><b>Reject / delete:</b> under <span class="btnlike">⋯</span>. When deleting you can request the same Return ID again with a new cutoff (answer, key point and locks must be set again).</li>
-    <li><b>DMS rules:</b> return reason × request solution combinations (e.g. Damaged item allows Return and Refund only) are checked automatically. Maintain them under <b>Settings → DMS rules</b>.</li>
-  </ul>
-  <h3>Library</h3>
-  <ul>
-    <li>Search by sample ID, key point or tag.</li>
-    <li>Approved samples can be deactivated under <span class="btnlike">⋯</span> so they are no longer used to generate questions.</li>
-  </ul>
+<section id="a3"><h2>變化題測驗</h2><p class=lead>每一題是一筆退貨退款案件，依序作答。</p>
+<figure class="fig"><div class="shot"><img src="guide/ag-e-start.webp" width="1600" height="830" alt="閱讀「開始前請注意」，再按「開始作答」。計時立即開始，無法暫停。" loading="lazy"></div><figcaption>閱讀「開始前請注意」，再按「開始作答」。計時立即開始，無法暫停。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/ag-e-exam.webp" width="1600" height="900" alt="變化題作答畫面" loading="lazy"></div><ol class="keys"><li data-box="375,22,200,30"><span class="n"></span><div><b>已作答與剩餘時間</b><span class="d">剩下 5 分鐘和 1 分鐘時會提醒；時間到或講師提前結束時會自動交卷。</span></div></li><li data-box="1510,22,70,30"><span class="n"></span><div><b>交卷</b><span class="d">確認畫面會顯示還有幾題沒作答，按「確定交卷」後就不能再改。</span></div></li><li data-box="140,98,100,40" data-side="r"><span class="n"></span><div><b>題號</b><span class="d">可以跳到任何一題修改答案。</span></div></li><li data-box="140,170,230,28" data-side="r"><span class="n"></span><div><b>題型與配分</b><span class="d">整份測驗共 100 分。</span></div></li><li data-box="850,600,590,300"><span class="n"></span><div><b>作答區</b><span class="d">選一個選項；要寫原因的題目，請說明是案件中的哪個內容讓你這樣判斷。可以用英文作答，文法與拼字不扣分。</span></div></li></ol></figure>
+<table class="tb">
+  <tr><th>區塊</th><th>內容</th></tr>
+  <tr><td><b>聊聊</b></td><td>買家與賣家之間的對話。照片或影片顯示成照片區塊，有描述時請一起參考。</td></tr>
+  <tr><td><b>DRC</b></td><td>各方與蝦皮之間的溝通，<b>不是</b>買賣雙方的對話。買家第一筆 System Info 是這筆申請的內容。</td></tr>
+  <tr><td><b>退貨退款申請</b></td><td>方案、金額、原因、備註與申退商品。折抵是從金額中扣掉的折扣。</td></tr>
+</table>
+<div class="note"><b>注意</b>答案暫存在這個瀏覽器。作答期間請不要關閉頁面、換電腦或清除瀏覽器資料。時間到自動交卷時如果網路不穩，頁面會每 15 秒自動重試，請保持開啟直到看到「已交卷」。</div>
+<figure class="fig"><div class="shot"><img src="guide/ag-e-result.webp" width="1600" height="1128" alt="講師公布成績後，在「我的測驗」按「查看」：分數、需要複習的題目、你的選擇與正解、解析。" loading="lazy"></div><figcaption>講師公布成績後，在「我的測驗」按「查看」：分數、需要複習的題目、你的選擇與正解、解析。</figcaption></figure>
 </section>
-
-<section class="card" id="t1b">
-  <h2><span class="step">1b</span>DMS questions: review and set questions <span class="chip tw">TW trainers</span></h2>
-  <p class="sub">Open a case from <b>Case import → Pending DMS questions</b>. The left and middle show the DMS screen; the questions go on the <b>考題</b> (Questions) tab on the right. Once approved, the case appears under <b>Question Bank → DMS questions</b> and can be used in quizzes.</p>
-  <div class="tip">The DMS question and DMS quiz pages are in Chinese only for now, so button names below are shown in Chinese with the English meaning in brackets.</div>
-  <h3>Tidy the case screen</h3>
-  <ul>
-    <li>Every field has <span class="btnlike">隱藏</span> (Hide): agents won't see it. Fields that could lead back to the real case (Return ID, accounts) show <b>專員看到 ***</b> (*** to agents) by default.</li>
-    <li>Fields marked <b>可能洩漏結果</b> (may reveal the result) (e.g. Case Status, Execution) show the final state; decide whether to hide them. Approval reminds you again if agents can still see any.</li>
-    <li>Click a value to edit it; <span class="btnlike">＋ 新增欄位</span> (＋ Add field) adds information DMS doesn't have.</li>
-    <li>With previous returns, switch between <b>this return / previous return</b> at the top and tidy both.</li>
-    <li>Changes save automatically. <span class="btnlike">專員預覽</span> (Agent preview) shows exactly what agents will see (hidden and masked fields applied).</li>
-  </ul>
-  <h3>Add questions (<span class="btnlike">＋ 插入模組</span> (＋ Insert module) on the Questions tab)</h3>
-  <table>
-    <tr><th>Module</th><th>Use</th></tr>
-    <tr><td><b>Scenario</b></td><td>Yellow text giving agents the background, e.g. "The buyer filed a return; decide what to do".</td></tr>
-    <tr><td><b>Extra info</b></td><td>Upload an image you prepared (e.g. earlier handling); agents can click to enlarge it.</td></tr>
-    <tr><td><b>Single choice</b></td><td>2–8 options; click a circle to set the answer. Add an explanation, shown when answers can be reviewed.</td></tr>
-    <tr><td><b>Short answer</b></td><td>A <b>model answer</b> is required: the AI grades against it, so write the deciding factors. You can <b>link it to a single-choice question</b>: the agent then explains why they picked that option, and grading shows their choice next to it.</td></tr>
-  </table>
-  <ul class="gap">
-    <li>Modules show to agents top to bottom; insert as many as you need and move them up or down. One case can hold several questions.</li>
-    <li>Set the <b>points</b> per question. In a quiz the result is converted to 100 with every case weighing the same (see ⑤).</li>
-    <li>Agents see each question with a <span class="qhead">light orange header</span>, set apart from the DMS screen.</li>
-  </ul>
-  <h3>Classify and approve</h3>
-  <ul>
-    <li>Enter a <b>case title</b> and choose the <b>group</b> (C2C, 新人訓練, Mall, CB, Review; admins can change them under <b>Admin → Groups</b>), <b>topic</b> and <b>tags</b>. These are shared with variant questions.</li>
-    <li><b>Use</b>: practice or exam. Exams can only use exam cases, so agents don't see them in practice first.</li>
-    <li><b>TW only</b>: DMS questions are for TW agents by default and are not translated.</li>
-    <li>Press <span class="btnlike">核准</span> (Approve). You need a title, group, topic and at least one question, each with text, points and an answer or model answer; anything missing is listed.</li>
-    <li>Approved cases can still be edited. To stop using one, press <span class="btnlike">退回待審</span> (Back to pending); it can't be used in quizzes until approved again.</li>
-  </ul>
-</section>
-
-<section class="card" id="t2">
-  <h2><span class="step">2</span>Question Builder</h2>
-  <p class="sub">Pick a few samples and let the AI rewrite each into several variants. The answer is taken from the sample, so trainers only check that the content still fits.</p>
-  <ol>
-    <li>Press <span class="btnlike">New draft</span>: name, topic, then tick the samples to use and enter how many questions each (default 5). Only approved samples with locked areas can be picked; the table shows each sample's key point, answer, locks and how many bank questions already come from it.</li>
-    <li>Press <span class="btnlike">Copy command</span> and send <code>生成考題 D00x</code> on SeaTalk. The AI works on one sample per batch; progress updates in the draft list.</li>
-    <li>Rewrite rules (checked automatically; a batch that breaks them is sent back):
-      <ul>
-        <li><b>May change:</b> buyer / seller accounts, product names and variations, unlocked messages (reword, merge, shorten), the wording of the explanation.</li>
-        <li><b>Locked messages:</b> may only be reworded; speaker, time, order and numbers stay the same.</li>
-        <li><b>Never changed:</b> the request, DRC offers, Shopee messages, photos / stickers, quantities and unit prices.</li>
-        <li><b>Done by the system:</b> unit prices and all amounts are rescaled by one ratio (deduction becomes the nearest of $30 / 45 / 60 / 90 / 100), all dates are shifted together by 7–45 days, and the answer is copied from the sample.</li>
-      </ul>
-    </li>
-    <li>Review: each question has 4 review steps at the top (each step's button is at its top right):
-      <ul>
-        <li><b>Check content:</b> content from the sample's locked areas is highlighted with 🔒 — check its meaning has not changed; format errors are listed here too.</li>
-        <li><b>Answer:</b> shows the current answer (copied from sample Sxxx). If the content no longer supports it, edit the content or delete the question.</li>
-        <li><b>English:</b> after editing Chinese, press <span class="btnlike">Translate</span>.</li>
-        <li><b>Confirm:</b> press <span class="btnlike">✓ Confirm</span>; it moves to the next unreviewed question.</li>
-      </ul>
-    </li>
-    <li>To change something, press <span class="btnlike">✎ Edit question</span> (same as on the sample page). Save lights up only when something changed; switching questions or leaving does not ask, and unsaved changes are discarded. Delete question is under <span class="btnlike">⋯</span>.</li>
-    <li><b>Batch actions (top of the page):</b> <span class="btnlike">Translate all</span> sends every question with English pending; <span class="btnlike">✓ Confirm all</span> marks every question that can be confirmed as reviewed (skipping format errors, missing answers and English pending). Spot-check a few first.</li>
-    <li>When done, press <span class="btnlike">Add to bank</span>. Questions with English pending or format errors cannot be added.</li>
-    <li>Once everything is in the bank, an admin can <span class="btnlike">Delete draft</span>; the bank and published quizzes are not affected. Any trainer can delete a single question while reviewing (including delete and regenerate).</li>
-  </ol>
-  <div class="tip">If a rewrite no longer supports the answer, edit the content or delete the question; the AI never changes the answer itself.</div>
-</section>
-
-<section class="card" id="t3">
-  <h2><span class="step">3</span>Question Bank</h2>
-  <p class="sub">All approved questions ready for quizzes, on two tabs: <b>Variants</b> and <b>DMS questions</b>.</p>
-  <p>The <b>DMS questions</b> tab lists approved cases; filter by group, topic and tag on the left and open a case to keep editing. The rest of this section covers variants:</p>
-  <ul>
-    <li>Filter by topic, tag and type; see how often each question was used, its average score rate and how many agents have taken it.</li>
-    <li>Open a question and press <span class="btnlike">✎ Edit question</span> to edit in place; the version increases. Published quizzes keep the version they were published with.</li>
-    <li><b>English pending:</b> questions whose Chinese changed are marked; press <span class="btnlike">Translate</span>. <b>They cannot be added to new quizzes until translated.</b></li>
-    <li><b>Same sample:</b> a quiz never contains two variants of the same sample (auto-pick avoids it; publishing warns if you picked them by hand).</li>
-    <li><span class="btnlike">Retire</span> outdated or disputed questions so auto-pick skips them.</li>
-    <li>Trainers with delete permission (admins by default) can tick questions and <span class="btnlike">Delete</span> them. Published quizzes keep their own copy, so results are not affected.</li>
-    <li>After the criteria change, older questions show <b>Re-check</b> and are skipped by auto-pick; review and save to mark them current.</li>
-  </ul>
-</section>
-
-<section class="card" id="t4">
-  <h2><span class="step">4</span>Quiz Management</h2>
-  <p class="sub">Build a quiz from the bank, assign agents and a time window, then publish.</p>
-  <ol>
-    <li>Press <span class="btnlike">Publish quiz</span>: title (Chinese and English), start / end time, time limit in minutes.</li>
-    <li>Paste assignee emails, one per line (straight from Excel is fine).</li>
-    <li>Press <span class="btnlike">Auto-pick</span>: questions are chosen by type mix and tags, preferring less-used ones. Tick <b>Avoid questions assignees have taken</b> to prevent repeats. You can add or remove questions by hand.</li>
-    <li>Press <span class="btnlike">Publish and create link</span> and send the link. Agents also see the quiz under <b>My quizzes</b> after signing in.</li>
-  </ol>
-  <h3>While the quiz is running</h3>
-  <ul>
-    <li>See each agent's status (not started, in progress, submitted). <span class="btnlike">Preview as agent</span> shows exactly what agents see (nothing is recorded).</li>
-    <li>Use <span class="btnlike">Extend end time</span> or <span class="btnlike">End quiz now</span> (agents still answering are submitted automatically).</li>
-    <li>The start time is recorded by the server, so changing the computer clock does not give extra time.</li>
-    <li>Trainers with delete permission (admins by default) can <span class="btnlike">Delete quiz</span> (for test quizzes only): attempts, scores and released results are deleted, including agents' history. Archive real quizzes instead (after release).</li>
-  </ul>
-  <h3>DMS case quizzes (<b>DMS 考題測驗</b> tab)</h3>
-  <ol>
-    <li>Press <span class="btnlike">＋ DMS 考題測驗</span> (＋ DMS case quiz): title, type, open window, time limit for the whole quiz (minutes), and the agents' emails.</li>
-    <li>Pick approved DMS questions and order them (up to 20 cases). Exams can only use exam cases. <b>N have done this</b> next to a case is only a reminder.</li>
-    <li>The summary shows how many points each case is worth (100 ÷ number of cases).</li>
-    <li>After publishing, copy the agent link and send it; agents also see the quiz under <b>My quizzes</b>.</li>
-  </ol>
-  <table>
-    <tr><th>Type</th><th>After the agent submits</th></tr>
-    <tr><td><b>Exam</b></td><td>Score, answers and explanations appear once you <span class="btnlike">公布成績</span> (Release results).</td></tr>
-    <tr><td><b>Practice, review any time</b></td><td>Answers and explanations appear right away. No score; only the single-choice rate.</td></tr>
-    <tr><td><b>Practice, review together</b></td><td>Answers appear once you press <span class="btnlike">公布解答</span> (Show answers), e.g. for a class review.</td></tr>
-  </table>
-  <h3>The DMS quiz page</h3>
-  <ul>
-    <li><span class="btnlike">加入專員</span> (Add agents); agents who haven't started can be <span class="btnlike">移除</span> (removed).</li>
-    <li><span class="btnlike">延長作答時間</span> (Extend time limit) for everyone (longer only), or <span class="btnlike">加時</span> (Add time) for one agent, e.g. after a network drop.</li>
-    <li><span class="btnlike">退回重考</span> (Return for retake, in Progress; <b>admins only by default</b>, can be granted in Admin → Permissions) for an agent who submitted or timed out, e.g. submitted by mistake. Enter a reason; the agent is marked "Returned N×" for trainers and TLs (who, when, why); the old answers, trail and scores are kept aside and no longer count, and the agent starts over with a fresh timer. Withdraw released results first; extend the end time if the quiz has ended.</li>
-    <li><span class="btnlike">延長結束時間</span> (Extend end time) (also reopens a quiz ended early) and <span class="btnlike">提前結束</span> (End now) (agents still answering are submitted).</li>
-    <li>Tabs follow the quiz stages: <b>考題內容</b> (Questions: what is in the quiz, points, correct rate; tick "show answers" to see the key), <b>作答進度</b> (Progress), <b>閱卷批改</b> (Grading, by question or by agent, with each agent's answers and activity trail, see ⑥) and <b>成績與分析</b> (Results). The page opens on the tab that fits the quiz state.</li>
-    <li>None of these can be used once results are released.</li>
-  </ul>
-</section>
-
-<section class="card" id="t5">
-  <h2><span class="step">5</span>Grading &amp; Release</h2>
-  <p class="sub">After the quiz ends, the AI scores written answers first and trainers confirm before releasing.</p>
-  <ol>
-    <li>Open the quiz, copy <code>批改 E00x</code> and send it on SeaTalk. AI scores appear on the page automatically.</li>
-    <li>Each written answer gets a score, a reason and a confidence. Answers below the threshold are flagged <b>Low confidence</b>; check those first.</li>
-    <li>Accept the AI score or enter your own (with an optional comment). Use <span class="btnlike">Accept all unflagged in this question</span> for the rest. The page shows who confirmed each score.</li>
-    <li>If the AI is too strict or too lenient on a question, adjust the topic's <b>grading principles</b>, press <span class="btnlike">Re-grade unconfirmed scores in this question</span> and send the grading command again. Confirmed scores are kept.</li>
-    <li>Press <span class="btnlike">Release results</span>. Agents see their score, missed questions and explanations. Unconfirmed answers use the AI score.</li>
-  </ol>
-  <div class="note">Choice answers are scored automatically. You can still change scores after release; agents' results update automatically. Use <span class="btnlike">Withdraw results</span> if needed.</div>
-  <p class="foot">Once results are released you can <span class="btnlike">Archive</span> the quiz on its page: it is hidden from the Quizzes and Grading lists (use "Show archived quizzes" at the bottom to find it); results and history are not affected. Released quizzes moved from V1 are archived automatically.</p>
-  <h3>Grading principles</h3>
-  <p>Set under <b>Settings → Topic &amp; criteria → Grading principles</b>; the AI always follows them. Defaults:</p>
-  <ul>
-    <li>Full marks for naming the correct deciding factor; no need to cite clause numbers or repeat case details.</li>
-    <li>Short answers in English or Chinese are fine; no deductions for grammar or spelling.</li>
-    <li>Partial credit when only some of two or more required factors are given; zero or low for a wrong factor, a contradiction with the key, or a conclusion with no reason.</li>
-  </ul>
-  <h3>DMS case quizzes</h3>
-  <ol>
-    <li>Grading lists the ended quizzes. Opening one goes straight to <b>閱卷批改 → 依題目</b> (Grading → By question).</li>
-    <li>Each question has a tab: <span class="cnt g">2</span> is the number not yet graded, <span class="cnt o">1</span> the number with low AI confidence, <span class="okc">✓</span> means all graded.
-      <ul>
-        <li><b>Single choice</b>: scored automatically; see what each agent picked, right or wrong, and how many chose each option.</li>
-        <li><b>Short answer</b>: one row per agent with the answer, the AI suggestion and the score. For a short answer linked to a choice, an extra column shows what the agent picked.</li>
-      </ul>
-    </li>
-    <li>Press <span class="btnlike">複製批改指令</span> (Copy grading command) and send <code>批改 X00x</code> in SeaTalk. The AI suggestion (score, confidence, reason) appears next to each answer; below 70% confidence it is highlighted in yellow, so check those first.</li>
-    <li>Press <span class="btnlike">採用</span> (Accept) to fill the score in, or <span class="btnlike">AI 信心度 ≥ 0.85 全部採用</span> (Accept all with AI confidence ≥ 0.85) (all questions, empty fields only). <b>AI scores are suggestions: they count only after you press <span class="btnlike">儲存給分</span> (Save scores).</b> You can switch questions and save once; leaving with unsaved scores asks first.</li>
-    <li>When everything is graded, press <span class="btnlike">公布成績</span> (Release results) at the top of the quiz page. Ungraded short answers count as 0.</li>
-  </ol>
-  <div class="note"><b>How the score works:</b> each case is worth 100 ÷ number of cases, split across its questions by the points you set. Two cases, for example: case A, 15 points, 10 earned; case B, 5 points, all correct → 33.3 + 50 = <b>83.3</b> (raw 15 / 20). You grade in the original points; the screen shows the score out of 100 with the raw score in small type.</div>
-</section>
-
-<section class="card" id="t6">
-  <h2><span class="step">6</span>Results History</h2>
-  <p class="sub">Performance by quiz and by agent; quizzes not yet released show their current scores.</p>
-  <div class="two">
-    <div>
-      <h3>By quiz</h3>
-      <ul>
-        <li>Average, median, highest / lowest, number needing coaching, and the score rate of each question.</li>
-        <li>Click an agent to see answers and scores per question.</li>
-        <li><span class="btnlike">Return</span>: let the agent retake while the quiz is open (the original attempt is kept separately and no longer counts). If the quiz has ended, extend the end time as well.</li>
-        <li>Select agents and press <span class="btnlike">Makeup for selected</span>: same questions and points, new quiz and link.</li>
-      </ul>
-    </div>
-    <div>
-      <h3>By agent</h3>
-      <ul>
-        <li>Click an email to see all past results and what was missed each time.</li>
-        <li>Scores below the coaching threshold (Admin → System, coachingThreshold) are marked <b>Needs coaching</b>.</li>
-      </ul>
-    </div>
-  </div>
-  <h3>DMS case quizzes</h3>
-  <ul>
-    <li><b>By quiz</b>: DMS case quizzes are listed below. Exams show the average out of 100, practice shows the single-choice rate; <span class="cnt o">4</span> is the number below the line or flagged. Open one for statistics, the rate per question, and each agent's score, misses, time spent, times away and flags, with <span class="btnlike">匯出 CSV</span> (Export CSV).</li>
-    <li><b>By agent</b>: variant and DMS quizzes together, practice included as learning history. <span class="btnlike">匯出全部專員 CSV</span> (Export all agents CSV) gives one row per agent per quiz, useful for coaching talks; each agent's page has its own export.</li>
-  </ul>
-  <h3>Activity trail and flags</h3>
-  <p>DMS case quizzes record how long each case was viewed, which blocks and tabs were opened, which photos and videos were opened (and how much was watched), time spent away from the quiz page, and characters pasted into short answers. Agents are told on the quiz screen. An attempt is <b>flagged</b> when:</p>
-  <ul>
-    <li>A case was answered after less than 60 seconds on it.</li>
-    <li>All single choices were right, but 2 or fewer blocks were viewed and no photo or video was opened.</li>
-    <li>The agent came back after 20+ seconds away and answered within 30 seconds.</li>
-    <li>30+ characters were pasted into a short answer.</li>
-  </ul>
-  <p class="foot">A flag is a prompt to look closer, not proof of cheating; read it together with the answers.</p>
-</section>
-
-<section class="card" id="t7">
-  <h2><span class="step">⚙</span>Settings <span class="chip tw">TW trainers</span></h2>
-  <table>
-    <tr><th>Tab</th><th>What it holds</th></tr>
-    <tr><td><b>Topic &amp; criteria</b></td><td>Several topics, each with its own criteria, key factors, generation rules, grading principles and default options. Editing the criteria bumps the version and flags older questions for re-check. AI criteria suggestions are listed here. <span class="btnlike">Import topic</span> creates or updates a topic, its question-set template, tags and option sets in one go (sub-questions and their options can currently only be changed by importing).</td></tr>
-    <tr><td><b>Tags</b></td><td>Key-point categories per topic. Disabled tags disappear from pickers; existing samples and questions are not affected.</td></tr>
-    <tr><td><b>Option sets</b></td><td>Reusable option lists (2–8 options).</td></tr>
-    <tr><td><b>DMS rules</b></td><td>Return reason × allowed request solution, plus other system rules as text. Checked on generation, sample import and every save.</td></tr>
-  </table>
-  <h3>Admin <span class="chip tw">Admins</span></h3>
-  <p>Only admins see <b>Admin</b> in the menu.</p>
-  <table>
-    <tr><th>Tab</th><th>What it holds</th></tr>
-    <tr><td><b>Trainers</b></td><td>Add admins / TW / BPO trainers. New agents do not need to be added: they sign in with Google.</td></tr>
-    <tr><td><b>Delete permissions</b></td><td>Choose on which pages TW and BPO trainers see delete buttons (bank questions, drafts, deleting a question while reviewing, quizzes, samples, sample requests). Admins can always delete. Roles without the tick do not see the button and cannot delete any other way.</td></tr>
-    <tr><td><b>System</b></td><td>Batch size, AI low-confidence threshold, coaching threshold, auto-submit grace, maximum questions per quiz, and more.</td></tr>
-    <tr><td><b>V1 migration</b></td><td>Import data from the previous platform (one time only).</td></tr>
-    <tr><td><b>Reset data</b></td><td>Before go-live, remove all test data (drafts, bank, quizzes, results, samples) and restart IDs from 001; topics, tags, rules, settings and trainers are kept. Do not use after go-live.</td></tr>
-  </table>
-
-</section>
-
-<section class="card" id="t-faq">
-  <h2>Good to know</h2>
-  <ul>
-    <li><b>Data safety:</b> samples and questions are de-identified, and every save is scanned for possible order numbers, phone numbers, emails and so on. Remove anything that slips through. Return IDs stay in the request records, visible to TW trainers only, and never appear in questions.</li>
-    <li><b>English:</b> trainers edit Chinese only; press Translate and the scheduler translates the changed fields (chat, DRC and remark via the DMS translation). Items waiting for translation cannot be edited.</li>
-    <li><b>DMS question data:</b> DMS questions use real cases, photos and videos without de-identification; fields that could lead back to the case are masked as *** by default, and agents must be on the company network or VPN to see photos and videos.</li>
-    <li><b>Old links:</b> data from the previous platform (V1) has moved here with new E / Q / S IDs; old quiz links redirect to the new ID.</li>
-    <li><b>Questions or feedback:</b> contact Chris.</li>
-  </ul>
-</section>
-</main></div><div class="wrap"><main data-view="agent" data-lang="zh" hidden>
-<section class="card" id="a-overview">
-  <h2>流程總覽</h2>
-  <p class="sub">從收到連結到查看成績，共六個步驟。<b>DMS 考題測驗</b>（用真實 DMS 案件出題）的畫面不一樣，請看「DMS 考題測驗」一節。</p>
-  <div class="flow"><a href="#a1"><span class="n">1</span><b>登入</b><span>公司 Google 帳號</span></a><a href="#a2"><span class="n">2</span><b>開始作答</b><span>開始計時</span></a><a href="#a3"><span class="n">3</span><b>閱讀案件</b><span>看清楚案件</span></a><a href="#a4"><span class="n">4</span><b>作答</b><span>選擇 / 文字</span></a><a href="#a5"><span class="n">5</span><b>交卷</b><span>確定交卷</span></a><a href="#a6"><span class="n">6</span><b>查看成績</b><span>分數與解析</span></a></div>
-  <div class="tip">請用電腦作答，不要用手機；使用一般（非無痕）瀏覽器視窗，開始前確認網路穩定。</div>
-</section>
-
-<section class="card" id="a1">
-  <h2><span class="step">1</span>登入</h2>
-  <ol>
-    <li>打開講師提供的測驗連結。</li>
-    <li>用<b>公司 Google 帳號</b>（@shopeemobile-external.com）登入。</li>
-    <li>進入 <b>我的測驗</b>，會列出指派給你的所有測驗，以及測驗期間、作答時限和題數。</li>
-    <li>右上角的 <b>中文 / EN</b> 可以切換語言。</li>
-  </ol>
-  <div class="note">如果畫面顯示 <b>目前沒有指派給你的測驗</b>，請確認登入的帳號是否正確，再聯絡講師。</div>
-</section>
-
-<section class="card" id="a2">
-  <h2><span class="step">2</span>開始作答</h2>
-  <ul>
-    <li>只有在 <b>測驗期間</b> 內才能開始；還沒開放時，畫面會顯示開放時間。</li>
-    <li>閱讀 <b>開始前請注意</b>，再按 <span class="btnlike">開始作答</span>。</li>
-    <li>計時會立即開始，<b>無法暫停</b>；剩餘時間會一直顯示在畫面上方。</li>
-  </ul>
-</section>
-
-<section class="card" id="a3">
-  <h2><span class="step">3</span>閱讀案件</h2>
-  <p class="sub">每一題都是一筆退貨退款案件，畫面和 DMS 相同。</p>
-  <table>
-    <tr><th>區塊</th><th>內容</th></tr>
-    <tr><td><b>買家與賣家</b></td><td>帳號與 ID（虛構，不是真實人物）</td></tr>
-    <tr><td><b>訂單商品</b></td><td>訂購的商品，以及付款和物流時間軸</td></tr>
-    <tr><td><b>聊聊</b></td><td>買家與賣家之間的對話，包含貼圖。照片或影片會顯示成「📷 照片」區塊，有描述時請一起參考。</td></tr>
-    <tr><td><b>DRC</b></td><td>各方與蝦皮之間的溝通，<b>不是</b>買賣雙方的對話。買家第一筆 <b>System Info</b> 是這筆申請的內容；標示「蝦皮」的是蝦皮退貨退款小組的訊息。</td></tr>
-    <tr><td><b>退貨退款申請</b></td><td>方案、金額、原因、備註、買家附件與申退商品。<b>折抵（折價券 / 蝦幣）</b>是從金額中扣掉的折扣。</td></tr>
-  </table>
-  <div class="tip">畫面最上方的「資訊截至」是判斷時點：請只依這個時間以前的資訊判斷，並把聊聊從頭看到最後再作答。</div>
-</section>
-
-<section class="card" id="a4">
-  <h2><span class="step">4</span>作答</h2>
-  <table>
-    <tr><th>題型</th><th>作答方式</th></tr>
-    <tr><td><b>題組</b></td><td>依序回答每個小題（每個小題選一個選項）。全對得滿分；沒有全對時，每答對一小題得部分分數。</td></tr>
-    <tr><td><b>選擇</b></td><td>選一個選項。</td></tr>
-    <tr><td><b>選擇 + 原因</b></td><td>選一個選項，再寫下你的判斷原因；原因也會計分。</td></tr>
-    <tr><td><b>文字作答</b></td><td>寫出你的答案。</td></tr>
-  </table>
-  <ul class="gap">
-    <li>每題旁邊會顯示配分，整份測驗共 100 分。</li>
-    <li>寫原因或文字答案時，請說明是<b>案件中的哪個內容</b>讓你這樣判斷（例如哪一則聊聊）。可以用英文作答，文法與拼字不扣分。</li>
-    <li>交卷前可以回到任何一題修改答案；畫面上方會顯示 <b>已作答</b> 題數。</li>
-    <li>答案會暫存在這個瀏覽器。作答期間請不要關閉頁面、換電腦或清除瀏覽器資料。</li>
-  </ul>
-</section>
-
-<section class="card" id="a5">
-  <h2><span class="step">5</span>交卷</h2>
-  <ol>
-    <li>按 <span class="btnlike">交卷</span>，確認畫面會顯示還有幾題沒作答。</li>
-    <li>按 <span class="btnlike">確定交卷</span>。交卷後就不能再修改答案。</li>
-  </ol>
-  <ul>
-    <li>剩下 <b>5 分鐘</b> 和 <b>1 分鐘</b> 時會跳出提醒。</li>
-    <li>時間到，或講師提前結束測驗時，系統會<b>自動交卷</b>。</li>
-    <li>如果因為網路問題交卷失敗，頁面會每 15 秒自動重試；請保持頁面開啟，直到看到 <b>已交卷</b>。</li>
-  </ul>
-</section>
-
-<section class="card" id="a6">
-  <h2><span class="step">6</span>查看成績</h2>
-  <ul>
-    <li>講師會先確認文字答案的分數，所以交卷後不會馬上看到成績。</li>
-    <li>成績公布後，到 <b>我的測驗</b> 按 <span class="btnlike">查看</span>，就能看到分數、答錯的題目與解析。</li>
-    <li>講師可能會請你重新作答或參加補考，新的測驗會出現在「我的測驗」。</li>
-  </ul>
-</section>
-
-<section class="card" id="a7">
-  <h2><span class="step">D</span>DMS 考題測驗</h2>
-  <p class="sub">用真實 DMS 案件出題，畫面和 DMS 一樣，要自己在案件裡找資訊再作答。測驗名稱旁會標示「考試」或「練習」。</p>
-  <h3>開始</h3>
-  <ol>
-    <li>打開講師給的連結，或從 <b>我的測驗</b> 的卡片進入。</li>
-    <li>看完說明後按 <span class="btnlike">開始作答</span>。整場測驗一起計時，<b>無法暫停</b>。</li>
-  </ol>
-  <h3>畫面</h3>
-  <table>
-    <tr><th>位置</th><th>內容</th></tr>
-    <tr><td><b>最上方</b></td><td>案件切換（案件 1、案件 2…）、自動儲存時間、剩餘時間、<span class="btnlike">交卷</span>。</td></tr>
-    <tr><td><b>本次申退／前一次申退</b></td><td>有前幾次申退時才會出現，可以切換查看同一筆訂單之前的申退；題目一律回答「本次」。</td></tr>
-    <tr><td><b>左邊</b></td><td>DMS 的區塊目錄（General Info、Buyer Return Info…），點了會跳到那個區塊。</td></tr>
-    <tr><td><b>中間</b></td><td>案件內容。照片點了可以放大，影片可以播放。顯示 *** 的是講師遮蔽的資訊。</td></tr>
-    <tr><td><b>右邊</b></td><td><b>考題</b> 分頁：<span class="qhead">淡橘色標頭</span> 的是要回答的題目，黃底是情境說明。旁邊的 Operation History、Chat History、Discuss 和 DMS 一樣。</td></tr>
-  </table>
-  <h3>作答</h3>
-  <ul>
-    <li><b>單選</b>：點選一個選項。<b>簡答</b>：寫出判斷原因，說明是案件裡的哪個內容讓你這樣判斷。標示「說明第 N 題的選擇」的簡答，是寫你為什麼選那個答案。</li>
-    <li>每個案件的題目都要回答；交卷前可以隨時切換案件、修改答案。</li>
-    <li>答案會自動儲存（有修改時最多 30 秒存一次，切換案件、離開頁面時也會存）。電腦當機或斷線時，重新打開連結就能繼續，但時間不會停，請立刻聯絡講師。</li>
-  </ul>
-  <div class="note">作答過程會記錄：看了哪些區塊和分頁、打開哪些照片與影片、離開考試頁面的時間、貼上的文字。講師看得到。請自己閱讀案件判斷，不要和其他人討論。</div>
-  <h3>交卷與成績</h3>
-  <ul>
-    <li>按 <span class="btnlike">交卷</span>，會提醒還有哪些案件沒答完。時間到或講師提前結束時，系統會自動交卷。</li>
-    <li><b>練習（隨時檢討）</b>：交卷後馬上看到正解與詳解。</li>
-    <li><b>練習（統一檢討）</b>：講師公布解答後才看得到。</li>
-    <li><b>考試</b>：講師公布成績後，在「我的測驗」看得到分數（100 分制）、正解與詳解。</li>
-  </ul>
-</section>
-
-<section class="card" id="a-help">
-  <h2>遇到問題</h2>
-  <ul>
-    <li><b>頁面打不開或無法登入：</b>重新整理頁面，確認使用的是公司 Google 帳號，仍無法解決請聯絡講師。</li>
-    <li><b>作答中途出狀況</b>（電腦當機、網路斷線）：用同一台電腦重新打開同一個連結，按 <span class="btnlike">繼續作答</span>。計時不會停止，需要更多時間請立刻聯絡講師。</li>
-    <li><b>請勿將題目或答案分享</b>給其他專員。</li>
-  </ul>
-</section>
-</main></div><div class="wrap"><main data-view="agent" data-lang="en" hidden>
-<section class="card" id="a-overview">
-  <h2>Overview</h2>
-  <p class="sub">Six steps from the link to your results. <b>DMS case quizzes</b> (built from real DMS cases) look different; see the "DMS case quizzes" section.</p>
-  <div class="flow"><a href="#a1"><span class="n">1</span><b>Sign in</b><span>Company Google</span></a><a href="#a2"><span class="n">2</span><b>Start</b><span>Timer begins</span></a><a href="#a3"><span class="n">3</span><b>Read</b><span>Check the case</span></a><a href="#a4"><span class="n">4</span><b>Answer</b><span>Choice / written</span></a><a href="#a5"><span class="n">5</span><b>Submit</b><span>Finish exam</span></a><a href="#a6"><span class="n">6</span><b>Results</b><span>Score &amp; review</span></a></div>
-  <div class="tip">Use a computer, not a phone, and a normal (not incognito) browser window. Make sure your internet connection is stable before you start.</div>
-</section>
-
-<section class="card" id="a1">
-  <h2><span class="step">1</span>Sign in</h2>
-  <ol>
-    <li>Open the quiz link from your trainer.</li>
-    <li>Sign in with your <b>company Google account</b> (@shopeemobile-external.com).</li>
-    <li>You will see <b>My quizzes</b>: every quiz assigned to you, with its exam window, time limit and number of questions.</li>
-    <li>Use <b>中文 / EN</b> at the top right to switch the language.</li>
-  </ol>
-  <div class="note">If you see <b>No quiz assigned to you yet</b>, check that you signed in with the right account, then contact your trainer.</div>
-</section>
-
-<section class="card" id="a2">
-  <h2><span class="step">2</span>Start the exam</h2>
-  <ul>
-    <li>You can only start during the <b>Exam window</b>. Before it opens, the page shows when it opens.</li>
-    <li>Read <b>Before you start</b>, then press <span class="btnlike">Start exam</span>.</li>
-    <li>The timer starts immediately and <b>cannot be paused</b>. The time left is always shown at the top.</li>
-  </ul>
-</section>
-
-<section class="card" id="a3">
-  <h2><span class="step">3</span>Read the case</h2>
-  <p class="sub">Each question is based on a return / refund case and looks like DMS.</p>
-  <table>
-    <tr><th>Section</th><th>What it shows</th></tr>
-    <tr><td><b>Buyer &amp; seller</b></td><td>Usernames and IDs (made up, not real people)</td></tr>
-    <tr><td><b>Order items</b></td><td>What was ordered, plus payment and the logistics timeline</td></tr>
-    <tr><td><b>Chat</b></td><td>The conversation between the buyer and the seller, including stickers. Photos and videos appear as a “📷 Photo” block; read the description when there is one.</td></tr>
-    <tr><td><b>DRC</b></td><td>Each party’s channel with Shopee. It is <b>not</b> a conversation between buyer and seller. The buyer's first entry, <b>System Info</b>, is the request itself; entries labelled “Shopee” come from Shopee's return &amp; refund team.</td></tr>
-    <tr><td><b>Return / refund request</b></td><td>Solution, amount, reason, remark, buyer attachments and requested items. <b>Deduction (voucher / coins)</b> is the discount taken off the amount.</td></tr>
-  </table>
-  <div class="tip">“Up to …” at the top is the point of judgement: decide only on information before that time, and read the whole chat to the end before you answer.</div>
-</section>
-
-<section class="card" id="a4">
-  <h2><span class="step">4</span>Answer</h2>
-  <table>
-    <tr><th>Type</th><th>How to answer</th></tr>
-    <tr><td><b>Question set</b></td><td>Answer each sub-question in order (one option each). All correct = full points; otherwise each correct part earns partial points.</td></tr>
-    <tr><td><b>Choice</b></td><td>Pick one option.</td></tr>
-    <tr><td><b>Choice + reason</b></td><td>Pick one option, then explain how you decided. The reason is scored too.</td></tr>
-    <tr><td><b>Written</b></td><td>Type your answer.</td></tr>
-  </table>
-  <ul class="gap">
-    <li>The points for each question are shown next to it. The whole exam is worth 100 points.</li>
-    <li>For reasons and written answers, say <b>what in the case</b> made you decide (for example, which chat message). English is fine; grammar and spelling are not scored.</li>
-    <li>You can go back to any question and change your answer before you finish. The top bar shows <b>Answered</b> so far.</li>
-    <li>Answers are saved in this browser. Do not close the page, switch computers or clear your browser while answering.</li>
-  </ul>
-</section>
-
-<section class="card" id="a5">
-  <h2><span class="step">5</span>Submit</h2>
-  <ol>
-    <li>Press <span class="btnlike">Finish exam</span>. The confirmation shows how many questions are not answered yet.</li>
-    <li>Press <span class="btnlike">Submit</span>. You cannot change your answers after submitting.</li>
-  </ol>
-  <ul>
-    <li>You get a warning when <b>5 minutes</b> and <b>1 minute</b> are left.</li>
-    <li>When time runs out, or if your trainer ends the quiz early, your answers are <b>submitted automatically</b>.</li>
-    <li>If submitting fails because of the network, the page retries every 15 seconds. Keep the page open until you see <b>Submitted</b>.</li>
-  </ul>
-</section>
-
-<section class="card" id="a6">
-  <h2><span class="step">6</span>Results</h2>
-  <ul>
-    <li>Your trainer reviews written answers first, so results are not shown right away.</li>
-    <li>When results are released, open <b>My quizzes</b> and press <span class="btnlike">View</span> to see your score, the questions you missed and the explanations.</li>
-    <li>Your trainer may ask you to answer again or take a makeup quiz. It will appear in My quizzes.</li>
-  </ul>
-</section>
-
-<section class="card" id="a7">
-  <h2><span class="step">D</span>DMS case quizzes</h2>
-  <p class="sub">Questions built from real DMS cases. The screen looks like DMS, so you find the information in the case yourself. The quiz name shows whether it is an exam (考試) or practice (練習).</p>
-  <div class="tip">DMS case quizzes are currently in Chinese only. The button names below are given in Chinese as they appear on screen.</div>
-  <h3>Start</h3>
-  <ol>
-    <li>Open the link from your trainer, or the card under <b>My quizzes</b>.</li>
-    <li>Read the notes and press <span class="btnlike">開始作答</span> (Start). The timer covers the whole quiz and <b>cannot be paused</b>.</li>
-  </ol>
-  <h3>The screen</h3>
-  <table>
-    <tr><th>Where</th><th>What</th></tr>
-    <tr><td><b>Top</b></td><td>Case switcher (案件 1, 案件 2…), last autosave, time left, <span class="btnlike">交卷</span> (Submit).</td></tr>
-    <tr><td><b>本次申退／前一次申退</b></td><td>Appears only when there are previous returns: switch to earlier returns of the same order. The questions are always about this return.</td></tr>
-    <tr><td><b>Left</b></td><td>DMS block list (General Info, Buyer Return Info…); click to jump to a block.</td></tr>
-    <tr><td><b>Middle</b></td><td>The case. Click photos to enlarge and play videos. *** means the trainer has hidden that information.</td></tr>
-    <tr><td><b>Right</b></td><td>The <b>考題</b> (Questions) tab: questions have a <span class="qhead">light orange header</span>; yellow boxes give the scenario. Operation History, Chat History and Discuss work as in DMS.</td></tr>
-  </table>
-  <h3>Answering</h3>
-  <ul>
-    <li><b>Single choice</b>: click one option. <b>Short answer</b>: explain your decision and which part of the case it is based on. A short answer marked "說明第 N 題的選擇" asks why you chose your answer to question N.</li>
-    <li>Answer every question in every case; until you submit you can switch cases and change answers at any time.</li>
-    <li>Answers save automatically (at most every 30 seconds when something changes, and when you switch cases or leave the page). If your computer crashes or the network drops, open the link again to continue; the timer keeps running, so contact your trainer right away.</li>
-  </ul>
-  <div class="note">The quiz records which blocks and tabs you view, which photos and videos you open, time spent away from the quiz page, and pasted text. Your trainer can see this. Read the case and decide on your own; don't discuss it with others.</div>
-  <h3>Submit and results</h3>
-  <ul>
-    <li>Press <span class="btnlike">交卷</span> (Submit); you'll be told which cases still have unanswered questions. The quiz submits automatically when time is up or the trainer ends it.</li>
-    <li><b>Practice, review any time</b>: answers and explanations appear right after you submit.</li>
-    <li><b>Practice, review together</b>: answers appear once your trainer shows them.</li>
-    <li><b>Exam</b>: once your trainer releases results, <b>My quizzes</b> shows your score (out of 100), the answers and explanations.</li>
-  </ul>
-</section>
-
-<section class="card" id="a-help">
-  <h2>Help</h2>
-  <ul>
-    <li><b>The page will not load or sign-in fails:</b> refresh the page, check you are using your company Google account, then contact your trainer.</li>
-    <li><b>Something went wrong during the exam</b> (computer crashed, lost connection): reopen the same link on the same computer and press <span class="btnlike">Continue</span>. The timer keeps running, so tell your trainer right away if you need more time.</li>
-    <li><b>Do not share questions or answers</b> with other agents.</li>
-  </ul>
-</section>
-</main></div>
-<footer>RR AI Quiz Platform</footer>
+<section id="a-help"><h2>遇到問題</h2>
+<ul>
+  <li><b>頁面打不開或無法登入：</b>重新整理頁面，確認使用的是公司 Google 帳號，仍無法解決請聯絡講師。</li>
+  <li><b>作答中途出狀況</b>（電腦當機、網路斷線）：用同一台電腦重新打開同一個連結繼續作答。計時不會停止，需要更多時間請立刻聯絡講師。</li>
+  <li><b>不小心交卷：</b>請立刻聯絡講師說明情況。</li>
+</ul>
+</section></main>
+</div>
 <script>
-  // 切換對象（講師 / 專員）與語言（中文 / EN）。
-  // 網址可直接指定，例如 #agent-en（專員英文版）、#trainer-zh；舊連結 #agent 預設為專員英文版。
-  const state = { view: 'trainer', lang: 'zh' };
-  const TITLES = { 'trainer-zh': 'RR AI Quiz Platform 講師使用說明', 'trainer-en': 'RR AI Quiz Platform Trainer Guide', 'agent-zh': 'RR AI Quiz Platform 專員作答說明', 'agent-en': 'RR AI Quiz Platform Agent Guide' };
+{
+  const state = { view: 'trainer' };
+  const TITLES = { trainer: 'RR AI Quiz Platform 講師使用說明', agent: 'RR AI Quiz Platform 專員作答說明' };
   function render(scroll) {
-    document.querySelectorAll('[data-view][data-lang]').forEach((el) => { el.hidden = !(el.dataset.view === state.view && el.dataset.lang === state.lang); });
-    document.querySelectorAll('[data-l]').forEach((el) => { el.hidden = el.dataset.l !== state.lang; });
+    document.querySelectorAll('[data-view]').forEach((el) => { el.hidden = el.dataset.view !== state.view; });
     document.querySelectorAll('[data-to-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.toView === state.view)));
-    document.querySelectorAll('[data-to-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.toLang === state.lang)));
-    document.title = TITLES[state.view + '-' + state.lang];
-    document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+    document.getElementById('toEn').href = 'guide-en.html#' + state.view + '-en';
+    document.title = TITLES[state.view];
     if (scroll) window.scrollTo({ top: 0 });
   }
-  function go(patch) { Object.assign(state, patch); history.replaceState(null, '', '#' + state.view + '-' + state.lang); render(true); }
-  document.querySelectorAll('[data-to-view]').forEach((b) => b.addEventListener('click', () => go({ view: b.dataset.toView })));
-  document.querySelectorAll('[data-to-lang]').forEach((b) => b.addEventListener('click', () => go({ lang: b.dataset.toLang })));
-  const m = location.hash.match(/^#(trainer|agent)(?:-(zh|en))?$/);
-  if (m) { state.view = m[1]; state.lang = m[2] || (m[1] === 'agent' ? 'en' : 'zh'); }
-  else if (/^#a/.test(location.hash)) { state.view = 'agent'; state.lang = 'en'; }
+  document.querySelectorAll('[data-to-view]').forEach((b) => b.addEventListener('click', () => {
+    state.view = b.dataset.toView; history.replaceState(null, '', '#' + state.view + '-zh'); render(true);
+  }));
+  const m = location.hash.match(/^#(trainer|agent)/);
+  if (m) state.view = m[1];
+  else if (/^#a/.test(location.hash)) state.view = 'agent';
   render(false);
-  // 目錄錨點：同一個 id 在四個版本都有，捲動到目前顯示的那一個
-  document.querySelectorAll('nav.toc a').forEach((a) => a.addEventListener('click', (e) => {
+
+  // 目錄、流程卡片：捲到目前顯示的版本裡的段落
+  document.querySelectorAll('nav.toc a, .flow a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
-    const box = document.querySelector('main[data-view="' + state.view + '"][data-lang="' + state.lang + '"]');
-    const el = box && box.querySelector(a.getAttribute('href'));
+    const el = document.querySelector('.wrap[data-view="' + state.view + '"] ' + a.getAttribute('href'));
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
-  document.querySelectorAll('main .flow a').forEach((a) => a.addEventListener('click', (e) => {
-    e.preventDefault(); const el = a.closest('main').querySelector(a.getAttribute('href')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }));
+
+  // 截圖上的編號：data-box＝原圖像素 x,y,寬,高；編號放在框的左邊（r＝右邊、t＝上面）
+  document.querySelectorAll('figure.fig').forEach((fg) => {
+    const ol = fg.querySelector('ol.keys'), shot = fg.querySelector('.shot'), img = shot && shot.querySelector('img');
+    if (!ol || !img) return;
+    const W = Number(img.getAttribute('width')), H = Number(img.getAttribute('height'));
+    const marks = [...ol.children].map((li, i) => {
+      li.querySelector('.n').textContent = String(i + 1);
+      const [x, y, w, h] = li.dataset.box.split(',').map(Number);
+      const px = (v) => (v / W * 100) + '%', py = (v) => (v / H * 100) + '%';
+      const box = document.createElement('div');
+      box.className = 'box';
+      Object.assign(box.style, { left: px(x), top: py(y), width: px(w), height: py(h) });
+      const pin = document.createElement('button');
+      pin.type = 'button'; pin.className = 'pin'; pin.textContent = String(i + 1); pin.setAttribute('aria-label', '標記 ' + (i + 1));
+      const sd = li.dataset.side || (x < 40 ? 'r' : 'l');
+      if (sd === 't') Object.assign(pin.style, { left: px(x + w / 2), top: py(y), transform: 'translate(-50%,-110%)' });
+      else if (sd === 'r') Object.assign(pin.style, { left: px(x + w), top: py(y + h / 2), transform: 'translate(10%,-50%)' });
+      else Object.assign(pin.style, { left: px(x), top: py(y + h / 2), transform: 'translate(-110%,-50%)' });
+      shot.append(box, pin);
+      return { li, box, pin };
+    });
+    const show = (k) => marks.forEach((mk, i) => { const on = i === k; mk.li.classList.toggle('on', on); mk.box.classList.toggle('on', on); mk.pin.classList.toggle('on', on); });
+    marks.forEach((mk, i) => {
+      [mk.li, mk.pin].forEach((el) => { el.addEventListener('mouseenter', () => show(i)); el.addEventListener('mouseleave', () => show(-1)); });
+      mk.pin.addEventListener('click', () => { show(i); mk.li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+      mk.li.addEventListener('click', () => { show(i); shot.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+    });
+  });
+
+  // 目錄標出目前讀到的段落
+  const links = {};
+  document.querySelectorAll('nav.toc a').forEach((a) => { (links[a.getAttribute('href').slice(1)] = links[a.getAttribute('href').slice(1)] || []).push(a); });
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (!e.isIntersecting) return;
+    document.querySelectorAll('nav.toc a.on').forEach((a) => a.classList.remove('on'));
+    (links[e.target.id] || []).forEach((a) => a.classList.add('on'));
+  }), { rootMargin: '0px 0px -70% 0px' });
+  document.querySelectorAll('section[id], h3[id]').forEach((el) => io.observe(el));
+}
 </script>
 </body>
 </html>
