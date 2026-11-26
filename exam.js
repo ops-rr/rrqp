@@ -236,12 +236,18 @@
       try { await X.api(action, Object.assign({ sessionId: s.sessionId }, extra || {})); X.toast('完成'); session(id, ctx); } catch (e) { X.toast(e.message, 6000); }
     }
     // 加入專員、延長結束時間：在上方展開一個小表單
+    // 小表單放在頁面上方：從名單下面按按鈕時要捲上去，不然看起來像沒反應（2026-11-26 Chris 回報退回重考按了沒反應）
+    //   同一顆按鈕再按一次＝收起來；按別顆＝換成新的表單
     const panel = (html, onOk) => {
       const p = $('#xPanel');
-      if (p.innerHTML) { p.innerHTML = ''; return; }
+      if (p.innerHTML && p.dataset.html === html) { p.innerHTML = ''; p.dataset.html = ''; return; }
+      p.dataset.html = html;
       p.innerHTML = `<div class="card pad" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">${html}
         <div class="row"><button class="btn brand" id="xpOk">確定</button><button class="btn" id="xpNo">取消</button></div></div>`;
-      $('#xpNo').onclick = () => { p.innerHTML = ''; };
+      p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const first = p.querySelector('input, textarea');
+      if (first) setTimeout(() => first.focus({ preventScroll: true }), 300);
+      $('#xpNo').onclick = () => { p.innerHTML = ''; p.dataset.html = ''; };
       $('#xpOk').onclick = async () => { $('#xpOk').disabled = true; try { await onOk(); } catch (e) { X.toast(e.message, 6000); $('#xpOk').disabled = false; } };
     };
     act('#xAdd', () => panel(`<b>加入專員</b><textarea id="xpEm" rows="3" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px" placeholder="一行一個 email，或用逗號分隔"></textarea>
