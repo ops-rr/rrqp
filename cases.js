@@ -1,4 +1,4 @@
-/* RR AI Quiz Platform — V3 DMS 考題：案件清單與案件編輯（#/case/Cxxx）
+/* RR AI Training Platform — V3 DMS 考題：案件清單與案件編輯（#/case/Cxxx）
  * 清單畫在「案件匯入 → 未上架 DMS 考題」與「可用題庫 → DMS 考題」：app.js 呼叫 window.RRQP_CASES.list(box, status, ctx)；
  * 編輯頁：app.js 的 route() 呼叫 window.RRQP_CASES.route('case', caseId, ctx)。資料一律走 db.js 的 api（c_* 動作）。
  * 案件編輯的畫面沿用 dev/case-quiz 原型：中間 DMS 區塊、右側 考題／Operation History／Chat History／Discuss。

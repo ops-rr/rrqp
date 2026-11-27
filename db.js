@@ -1,4 +1,4 @@
-/* RR AI Quiz Platform V2 — 資料層（直接讀寫 Firestore）
+/* RR AI Training Platform V2 — 資料層（直接讀寫 Firestore）
  * 對外提供 window.RRQP_DB = { api(action, payload), signIn(), signOut(), onAuth(cb) }
  * api 的動作名稱沿用 V1（例如 't_topics'、'tw_addTag'），畫面程式不用改。
  * 預覽模式（網址加 ?preview=1）改用記憶體資料，不連 Firebase，方便本機測試畫面。

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RR AI Quiz Platform 講師使用說明</title>
+<title>RR AI Training Platform 講師使用說明</title>
 <script>
   // 英文版沿用舊的文字說明（guide-en.html）；中文是圖文版
   (function () { var m = location.hash.match(/^#(trainer|agent)-en$/); if (m) location.replace('guide-en.html' + location.hash); })();
@@ -103,7 +103,7 @@
 <body>
 <header class="top">
   <div class="hero">
-    <div class="brand"><span class="logo">S</span>RR AI Quiz Platform</div>
+    <div class="brand"><span class="logo">S</span>RR AI Training Platform</div>
     <div data-view="trainer"><h1>講師使用說明</h1><p class="lead0">從真實 DMS 案件出題、發佈測驗、批改與查看成績。每一節用實際畫面說明：點畫面上的編號，或把滑鼠移到說明上，會標出對應的位置。截圖用的是測試資料。</p></div>
     <div data-view="agent" hidden><h1>專員作答說明</h1><p class="lead0">如何登入、作答與查看成績。講師會提供測驗連結給你。</p></div>
     <div class="switches">
@@ -139,7 +139,7 @@
   <tr><td><b>TL</b></td><td>只看「歷史成績」：每場成績、每題答對率、每位專員的作答明細，可以匯出 CSV。還沒公布的測驗也看得到（標「尚未公布」）。不能改分數、公布成績或刪除。</td></tr>
   <tr><td><b>專員</b></td><td>不在講師名單上的人，用公司 Google 帳號登入後就是專員，只看得到「我的測驗」。</td></tr>
 </table>
-<h3>SeaTalk 指令（@RR AI Quiz Assistant）</h3>
+<h3>SeaTalk 指令（@RRTP Assistant）</h3>
 <table class="tb">
   <tr><th>指令</th><th>什麼時候用</th><th>做什麼</th></tr>
   <tr><td><code>生成考題 D001</code></td><td>建立草稿後</td><td>依選的範例改寫出變化題</td></tr>
@@ -171,7 +171,7 @@
 </ul>
 </section>
 <section id="t1b"><h2>DMS 考題審核與出題 <span class="who">TW 講師</span></h2><p class=lead>在「案件匯入 → 未上架 DMS 考題」點案件進入編輯頁。左邊和中間是 DMS 畫面，右邊「考題」分頁放題目。上架後出現在「可用題庫 → DMS 考題」，就能拿去組卷。</p>
-<figure class="fig"><div class="shot"><img src="guide/lib-cases.webp" width="1600" height="400" alt="未上架 DMS 考題列表。左邊可以依組別、主題篩選；「匯入提醒」是匯入時需要講師確認的事項數量。" loading="lazy"></div><figcaption>未上架 DMS 考題列表。左邊可以依組別、主題篩選；「匯入提醒」是匯入時需要講師確認的事項數量。</figcaption></figure>
+<figure class="fig"><div class="shot"><img src="guide/lib-cases.webp" width="1600" height="400" alt="未上架 DMS 考題列表。左邊可以依組別、主題篩選；用到的 SOP 改版時，最上面會多出「系統提醒 › SOP 調整檢查」，點了只看受影響的案件。" loading="lazy"></div><figcaption>未上架 DMS 考題列表。左邊可以依組別、主題篩選；用到的 SOP 改版時，最上面會多出「系統提醒 › SOP 調整檢查」，點了只看受影響的案件。</figcaption></figure>
 <h3 id="t1b-edit">整理案件畫面</h3>
 <p>修改會自動儲存，右上角的復原、重做可以退回上一步。</p>
 <figure class="fig"><div class="shot"><img src="guide/case-edit.webp" width="1600" height="900" alt="DMS 考題編輯畫面" loading="lazy"></div><ol class="keys"><li data-box="1305,87,130,30"><span class="n"></span><div><b>編輯／專員預覽</b><span class="d">切換講師的編輯畫面和專員實際看到的畫面。</span></div></li><li data-box="1445,87,92,30"><span class="n"></span><div><b>上架到題庫</b><span class="d">檢查都通過、作答題配分合計 100% 才能上架。上架後要改內容，先從「⋯」選「下架修改」。</span></div></li><li data-box="15,137,490,22"><span class="n"></span><div><b>案件設定</b><span class="d">點「編輯設定」展開：用途（練習／考試）、使用對象（TW，或 TW＋BPO 會翻成英文）、遮蔽編號與帳號、組別、主題、標籤。考試只能放考試用的案件，避免專員在練習時先看過。</span></div></li><li data-box="1333,137,250,22"><span class="n"></span><div><b>上架前檢查</b><span class="d">個資檢查、可能洩漏、匯入提醒的數量，點下去會跳到該欄位。</span></div></li><li data-box="15,240,120,150" data-side="t"><span class="n"></span><div><b>區塊導覽</b><span class="d">跟 DMS 左側一樣，點了會捲到該區塊。</span></div></li><li data-box="230,277,98,23"><span class="n"></span><div><b>欄位工具</b><span class="d">「隱藏」讓專員看不到這個欄位（位置保留空白）；「✕」刪除欄位。值可以直接點進去修改，「＋ 新增欄位」可以補上 DMS 沒有的資訊。</span></div></li><li data-box="465,253,130,45"><span class="n"></span><div><b>專員看到 ***</b><span class="d">Return ID、帳號這類可以查到原案件的欄位，預設遮蔽，專員畫面顯示 ***。</span></div></li><li data-box="230,302,75,19" data-side="r"><span class="n"></span><div><b>可能洩漏結果</b><span class="d">這個欄位可能透露案件最後怎麼判（例如 Case Status），請確認要不要隱藏。上架時還有專員看得到的，會再提醒一次。</span></div></li><li data-box="1130,195,115,32"><span class="n"></span><div><b>考題分頁</b><span class="d">在這裡插入情境說明、補充資訊、選擇題、簡答題、SOP 路徑，並設定配分。旁邊三個分頁和 DMS 一樣。</span></div></li></ol></figure>
@@ -219,6 +219,7 @@
 </section>
 <section id="t4"><h2>測驗管理</h2><p class=lead>按 <b>＋ 新增測驗</b>，先選要用哪種題目，再填表發佈。</p>
 <figure class="fig"><div class="shot"><img src="guide/sess-new.webp" width="1600" height="290" alt="新增測驗：先選「變化題」或「DMS 考題」。下方列表是所有測驗，進度條是交卷人數。" loading="lazy"></div><figcaption>新增測驗：先選「變化題」或「DMS 考題」。下方列表是所有測驗，進度條是交卷人數。</figcaption></figure>
+<div class="tip"><b>複製測驗</b>不同梯次要用同一份考卷時，在原本測驗的單場頁按「複製」：會打開新增表單並帶入名稱、類型、作答時間、案件順序與分數（變化題是原本的題目），只要改名稱、填開放時間和指派專員。案件用題庫現在的內容；已下架、停用或改成練習用的案件不會放進來，表單上會列出來，發佈前可以另外挑選、增減。</div>
 <h3 id="t4-x">發佈 DMS 考題測驗</h3>
 <figure class="fig"><div class="shot"><img src="guide/sess-form-x.webp" width="1600" height="1464" alt="DMS 考題測驗表單" loading="lazy"></div><ol class="keys"><li data-box="290,108,185,40"><span class="n"></span><div><b>題目種類</b><span class="d">選「DMS 考題」。</span></div></li><li data-box="320,255,420,35"><span class="n"></span><div><b>測驗名稱</b><span class="d">專員在「我的測驗」看到的名稱。</span></div></li><li data-box="320,300,880,32"><span class="n"></span><div><b>類型</b><span class="d">考試（講師公布成績後才看得到分數與詳解）、練習・隨時檢討（交卷後馬上看到正解）、練習・統一檢討（講師公布解答後才看得到）。</span></div></li><li data-box="320,348,480,80"><span class="n"></span><div><b>開放時間、作答時間</b><span class="d">開放時間內都可以開始；作答時間從專員按「開始作答」起算，開放時間結束也會截止。</span></div></li><li data-box="320,445,520,115"><span class="n"></span><div><b>指派專員</b><span class="d">一行一個 Email，可以直接從 Excel 貼上。給 BPO 專員作答時，請選「TW＋BPO」而且已經翻好英文的案件。</span></div></li><li data-box="175,615,600,320"><span class="n"></span><div><b>可用的案件</b><span class="d">勾選要考的案件，考試只能挑考試用的案件。「N 人做過」只是提醒，不會擋。</span></div></li><li data-box="815,615,620,100"><span class="n"></span><div><b>選進的案件</b><span class="d">可以調整順序（每場最多 20 個），每個案件旁填這個案件佔幾分：預設平均分配，合計要 100 分；按「均分」恢復平均。</span></div></li><li data-box="160,968,100,36"><span class="n"></span><div><b>發佈測驗</b><span class="d">發佈後到單場頁複製專員連結傳給專員；專員登入後也會在「我的測驗」看到。</span></div></li></ol></figure>
 <h3 id="t4-page">DMS 考題測驗的單場頁</h3>
@@ -329,7 +330,7 @@
 </section>
 <section id="a3"><h2>變化題測驗</h2><p class=lead>每一題是一筆退貨退款案件，依序作答。</p>
 <figure class="fig"><div class="shot"><img src="guide/ag-e-start.webp" width="1600" height="830" alt="閱讀「開始前請注意」，再按「開始作答」。計時立即開始，無法暫停。" loading="lazy"></div><figcaption>閱讀「開始前請注意」，再按「開始作答」。計時立即開始，無法暫停。</figcaption></figure>
-<figure class="fig"><div class="shot"><img src="guide/ag-e-exam.webp" width="1600" height="900" alt="變化題作答畫面" loading="lazy"></div><ol class="keys"><li data-box="375,22,200,30"><span class="n"></span><div><b>已作答與剩餘時間</b><span class="d">剩下 5 分鐘和 1 分鐘時會提醒；時間到或講師提前結束時會自動交卷。</span></div></li><li data-box="1510,22,70,30"><span class="n"></span><div><b>交卷</b><span class="d">確認畫面會顯示還有幾題沒作答，按「確定交卷」後就不能再改。</span></div></li><li data-box="140,98,100,40" data-side="r"><span class="n"></span><div><b>題號</b><span class="d">可以跳到任何一題修改答案。</span></div></li><li data-box="140,170,230,28" data-side="r"><span class="n"></span><div><b>題型與配分</b><span class="d">整份測驗共 100 分。</span></div></li><li data-box="850,600,590,300"><span class="n"></span><div><b>作答區</b><span class="d">選一個選項；要寫原因的題目，請說明是案件中的哪個內容讓你這樣判斷。可以用英文作答，文法與拼字不扣分。</span></div></li></ol></figure>
+<figure class="fig"><div class="shot"><img src="guide/ag-e-exam.webp" width="1600" height="900" alt="變化題作答畫面" loading="lazy"></div><ol class="keys"><li data-box="392,22,208,30"><span class="n"></span><div><b>已作答與剩餘時間</b><span class="d">剩下 5 分鐘和 1 分鐘時會提醒；時間到或講師提前結束時會自動交卷。</span></div></li><li data-box="1510,22,70,30"><span class="n"></span><div><b>交卷</b><span class="d">確認畫面會顯示還有幾題沒作答，按「確定交卷」後就不能再改。</span></div></li><li data-box="140,98,100,40" data-side="r"><span class="n"></span><div><b>題號</b><span class="d">可以跳到任何一題修改答案。</span></div></li><li data-box="140,170,230,28" data-side="r"><span class="n"></span><div><b>題型與配分</b><span class="d">整份測驗共 100 分。</span></div></li><li data-box="850,600,590,300"><span class="n"></span><div><b>作答區</b><span class="d">選一個選項；要寫原因的題目，請說明是案件中的哪個內容讓你這樣判斷。可以用英文作答，文法與拼字不扣分。</span></div></li></ol></figure>
 <table class="tb">
   <tr><th>區塊</th><th>內容</th></tr>
   <tr><td><b>聊聊</b></td><td>買家與賣家之間的對話。照片或影片顯示成照片區塊，有描述時請一起參考。</td></tr>
@@ -350,7 +351,7 @@
 <script>
 {
   const state = { view: 'trainer' };
-  const TITLES = { trainer: 'RR AI Quiz Platform 講師使用說明', agent: 'RR AI Quiz Platform 專員作答說明' };
+  const TITLES = { trainer: 'RR AI Training Platform 講師使用說明', agent: 'RR AI Training Platform 專員作答說明' };
   function render(scroll) {
     document.querySelectorAll('[data-view]').forEach((el) => { el.hidden = el.dataset.view !== state.view; });
     document.querySelectorAll('[data-to-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.toView === state.view)));

@@ -1,4 +1,4 @@
-/* RR AI Quiz Platform — V3 DMS 案件題（案件庫、案件編輯）
+/* RR AI Training Platform — V3 DMS 案件題（案件庫、案件編輯）
  * 全部規則都在 .cq / .cql 底下，不影響 V2 其他頁面。
  * .cq 內的版面沿用 dev/case-quiz 原型（DMS 的樣子）；和 V2 同名的 class 已改名（cmsg、copt、ckv、ctabs、cres）。
  */

@@ -1,4 +1,4 @@
-/* RR AI Quiz Platform — V3 DMS 考題測驗：組卷發佈、講師看作答與足跡、給分、公布；專員的測驗卡片與入口
+/* RR AI Training Platform — V3 DMS 考題測驗：組卷發佈、講師看作答與足跡、給分、公布；專員的測驗卡片與入口
  * 測驗管理 → 「DMS 考題測驗」分頁：window.RRQP_EXAM.sessions(box, ctx)
  * 單場：#/xsession/X001（講師）；專員作答：#/x/X001；我的測驗卡片：RRQP_EXAM.cards(ctx)
  * 作答畫面、足跡卡由 cases.js 提供（RRQP_CASES.take / footprint）；資料一律走 db.js 的 x_* 動作。
@@ -592,7 +592,7 @@
       qTab[sid] = cur.k;
       box.innerHTML = `<div class="card pad">
         <div class="row"><h2>依題目${canGrade ? '批改' : '檢視'}</h2><span class="small muted">${done.length} 人交卷</span><span class="spacer"></span>
-          ${canGrade ? `<button class="btn" id="xCmd" title="貼到 SeaTalk 的 @RR AI Quiz Assistant">複製批改指令</button>
+          ${canGrade ? `<button class="btn" id="xCmd" title="貼到 SeaTalk 的 @RRTP Assistant">複製批改指令</button>
             <span class="small">AI 信心度 ≥ <input id="xTh" type="number" min="0" max="1" step="0.05" value="0.85" style="width:64px"></span><button class="btn" id="xUseAll">全部採用</button>
             <button class="btn brand" id="xSaveQ">儲存給分</button>` : ''}</div>
         ${canGrade ? '<div class="small soft" style="margin-top:4px">AI 分數只是建議：採用後會填進給分欄，按「儲存給分」才算數（切換題目不會不見）。「全部採用」套用到所有題目，已經有分數的不會被覆蓋。</div>' : ''}
@@ -607,7 +607,7 @@
       const cmd = $('#xCmd', box);
       if (cmd) cmd.onclick = async () => {
         const txt = '批改 ' + sid;
-        try { await navigator.clipboard.writeText(txt); X.toast(`已複製「${txt}」，貼到 SeaTalk 的 @RR AI Quiz Assistant`); } catch (e) { X.toast(txt); }
+        try { await navigator.clipboard.writeText(txt); X.toast(`已複製「${txt}」，貼到 SeaTalk 的 @RRTP Assistant`); } catch (e) { X.toast(txt); }
       };
       const all = $('#xUseAll', box);
       if (all) all.onclick = () => {

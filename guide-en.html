@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RR AI Quiz Platform Trainer Guide</title>
+<title>RR AI Training Platform Trainer Guide</title>
 <style>
   :root {
     --bg: #F6F5F2; --card: #fff; --ink: #1F1F1F; --muted: #4A4843; --soft: #7A776F;
@@ -77,7 +77,7 @@
 <body>
 <header>
   <div class="wrap hero">
-    <div class="brand"><span class="logo">S</span>RR AI Quiz Platform</div>
+    <div class="brand"><span class="logo">S</span>RR AI Training Platform</div>
     <div data-view="trainer" data-lang="zh"><h1>講師使用說明</h1><p class="lead">從真實 DMS 案件出題，有兩條路：<b>DMS 考題</b>用原案件直接考，講師整理畫面、插入題目後就能組卷；<b>DMS 範例</b>由講師設定正解並鎖定判斷依據，再交給 AI 改寫成變化題。專員作答後，選擇題由系統計分，文字作答由 AI 先批改、講師確認再發佈成績。</p></div><div data-view="trainer" data-lang="en" hidden><h1>Trainer Guide</h1><p class="lead">Real DMS cases become quizzes in two ways: a <b>DMS question</b> asks the real case as is (tidy the screen, insert questions, then use it in a quiz); a <b>DMS sample</b> gets its answer and evidence set by a trainer, then the AI rewrites it into variants. Choices are scored automatically; written answers are graded by the AI first and confirmed by trainers.</p></div><div data-view="agent" data-lang="zh" hidden><h1>專員作答說明</h1><p class="lead">如何登入、作答與查看成績。講師會提供測驗連結給你。</p></div><div data-view="agent" data-lang="en" hidden><h1>Agent Guide</h1><p class="lead">How to sign in, take a quiz and check your results. Your trainer will send you a quiz link.</p></div>
     <div class="switches">
       <div class="switch" role="group" aria-label="說明對象 / Guide for">
@@ -105,7 +105,7 @@
     <li><b>TL</b>：只看得到「歷史成績」，可以看每場測驗的成績、每題答對率、每位專員的作答明細，也可以匯出 CSV；還沒公布的測驗也看得到（標「尚未公布」，分數可能還會調整）。TL 不能改分數、公布成績或刪除任何東西。</li>
     <li>講師也是受測者時，可以在「我的測驗」作答。</li>
   </ul>
-  <h3>SeaTalk 指令（@RR AI Quiz Assistant）</h3>
+  <h3>SeaTalk 指令（@RRTP Assistant）</h3>
   <table>
     <tr><th>指令</th><th>什麼時候用</th><th>做什麼</th></tr>
     <tr><td><code>生成考題 D001</code></td><td>建立草稿後</td><td>依選的範例改寫出變化題（一批只看一個範例）</td></tr>
@@ -426,7 +426,7 @@
     <li><span class="chip all">All trainers</span> can use everything from <b>Question Builder</b> onwards (BPO trainers cannot see samples, so they create drafts by tags).</li>
     <li>Trainers who are also assigned a quiz can take it under <b>My quizzes</b>.</li>
   </ul>
-  <h3>SeaTalk commands (@RR AI Quiz Assistant)</h3>
+  <h3>SeaTalk commands (@RRTP Assistant)</h3>
   <table>
     <tr><th>Command</th><th>When</th><th>What it does</th></tr>
     <tr><td><code>生成考題 D001</code></td><td>After creating a draft</td><td>Rewrites the chosen samples into variants (one sample per batch)</td></tr>
@@ -979,12 +979,12 @@
   </ul>
 </section>
 </main></div>
-<footer>RR AI Quiz Platform</footer>
+<footer>RR AI Training Platform</footer>
 <script>
   // 切換對象（講師 / 專員）與語言（中文 / EN）。
   // 網址可直接指定，例如 #agent-en（專員英文版）、#trainer-zh；舊連結 #agent 預設為專員英文版。
   const state = { view: 'trainer', lang: 'en' };
-  const TITLES = { 'trainer-zh': 'RR AI Quiz Platform 講師使用說明', 'trainer-en': 'RR AI Quiz Platform Trainer Guide', 'agent-zh': 'RR AI Quiz Platform 專員作答說明', 'agent-en': 'RR AI Quiz Platform Agent Guide' };
+  const TITLES = { 'trainer-zh': 'RR AI Training Platform 講師使用說明', 'trainer-en': 'RR AI Training Platform Trainer Guide', 'agent-zh': 'RR AI Training Platform 專員作答說明', 'agent-en': 'RR AI Training Platform Agent Guide' };
   function render(scroll) {
     document.querySelectorAll('[data-view][data-lang]').forEach((el) => { el.hidden = !(el.dataset.view === state.view && el.dataset.lang === state.lang); });
     document.querySelectorAll('[data-l]').forEach((el) => { el.hidden = el.dataset.l !== state.lang; });

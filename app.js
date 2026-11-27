@@ -1,4 +1,4 @@
-/* RR AI Quiz Platform V2 — 前端（資料直接讀寫 Firestore，見 db.js） */
+/* RR AI Training Platform V2 — 前端（資料直接讀寫 Firestore，見 db.js） */
 (() => {
   'use strict';
   const CFG = window.RRQP_CONFIG || {};
@@ -26,12 +26,12 @@
       guide: '使用說明', navLibrary: '案件匯入', navDrafts: '題庫生成', navSessions: '測驗管理', navGrading: '閱卷發佈', navResults: '歷史成績', soon: '即將推出',
       drafts: '題庫生成', newDraft: '建立草稿', name: '草稿名稱', topic: '主題', tags: '重點標籤', tagsHint: '不選代表涵蓋全部', target: '題數',
       mix: '題型配比', typeA: 'A 選擇', typeB: 'B 選擇＋原因', typeC: 'C 文字', typeG: 'G 題組', mixSum: '合計 {n} 題', create: '建立', cancel: '取消',
-      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RR AI Quiz Assistant 貼上，Agent 會開始生成題目。',
-      copy: '複製', copied: '已複製', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
+      created: '草稿 {id} 已建立', cmdHint: '複製下面的指令，到 SeaTalk @RRTP Assistant 貼上，Agent 會開始生成題目。',
+      copy: '複製', copied: '已複製', copySessTip: '用同樣的題目與設定建立新的測驗', copyFrom: '從 {id} 複製：已帶入名稱、題目與作答時間，請改名稱、填受測者和開放時間。發佈前都可以增減題目。', copyMissing: '這些題目已停用或刪除，沒有放進來，請另外加題：', open: '開啟', copyCmd: '複製指令', refresh: '重新整理',
       colDraft: '草稿', colTopic: '主題', colProgress: '進度', colStatus: '狀態', colBy: '建立者', colUpdated: '更新時間',
       st_generating: '生成中', st_draft: '待校對', st_ready: '可發佈', generated: '已生成 {a} / {b}', reviewedN: '已校對 {a} / {b}',
       noDrafts: '還沒有草稿。按「建立草稿」開始。', back: '← 草稿',
-      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RR AI Quiz Assistant 貼上：',
+      genBanner: 'Agent 正在生成題目（{a} / {b}）。若尚未開始，請到 SeaTalk @RRTP Assistant 貼上：',
       genAuto: '此頁每 15 秒自動更新。', markReady: '標記為可發佈', unready: '退回校對', readyDone: '草稿已標記為可發佈',
       readyNeed: '還有 {n} 題未校對', prev: '上一題', next: '下一題', save: '儲存', saved: '已儲存', saving: '儲存中…',
       markReviewed: '確認並標記已校對', unmarkReviewed: '取消已校對', reviewedTag: '已校對', notReviewed: '未校對',
@@ -52,12 +52,12 @@
       guide: 'Guide', navLibrary: 'Case import', navDrafts: 'Generate', navSessions: 'Quizzes', navGrading: 'Grading', navResults: 'History', soon: 'Coming soon',
       drafts: 'Question Builder', newDraft: 'New draft', name: 'Draft name', topic: 'Topic', tags: 'Focus tags', tagsHint: 'Leave empty to cover all', target: 'Questions',
       mix: 'Type mix', typeA: 'A Choice', typeB: 'B Choice + reason', typeC: 'C Written', typeG: 'G Question set', mixSum: 'Total {n}', create: 'Create', cancel: 'Cancel',
-      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RR AI Quiz Assistant in SeaTalk to start generating.',
-      copy: 'Copy', copied: 'Copied', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
+      created: 'Draft {id} created', cmdHint: 'Copy this command and send it to @RRTP Assistant in SeaTalk to start generating.',
+      copy: 'Copy', copied: 'Copied', copySessTip: 'Create a new quiz with the same questions and settings', copyFrom: 'Copied from {id}: title, questions and duration are filled in. Rename it, add assignees and set the window. You can still add or remove questions before publishing.', copyMissing: 'These questions are retired or deleted and were left out. Add others instead:', open: 'Open', copyCmd: 'Copy command', refresh: 'Refresh',
       colDraft: 'Draft', colTopic: 'Topic', colProgress: 'Progress', colStatus: 'Status', colBy: 'Created by', colUpdated: 'Updated',
       st_generating: 'Generating', st_draft: 'In review', st_ready: 'Ready', generated: 'Generated {a} / {b}', reviewedN: 'Reviewed {a} / {b}',
       noDrafts: 'No drafts yet. Click "New draft" to start.', back: '← Drafts',
-      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RR AI Quiz Assistant in SeaTalk:',
+      genBanner: 'The agent is generating questions ({a} / {b}). If it has not started, send this to @RRTP Assistant in SeaTalk:',
       genAuto: 'This page refreshes every 15 seconds.', markReady: 'Mark as ready', unready: 'Back to review', readyDone: 'Draft marked as ready',
       readyNeed: '{n} question(s) not reviewed', prev: 'Previous', next: 'Next', save: 'Save', saved: 'Saved', saving: 'Saving…',
       markReviewed: 'Confirm & mark reviewed', unmarkReviewed: 'Unmark reviewed', reviewedTag: 'Reviewed', notReviewed: 'Not reviewed',
@@ -153,7 +153,7 @@
         <a href="#/grading" class="${active === 'grading' ? 'on' : ''}">${esc(t('navGrading'))}</a>
         <a href="#/results" class="${active === 'results' ? 'on' : ''}">${esc(t('navResults'))}</a>${me.role === 'tw' ? `<a href="#/settings" class="${active === 'settings' ? 'on' : ''}">${esc(t('navSettings'))}</a>` : ''}${me.isAdmin ? `<a href="#/admin" class="${active === 'admin' ? 'on' : ''}">${esc(t('navAdmin'))}</a>` : ''}</nav>` : '';
     app().innerHTML = `<header class="top">
-        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR AI Quiz Platform</span><span class="chip brand" style="font-weight:700">V2</span></div>
+        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span>RR AI Training Platform</span><span class="chip brand" style="font-weight:700">V2</span></div>
         ${nav}
         <div class="right">${me ? `<a class="btn sm guide-link" href="guide.html#${teacher || (me && me.isTL) ? 'trainer' : 'agent'}-${lang}" target="_blank" rel="noopener">${esc(t('guide'))}</a>` : ''}${langSeg()}<span class="muted hide-sm hdr-email">${esc(me ? me.email : '')}</span><button class="btn sm ghost" data-signout title="${esc(me ? me.email : '')}">${esc(t('signOut'))}</button></div>
       </header><main id="main">${inner}</main>`;
@@ -169,7 +169,7 @@
   function renderLogin(msg) {
     app().innerHTML = `<div class="login"><div class="card">
         <span class="logo" aria-hidden="true">S</span>
-        <h1>RR AI Quiz Platform <span class="chip brand">V2</span></h1>
+        <h1>RR AI Training Platform <span class="chip brand">V2</span></h1>
         <div class="muted">${esc(t('appSub'))}</div>
         ${msg ? `<div class="banner warn" style="width:100%">${esc(msg)}</div>` : ''}
         <div class="small muted" style="margin-top:8px">${esc(t('signIn'))}</div>
@@ -788,7 +788,7 @@
 
   // ───────── 處理狀態：英文待翻譯、AI 檢查、判斷標準缺口（草稿題目與範例共用） ─────────
   Object.assign(I18N.zh, {
-    wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RR AI Quiz Assistant；完成後這裡會自動更新。',
+    wkCmdTitle: '有修改需要處理', wkCmdHint: '複製指令，在 SeaTalk 傳給 @RRTP Assistant；完成後這裡會自動更新。',
     wkEnQ: '英文待翻譯 {n} 題', wkRvQ: '待 AI 檢查 {n} 題', wkEnF: '英文待翻譯 {n} 個欄位', wkRv1: '待 AI 檢查', wkGap1: '待分析判斷標準',
     enPendingTitle: '英文待翻譯', enPendingHint: '這些欄位的中文已更新，英文還沒跟上。請按「送翻譯」由排程翻譯（草稿也可以在 SeaTalk 傳「處理」指令）。',
     enPendingBlock: '英文翻譯完成前不能加入題庫', rvTitle: 'AI 檢查（前後矛盾＋盲答）', rvOk: '沒有發現問題', rvIssues: '發現 {n} 個問題', rvStale: '檢查之後又修改過，下次處理時會重新檢查',
@@ -800,7 +800,7 @@
     pl_carrier: '物流商', pl_ev: '物流第 {n} 筆', pl_prompt: '題目問句', pl_point: '判斷重點', pl_expl: '解析', pl_model: '參考答案', pl_rubric: '評分標準', pl_opt: '選項 {n}',
   });
   Object.assign(I18N.en, {
-    wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RR AI Quiz Assistant on SeaTalk; this page updates automatically when done.',
+    wkCmdTitle: 'Changes to process', wkCmdHint: 'Copy the command and send it to @RRTP Assistant on SeaTalk; this page updates automatically when done.',
     wkEnQ: 'English pending: {n} question(s)', wkRvQ: 'AI check pending: {n} question(s)', wkEnF: '{n} English field(s) pending', wkRv1: 'AI check pending', wkGap1: 'Criteria analysis pending',
     enPendingTitle: 'English pending', enPendingHint: 'The Chinese of these fields was updated but the English has not caught up. Press Translate to let the scheduler translate them (for drafts you can also send the Process command in SeaTalk).',
     enPendingBlock: 'Cannot add to the bank until the English is translated', rvTitle: 'AI check (consistency + blind answer)', rvOk: 'No problems found', rvIssues: '{n} issue(s) found', rvStale: 'Edited after the check; it will be checked again next time',
@@ -1282,7 +1282,7 @@
       } catch (e) { showError(e, $('#listBox')); }
     }
     // 新增：先選題目來源，再顯示對應的表單
-    function openCreate(kind) {
+    function openCreate(kind, copyId) {
       const box = $('#createBox');
       if (!kind && box.innerHTML) { box.innerHTML = ''; return; }
       const pick = (k) => `<button class="btn ${kind === k ? 'brand' : ''}" data-kind="${k}" type="button">${esc(t(k === 'q' ? 'typeVariant' : 'typeCases'))}</button>`;
@@ -1290,7 +1290,7 @@
         <span class="small muted">${esc(kind === 'x' ? t('newCasesHint') : kind === 'q' ? t('newVariantHint') : '')}</span></div><div id="createForm" style="display:contents"></div>`;
       $$('[data-kind]', box).forEach((b) => { b.onclick = () => openCreate(b.dataset.kind); });
       const f = $('#createForm');
-      if (kind === 'x') return window.RRQP_EXAM.newForm(f, caseCtx());
+      if (kind === 'x') return window.RRQP_EXAM.newForm(f, caseCtx(), copyId);
       if (kind === 'q') composeForm(f, (r) => {
         box.innerHTML = '';
         const link = quizLink(r.sessionId);
@@ -1298,13 +1298,16 @@
           <div class="cmd"><code style="font-size:15px;word-break:break-all">${esc(link)}</code><span class="spacer"></span><button class="btn sm" id="cpl">${esc(t('copyLink'))}</button><a class="btn sm" style="display:inline-grid;place-items:center;text-decoration:none" href="#/session/${esc(r.sessionId)}">${esc(t('goSession'))}</a></div></div>`;
         $('#cpl').onclick = () => copyText(link);
         loadList();
-      });
+      }, copyId);
     }
     $('#refresh').onclick = loadList;
     $('#newBtn').onclick = () => openCreate();
     loadList();
     // 舊連結：?new=1 → 變化題；?tab=cases&new=1 → DMS 考題
     if (params.get('new')) openCreate(params.get('tab') === 'cases' ? 'x' : 'q');
+    // 複製測驗（2026-11-27）：#/sessions?copy=X001／E001，打開新增表單並帶入原本的設定
+    const cp = String(params.get('copy') || '').toUpperCase();
+    if (cp && (cp[0] !== 'X' || window.RRQP_EXAM)) openCreate(cp[0] === 'X' ? 'x' : 'q', cp);
   }
 
   async function viewSession(id) {
@@ -1320,7 +1323,7 @@
       const sub = d.roster.filter((r) => r.status === 'submitted').length, inp = d.roster.filter((r) => r.status === 'in_progress').length, nst = d.roster.filter((r) => r.status === 'not_started').length;
       const rem = s.state === 'open' ? fmtDur(s.endAt - (Date.now() + offset)) : t('none');
       main.innerHTML = `<div class="row"><a href="#/sessions">← ${esc(t('sessions'))}</a><h1>${esc(s.sessionId)} ${esc(L(s.title))}</h1>${sessChip(s.state)}${s.archived ? ` <span class="chip">${esc(t('archivedChip'))}</span>` : ''}<span class="spacer"></span>
-          ${refreshBtn('reload')}<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a>
+          ${refreshBtn('reload')}<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/preview/${esc(s.sessionId)}">${esc(t('previewAgent'))}</a><a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/sessions?copy=${esc(s.sessionId)}" title="${esc(t('copySessTip'))}">${esc(t('copy'))}</a>
           ${M5_READY && s.state !== 'released' ? `<button class="btn" id="extend">${esc(t('extend'))}</button>` : ''}
           ${s.state === 'released' ? `<button class="btn" id="arch">${esc(t(s.archived ? 'unarchive' : 'archive'))}</button>` : ''}
           ${me.can.session ? `<button class="btn ghost danger" id="sessDel">${esc(t('sessDel'))}</button>` : ''}
@@ -1500,7 +1503,7 @@
     function cleanup() { clearInterval(tick); clearInterval(poll); clearTimeout(retry); window.removeEventListener('beforeunload', onBeforeUnload); }
 
     app().innerHTML = `<header class="quizbar">
-        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span class="hide-sm">RR AI Quiz Platform</span></div>
+        <div class="brandmark"><span class="logo" aria-hidden="true">S</span><span class="hide-sm">RR AI Training Platform</span></div>
         <div class="qtitle">${esc(L(s.title))}</div>
         <span class="chip" id="qa"></span><span class="timer" id="timer" aria-live="off"></span>
         <span class="spacer"></span>${langSeg()}<button class="btn brand" id="finish">${esc(t('finish'))}</button></header>
@@ -1594,7 +1597,7 @@
   Object.assign(I18N.zh, {
     grading: '閱卷發佈', goGrading: '前往批改', gradeList: '選擇要批改的測驗', noGradable: '還沒有已結束的測驗。測驗結束（或提前結束）後就能批改。',
     aiZh: '中文（AI 翻譯）：', gradeSummary: '{n} 人交卷 · B / C 題共 {t} 筆文字答案 · AI 已批改 {g} 筆', confirmedN: '已確認', copyGradeCmd: '複製批改指令',
-    needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RR AI Quiz Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
+    needAi: '還有 {n} 筆文字答案尚未由 AI 批改。請在 SeaTalk @RRTP Assistant 傳：', releaseBtn: '發佈成績', releaseLeft: '發佈成績（尚有 {n} 筆未確認）',
     releaseConfirm: '發佈後專員就能看到分數與錯題。還有 {n} 筆未確認，會直接使用 AI 分數。確定發佈？', releaseConfirm0: '發佈後專員就能看到分數與錯題。確定發佈？',
     released: '成績已公布', unrelease: '取消公布', confirmedBy: '{who} · {t}',
     resetAi: '重新批改本題未確認的分數', resetAiConfirm: '清除本題「還沒確認」的 AI 分數（已確認的不受影響），之後再傳一次批改指令，AI 會依目前的批改原則重新評分。確定嗎？', resetAiDone: '已清除 {n} 筆，指令已複製：{cmd}', unreleaseConfirm: '取消公布後專員就看不到成績，確定嗎？',
@@ -1611,7 +1614,7 @@
   Object.assign(I18N.en, {
     grading: 'Grading & Release', goGrading: 'Go to grading', gradeList: 'Choose a quiz to grade', noGradable: 'No closed quizzes yet. You can grade after a quiz ends (or is ended early).',
     aiZh: 'Chinese (AI translation): ', gradeSummary: '{n} submitted · {t} written answers (B / C) · AI graded {g}', confirmedN: 'Confirmed', copyGradeCmd: 'Copy grading command',
-    needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RR AI Quiz Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
+    needAi: '{n} written answer(s) have not been graded by AI yet. Send this to @RRTP Assistant in SeaTalk:', releaseBtn: 'Release results', releaseLeft: 'Release results ({n} unconfirmed)',
     releaseConfirm: 'Agents will see their scores and missed questions. {n} answer(s) are unconfirmed and will use the AI score. Release now?', releaseConfirm0: 'Agents will see their scores and missed questions. Release now?',
     released: 'Results released', unrelease: 'Withdraw results', confirmedBy: '{who} · {t}',
     resetAi: 'Re-grade unconfirmed scores in this question', resetAiConfirm: 'Clear the AI scores you have not confirmed in this question (confirmed ones stay). Send the grading command again and the AI will re-grade with the current grading principles. Continue?', resetAiDone: 'Cleared {n}. Command copied: {cmd}', unreleaseConfirm: 'Agents will no longer see their results. Continue?',
@@ -1661,7 +1664,7 @@
       const sub = d.attempts.filter((a) => a.submittedAt).length, missing = all.length - graded, unconf = all.length - conf;
       const rel = d.session.released;
       return `<div class="row"><a href="#/grading">← ${esc(t('grading'))}</a><h1>${esc(d.session.sessionId)} ${esc(L(d.session.title))}</h1>${sessChip(d.session.state)}<span class="spacer"></span>
-          ${refreshBtn('reload')}
+          ${refreshBtn('reload')}<a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="#/sessions?copy=${esc(d.session.sessionId)}" title="${esc(t('copySessTip'))}">${esc(t('copy'))}</a>
           ${rel ? `<button class="btn" id="unrel">${esc(t('unrelease'))}</button>` : `<button class="btn ok" id="rel" ${missing ? 'disabled' : ''}>${esc(unconf ? t('releaseLeft', { n: unconf }) : t('releaseBtn'))}</button>`}</div>
         <div class="row small muted">${esc(t('gradeSummary', { n: sub, t: all.length, g: graded }))}<span class="spacer"></span>
           <span>${esc(t('confirmedN'))} <b style="font-size:18px;color:var(--ink)">${conf}</b> / ${all.length}</span><div class="bar ok" style="width:160px"><i style="width:${all.length ? Math.round((conf / all.length) * 100) : 0}%"></i></div></div>
@@ -2223,15 +2226,15 @@
   }
 
   /** 發佈測驗：從題庫組卷 */
-  async function composeForm(box, onDone) {
+  async function composeForm(box, onDone, copyId) {
     box.innerHTML = `<div class="card pad"><span class="spin"></span></div>`;
-    let meta;
-    try { meta = await api('t_bankList', {}); } catch (e) { showError(e, box); return; }
+    let meta, src = null;
+    try { [meta, src] = await Promise.all([api('t_bankList', {}), copyId ? api('t_getSession', { sessionId: copyId }) : null]); } catch (e) { showError(e, box); return; }
     if (!meta.questions.some((q) => q.status === 'active')) { box.innerHTML = `<div class="banner warn">${esc(t('bankEmpty'))}</div>`; return; }
     let picked = [], lastPick = null;
     const start = new Date(); start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
     const end = new Date(start.getTime() + 2 * 86400000); end.setHours(18, 0, 0, 0);
-    box.innerHTML = `<form class="card pad" id="sform" style="display:flex;flex-direction:column;gap:16px"><h2>${esc(t('newSession'))}</h2>
+    box.innerHTML = `<form class="card pad" id="sform" style="display:flex;flex-direction:column;gap:16px"><h2>${esc(t('newSession'))}</h2><div id="s_copy" style="display:contents"></div>
       <div class="form">
         <label class="k" for="s_emails">${esc(t('assignees'))}</label><div><textarea id="s_emails" rows="5" style="width:min(520px,100%);border:1px solid var(--line2);border-radius:8px;padding:8px 10px" placeholder="maria.santos@shopeemobile-external.com&#10;juan.reyes@shopeemobile-external.com"></textarea><div class="small" id="s_cnt"></div></div>
       </div>
@@ -2306,6 +2309,19 @@
         try { const L2 = (await api('t_bankList', { assignees: r.ok })).questions; picked = picked.map((p) => L2.find((x) => x.qid === p.qid) || p); drawList(); toast(t('recheckSeen')); } catch (_) { /* */ }
       }, 900);
     };
+    // 複製測驗：帶入名稱、作答時間、題目（照原本順序）；停用或刪除的題目不放進來
+    if (src) {
+      const s = src.session, out = [];
+      const ti = s.title && typeof s.title === 'object' ? s.title : { zh: String(s.title || ''), en: String(s.title || '') };
+      $('#s_tzh').value = ((ti.zh || ti.en || '') + '（複製）').slice(0, 80);
+      $('#s_ten').value = ((ti.en || ti.zh || '') + ' (copy)').slice(0, 80);
+      $('#s_min').value = s.minutes;
+      (s.qids || []).forEach((qid) => { const q = meta.questions.find((x) => x.qid === qid); if (q && q.status === 'active') picked.push(q); else out.push(qid + (q ? '（' + t('retired') + '）' : '')); });
+      const tp = s.topicId || (picked[0] && picked[0].topicId);
+      if (tp && $(`#c_topic option[value="${tp}"]`)) { $('#c_topic').value = tp; drawTags(); drawMix(); }
+      $('#s_copy').innerHTML = `<div class="banner info">${esc(t('copyFrom', { id: s.sessionId }))}</div>${out.length ? `<div class="banner warn">${esc(t('copyMissing'))} ${out.map(esc).join('、')}</div>` : ''}`;
+      drawList();
+    }
     $('#s_emails').addEventListener('input', cnt); cnt();
     $('#s_cancel').onclick = () => { box.innerHTML = ''; };
     $('#sform').addEventListener('submit', async (e) => {

@@ -1,4 +1,4 @@
-// RR AI Quiz Platform V2 前端設定（這些都不是機密，可以放在公開 repo；安全由 Firestore 權限規則把關）
+// RR AI Training Platform V2 前端設定（這些都不是機密，可以放在公開 repo；安全由 Firestore 權限規則把關）
 window.RRQP_CONFIG = {
   firebase: {
     apiKey: 'AIzaSyC9NaA2XmLgWVlfHFRL5u1n-gPlIwY-6A0',
