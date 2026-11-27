@@ -1810,7 +1810,7 @@
     autoN: '自動交卷', peopleN: '{n} 人', qRates: '各題得分率', qRatesNote: 'A 題以答對率、B / C 題以得分率計算；低於 60% 以紅色標示。',
     colScore: '分數', colWrong: '錯題', needCoach: '需輔導', detail: '明細', exportCsv: '匯出 CSV', makeupForChecked: '為勾選者建立補考',
     showingN: '共 {n} 人 · 依分數由低到高', noResults: '還沒有已結束的測驗。', partial: '部分', makeupOf: '補考自 {id}',
-    colTaken: '測驗次數', colAvg: '平均', colFlag: '需要留意', coachTip: '變化題低於 {a} 分、DMS 考題低於 {b}%', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
+    colTaken: '測驗次數', colAvg: '平均', colFlag: '需要留意', coachTip: '變化題低於 {a} 分、DMS 考題低於 {b} 分', colCoach: '需輔導次數', colLast: '最近一次', noAgents: '還沒有交卷紀錄。', history: '歷次成績',
     wrongPoints: '錯誤重點', notReleasedChip: '成績未公布',
     makeupTitle: '建立補考', makeupNote: '補考沿用原測驗的題目與配分，會建立一個新的測驗場次與連結。', create2: '建立補考', makeupDone: '補考 {id} 已建立',
     returnBtn: '退回重考', returnTitle: '退回 {email} 的作答？', returnNote: '原本的作答會另外保存但不再計分，專員可以在測驗開放期間重新作答。退回紀錄（誰、何時、原因）講師和 TL 都看得到。', returnReason: '原因（必填，例如網路中斷）', returnDone: '已退回',
@@ -1822,7 +1822,7 @@
     autoN: 'Auto-submitted', peopleN: '{n}', qRates: 'Score rate by question', qRatesNote: 'A: correct rate. B / C: share of points earned. Below 60% is shown in red.',
     colScore: 'Score', colWrong: 'Missed', needCoach: 'Needs coaching', detail: 'Details', exportCsv: 'Export CSV', makeupForChecked: 'Makeup for selected',
     showingN: '{n} people · lowest score first', noResults: 'No closed quizzes yet.', partial: 'partial', makeupOf: 'Makeup of {id}',
-    colTaken: 'Quizzes', colAvg: 'Average', colFlag: 'Needs attention', coachTip: 'Variant below {a} points; DMS questions below {b}%', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
+    colTaken: 'Quizzes', colAvg: 'Average', colFlag: 'Needs attention', coachTip: 'Variant below {a} points; DMS questions below {b} points', colCoach: 'Needs coaching', colLast: 'Latest', noAgents: 'No submissions yet.', history: 'History',
     wrongPoints: 'Missed points', notReleasedChip: 'Not released',
     makeupTitle: 'Create a makeup quiz', makeupNote: 'The makeup reuses the original questions and points, with a new session and link.', create2: 'Create makeup', makeupDone: 'Makeup {id} created',
     returnBtn: 'Return for retake', returnTitle: 'Return the attempt of {email}?', returnNote: 'The original answers are kept on file but no longer count. The agent can answer again while the quiz is open. Trainers and TLs can see who returned it, when and why.', returnReason: 'Reason (required, e.g. connection lost)', returnDone: 'Returned',
@@ -1886,7 +1886,7 @@
         <table class="list"><thead><tr><th>${esc(t('colAgent'))}</th><th>變化題（次數・平均）</th><th>DMS 考題（次數・平均）</th><th>DMS 練習（次數・單選答對）</th><th>${esc(t('colCoach'))}</th><th>${esc(t('colLast'))}</th><th></th></tr></thead><tbody>${
         list.map(({ email, v2: a, x: o }) => { const xe = avg(o.exam), xp = avg(o.prac); return `<tr class="click" data-email="${esc(email)}"><td>${esc(email)}</td>
           <td>${a ? `${a.taken} 次・<b>${r2(a.avg)}</b>${a.avg < d.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}` : '<span class="soft">-</span>'}</td>
-          <td>${o.exam.length ? `${o.exam.length} 次・<b>${Math.round(xe * 10) / 10}%</b>${xe < x.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}` : '<span class="soft">-</span>'}</td>
+          <td>${o.exam.length ? `${o.exam.length} 次・<b>${Math.round(xe * 10) / 10}</b>${xe < x.coachLine ? ` <span class="chip warn">${esc(t('needCoach'))}</span>` : ''}` : '<span class="soft">-</span>'}</td>
           <td>${o.prac.length ? `${o.prac.length} 次・<b>${Math.round(xp * 100)}%</b>` : '<span class="soft">-</span>'}</td>
           <td>${((a && a.coaching) || 0) + o.coaching}</td><td class="small">${a && a.last ? `${esc(L(a.last.title))} · <b>${r2(a.last.score)}</b>` : ''}</td><td style="text-align:right"><button class="btn sm">${esc(t('history'))}</button></td></tr>`; }).join('')}</tbody></table>`;
       $$('[data-email]', $('#rl')).forEach((r) => r.addEventListener('click', () => { location.hash = '#/agent/' + encodeURIComponent(r.dataset.email); }));

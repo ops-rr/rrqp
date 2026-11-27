@@ -424,7 +424,9 @@
   }
 
   // ═════════════════════════════ 閱卷發佈、歷史成績 ═════════════════════════════
-  const pctTxt = (v) => (v === null || v === undefined ? '-' : `${Math.round(v * 10) / 10}%`);
+  // DMS 考試滿分固定 100（發佈時各案件配分合計 100），所以分數直接寫「分」（2026-11-27 原本寫 %，和名單的「64 / 100」看起來像兩種東西）
+  const pctTxt = (v) => (v === null || v === undefined ? '-' : `${Math.round(v * 10) / 10} 分`);
+  const numTxt = (v) => (v === null || v === undefined ? '-' : String(Math.round(v * 10) / 10));
   const rateTxt = (v) => (v === null || v === undefined ? '-' : `${Math.round(v * 100)}%`);
   const durTxt = (s) => `${Math.floor((s || 0) / 60)}:${String((s || 0) % 60).padStart(2, '0')}`;
 
@@ -443,7 +445,7 @@
   /** 歷史成績・依測驗：DMS 考題測驗的摘要（d＝x_resultsIndex 的結果） */
   function resultsSessions(box, d) {
     box.innerHTML = `<h2 style="margin:18px 0 8px">DMS 考題測驗</h2>${!d.sessions.length ? '<div class="card empty-state">還沒有 DMS 考題測驗的成績</div>' : `<div class="card scroll-x"><table class="list"><thead><tr>
-      <th>測驗</th><th>類型</th><th>狀態</th><th>交卷</th><th>平均（百分比）</th><th>低於 ${d.coachLine}%</th><th>需要留意</th></tr></thead><tbody>
+      <th>測驗</th><th>類型</th><th>狀態</th><th>交卷</th><th>平均</th><th>低於 ${d.coachLine} 分</th><th>需要留意</th></tr></thead><tbody>
       ${d.sessions.map((s) => `<tr class="click" data-x="${esc(s.sessionId)}"><td><b>${esc(s.sessionId)}</b> ${esc(s.title)}<div class="small soft">${fmtDT(s.startAt)}</div></td>
         <td class="small">${MODE(s)}</td><td>${stChip(s.state)}</td><td class="small">${s.submitted} / ${s.assigned}</td>
         <td><b>${s.mode === 'practice' ? `答對率 ${rateTxt(s.mcRate)}` : pctTxt(s.avg)}</b></td>
@@ -463,11 +465,11 @@
         <button class="btn icon" id="xRf" type="button" title="重新整理" aria-label="重新整理">${REFRESH_SVG}</button><a class="btn" href="#/xsession/${esc(s.sessionId)}?view=grade" style="display:inline-grid;place-items:center;text-decoration:none">${X.me.isTL ? '作答明細' : '批改／作答明細'}</a><button class="btn" id="xCsv">匯出 CSV</button></div>
       ${!practice && !s.released ? (X.me.isTL ? '<div class="banner warn">尚未公布：分數可能還會調整，專員也還看不到。</div>' : `<div class="banner warn">成績還沒公布，專員看不到。<a href="#/xsession/${esc(s.sessionId)}?view=grade">前往批改 →</a></div>`) : ''}
       <div class="stats five">
-        <div class="card pad"><div class="small soft">${practice ? '平均答對率' : '平均（百分比）'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
+        <div class="card pad"><div class="small soft">${practice ? '平均答對率' : '平均'}</div><div class="big">${practice ? rateTxt(st.mcRate) : pctTxt(st.avg)}</div></div>
         <div class="card pad"><div class="small soft">交卷</div><div class="big">${st.submitted} <span class="soft" style="font-size:16px">/ ${st.assigned}</span></div></div>
-        <div class="card pad"><div class="small soft">低於 ${d.coachLine}%</div><div class="big" style="color:${st.coaching ? 'var(--err)' : 'inherit'}">${practice ? '-' : st.coaching + ' 人'}</div></div>
+        <div class="card pad"><div class="small soft">低於 ${d.coachLine} 分</div><div class="big" style="color:${st.coaching ? 'var(--err)' : 'inherit'}">${practice ? '-' : st.coaching + ' 人'}</div></div>
         <div class="card pad"><div class="small soft">需要留意</div><div class="big">${st.flagged} 人</div></div>
-        <div class="card pad"><div class="small soft">中位數・最高／最低</div><div class="big">${practice ? '-' : pctTxt(st.median)}</div><div class="small soft">${practice || st.max === null ? '' : pctTxt(st.max) + ' / ' + pctTxt(st.min)}</div></div>
+        <div class="card pad"><div class="small soft">中位數・最高／最低</div><div class="big">${practice ? '-' : pctTxt(st.median)}</div><div class="small soft">${practice || st.max === null ? '' : numTxt(st.max) + ' / ' + numTxt(st.min)}</div></div>
       </div>
       <div class="card pad"><h2>每題答對率</h2><div class="rates">${d.questions.map((q) => `<div class="rate" title="${esc(q.q)}"><div class="rbar"><i style="height:${q.rate === null ? 0 : Math.round(q.rate * 100)}%;background:${q.rate === null ? '#ccc' : q.rate >= 0.8 ? '#16a34a' : q.rate >= 0.5 ? '#d97706' : '#dc2626'}"></i></div>
         <b>${q.rate === null ? '-' : Math.round(q.rate * 100) + '%'}</b><span>案件${q.caseNo}-${q.no} ${QTYPE(q.type)}</span></div>`).join('')}</div>
