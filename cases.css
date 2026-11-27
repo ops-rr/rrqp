@@ -95,6 +95,14 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq table{border-collapse:collapse;min-width:100%}
 .cq th,.cq td{padding:12px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line);vertical-align:top}
 .cq th{background:#f7f7fa;font-weight:500;color:var(--ink)}
+/* 凍結欄（2026-11-27，照 DMS）：left／right 由 stickTables 量好寫進 style */
+.cq td.fz-l,.cq td.fz-r{position:sticky;z-index:1;background:#fff}
+.cq th.fz-l,.cq th.fz-r{position:sticky;z-index:2}
+.cq .fz-le{box-shadow:inset -1px 0 0 var(--line),6px 0 6px -6px rgba(0,0,0,.12)}
+.cq .fz-re{box-shadow:inset 1px 0 0 var(--line),-6px 0 6px -6px rgba(0,0,0,.12)}
+.cq .qc-tg{border:0;background:none;padding:0;color:#2673dd;cursor:pointer;font:inherit}
+.cq .qc-sub{margin-top:10px}
+.cq .qc-sub td{white-space:nowrap}
 .cq .prod{display:flex;gap:10px;white-space:normal;width:340px}
 .cq .prod img{width:56px;height:56px;object-fit:cover;border-radius:4px;flex:none;cursor:zoom-in}
 .cq .prod .var{color:var(--muted);font-size:12px}

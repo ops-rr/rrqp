@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-27a';
+const VERSION = 'V2-2026-11-27c';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -1606,7 +1606,7 @@ const M4 = {
     const [sid, s] = await sessionDoc(b.sessionId), t = now();
     const [atts, key] = await Promise.all([S.list('sessions/' + sid + '/attempts'), S.get('sessions/' + sid + '/paper/key')]);
     const roster = (s.assignees || []).map((email) => Object.assign({ email, retakes: retakesOf(s, email) }, attemptOut(s, atts.find((a) => a.id === email), t)));
-    return { session: Object.assign(sessionOut(sid, s, t), { assignees: s.assignees || [] }), roster, questions: (key && key.questions) || [], serverNow: t };
+    return { session: Object.assign(sessionOut(sid, s, t), { assignees: s.assignees || [], qids: s.qids || [] }), roster, questions: (key && key.questions) || [], serverNow: t };   // qids：複製測驗用
   },
 
   /** 提前結束：結束時間改成現在；作答中的人在緩衝時間內由瀏覽器自動交卷 */

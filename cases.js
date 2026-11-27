@@ -815,6 +815,7 @@
       (b.fields || []).forEach(fd => { if (fd.leak && !fd.hidden) out.push({ label: fd.k, go: 'blk-' + b.id }); });
       (b.timeline || []).forEach(n => { if (n.leak) out.push({ label: 'Timeline：' + n.k, go: 'blk-' + b.id }); });
       (b.cards || []).forEach(cd => cd.rows.forEach(r => { if (r[2] === 'leak') out.push({ label: r[0], go: 'blk-' + b.id }); }));
+      (b.tables || []).forEach(t => t.rows.forEach(r => r.forEach(cell => { if (cell && cell.qc && !cell.qc.hidden && (cell.qc.leakCols || []).length) out.push({ label: 'QC Info（倉庫判決）', go: 'blk-' + b.id }); })));
     });
     const opLeak = C.ops.filter(n => n.leak && !n.hidden).length;
     if (opLeak) out.push({ label: `Operation History 判決／結案節點 ${opLeak} 個`, go: 'ops' });
@@ -863,6 +864,7 @@
         ${(b.tables || []).map((t, ti) => tableHtml(bi, ti, t)).join('')}
         ${b.cards ? `<div class="cards">${b.cards.map((cd, ci) => cardHtml(bi, ci, cd)).join('')}</div>` : ''}
       </div>`).join('');
+    stickTables(document.getElementById('cqMain'));
   }
 
   // Timeline：橫向節點，講師可改文字與時間、刪除節點
@@ -981,12 +983,84 @@
       </div>`).join('')}</div>`;
   }
 
+  // 凍結欄（2026-11-27，照 DMS）：退貨／退款詳情左 2 欄（商品、可退貨狀態）＋右邊 QC Info；訂單詳情左 2 欄（Parcel、商品）
+  // 新匯入的案件存在 t.freeze；舊案件依表格標題推
+  function freezeOf(t) {
+    if (t.freeze) return t.freeze;
+    if (t.title === 'Return/Refund Detail') return { left: 2, right: t.cols[t.cols.length - 1] === 'QC Info' ? 1 : 0 };
+    if (t.title === 'Order Detail') return { left: 2, right: 0 };
+    return { left: 0, right: 0 };
+  }
   function tableHtml(bi, ti, t) {
-    const head = t.cols.map(c => `<th>${esc(T(c))}</th>`).join('') + (isEdit() ? '<th></th>' : '');
-    const rows = t.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<td>${cellHtml(bi, ti, ri, ci, cell)}</td>`).join('')}
-      ${isEdit() ? `<td><span class="ectl"><button class="del" onclick="CQ.delRow(${bi},${ti},${ri})">✕ 刪除列</button></span></td>` : ''}</tr>`).join('');
-    return `${t.title ? `<div class="tbltitle">${esc(T(t.title))}</div>` : ''}
-      <div class="tblwrap"><table><tr>${head}</tr>${rows}</table></div>`;
+    const fz = freezeOf(t), n = t.cols.length, ed = isEdit();
+    const cls = (ci) => (ci < fz.left ? `fz-l${ci === fz.left - 1 ? ' fz-le' : ''}` : ci >= n - fz.right ? `fz-r${ci === n - fz.right ? ' fz-re' : ''}` : '');
+    const head = t.cols.map((c, ci) => `<th class="${cls(ci)}">${esc(T(c))}</th>`).join('') + (ed ? '<th></th>' : '');
+    const rows = t.rows.map((r, ri) => `<tr>${r.map((cell, ci) => `<td class="${cls(ci)}">${cellHtml(bi, ti, ri, ci, cell)}</td>`).join('')}
+      ${ed ? `<td><span class="ectl"><button class="del" onclick="CQ.delRow(${bi},${ti},${ri})">✕ 刪除列</button></span></td>` : ''}</tr>`).join('');
+    return `<div id="tbl-${bi}-${ti}">${t.title ? `<div class="tbltitle">${esc(T(t.title))}</div>` : ''}
+      <div class="tblwrap"><table data-fl="${fz.left}" data-fr="${ed ? 0 : fz.right}"><tr>${head}</tr>${rows}</table></div>${qcHtml(bi, ti, t)}</div>`;
+  }
+  // 凍結欄的位置：量第一列每格的寬度，算出 left／right（sticky 要知道前面的欄有多寬）
+  // 講師編輯畫面最右邊多一欄「刪除列」，右側不凍結（data-fr=0），只凍結左邊
+  function stickTables(root) {
+    if (!root) return;
+    root.querySelectorAll('table[data-fl]').forEach((tb) => {
+      const fl = +tb.dataset.fl, fr = +tb.dataset.fr;
+      if (!fl && !fr) return;
+      // 位置用表頭量（QC 子表的商品欄跨列，第二列起少一格；格子有 data-ci 時照它對欄）
+      const hd = [...tb.rows[0].cells], L = [], R = [];
+      let x = 0;
+      for (let i = 0; i < fl && i < hd.length; i++) { L[i] = x; x += hd[i].offsetWidth; }
+      x = 0;
+      for (let i = hd.length - 1; i >= hd.length - fr && i >= 0; i--) { R[i] = x; x += hd[i].offsetWidth; }
+      [...tb.rows].forEach((tr) => [...tr.cells].forEach((td, j) => {
+        const ci = td.dataset.ci != null ? +td.dataset.ci : j;
+        if (L[ci] != null) td.style.left = L[ci] + 'px';
+        if (R[ci] != null) td.style.right = R[ci] + 'px';
+      }));
+    });
+  }
+
+  // ===== QC Info（2026-11-27）：倉庫 QC 紀錄，點「查看詳情」在商品表下方展開子表（同 DMS）=====
+  // cell.qc = { cols, rows（每列：[商品, Item No, 判決狀態, 判決結果, 倉庫判決原因, Qty, …]，照片／影片是 {media:[…]}）, leakCols, hidden }
+  const QC_OPEN = new Set();          // 展開中的商品列：'區塊-表格-列'
+  function qcCellHtml(bi, ti, ri, cell) {
+    const q = cell.qc, k = `${bi}-${ti}-${ri}`;
+    if (!q.rows || !q.rows.length || (q.hidden && !isEdit())) return '-';
+    const on = QC_OPEN.has(k);
+    return `<button class="qc-tg" type="button" onclick="CQ.toggleQc(${bi},${ti},${ri})">${esc(T(cell.text || 'View Detail'))} ${on ? '∧' : '∨'}</button>
+      ${isEdit() ? `<div class="ectl" style="margin-top:6px"><button onclick="CQ.hideQc(${bi},${ti},${ri})">${q.hidden ? '取消隱藏' : '隱藏'}</button>${q.hidden ? '<span class="leak" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1">專員看不到</span>' : ''}</div>` : ''}`;
+  }
+  function qcHtml(bi, ti, t) {
+    const open = [];
+    t.rows.forEach((r, ri) => r.forEach((cell, ci) => {
+      if (cell && cell.qc && QC_OPEN.has(`${bi}-${ti}-${ri}`) && (!cell.qc.hidden || isEdit())) open.push({ ri, ci, q: cell.qc });
+    }));
+    if (!open.length) return '';
+    const q0 = open[0].q, ed = isEdit(), leak = new Set(q0.leakCols || []);
+    const head = q0.cols.map((c, i) => `<th class="${i < 2 ? `fz-l${i === 1 ? ' fz-le' : ''}` : ''}">${esc(T(c))}${ed && leak.has(i) ? '<span class="leak">可能洩漏結果</span>' : ''}</th>`).join('');
+    const body = open.map(({ ri, ci, q }) => q.rows.map((row, qi) => `<tr>${row.map((v, i) => {
+      if (i === 0) return qi ? '' : `<td class="fz-l" data-ci="0" rowspan="${q.rows.length}"><div style="white-space:normal;width:200px">${esc(v)}</div></td>`;
+      const c = `${i === 1 ? 'fz-l fz-le' : ''}" data-ci="${i}`;
+      if (v && v.media) return `<td class="${c}">${v.media.length ? mediaHtml(v.media, '') : '-'}</td>`;
+      const txt = String(v == null ? '-' : v), wide = txt.length > 30 ? ' style="white-space:normal;min-width:220px;max-width:320px;word-break:break-all"' : '';
+      return ed ? `<td class="${c}"${wide}><span contenteditable data-set="qccell" data-b="${bi}" data-t="${ti}" data-r="${ri}" data-c="${ci}" data-qr="${qi}" data-qc="${i}">${esc(txt)}</span></td>`
+        : `<td class="${c}"${wide}>${esc(T(txt))}</td>`;
+    }).join('')}</tr>`).join('')).join('');
+    return `<div class="tblwrap qc-sub"><table data-fl="2" data-fr="0"><tr>${head}</tr>${body}</table></div>`;
+  }
+  function toggleQc(bi, ti, ri) {
+    const k = `${bi}-${ti}-${ri}`;
+    if (QC_OPEN.has(k)) QC_OPEN.delete(k); else QC_OPEN.add(k);
+    const box = document.getElementById(`tbl-${bi}-${ti}`);
+    if (!box) return;
+    box.outerHTML = tableHtml(bi, ti, C.blocks[bi].tables[ti]);
+    stickTables(document.getElementById(`tbl-${bi}-${ti}`));
+  }
+  function hideQc(bi, ti, ri) {
+    const cell = C.blocks[bi].tables[ti].rows[ri].find((x) => x && x.qc);
+    if (!cell) return;
+    cell.qc.hidden = !cell.qc.hidden; saveCase(); renderAll();
   }
 
   // 商品名稱的連結：蝦皮前台商品頁 https://shopee.tw/product/<商店ID>/<商品ID>
@@ -1023,6 +1097,7 @@
         <b>X${p.qty}</b></div><div class="var">Variation: ${esc(p.variation)}</div>${extra}</div></div>`;
     }
     if (cell.media) return mediaHtml(cell.media, '');
+    if (cell.qc) return qcCellHtml(bi, ti, ri, cell);
     let text = (isMasked(cell.mask) && !isEdit()) ? '***' : esc(T(cell.text));
     if (isEdit()) text = `<span contenteditable ${path}>${esc(cell.text)}</span>`;
     let html = text;
@@ -1087,6 +1162,7 @@
       if (typeof row[+d.c] === 'string') row[+d.c] = v; else row[+d.c].text = v;
     }
     if (d.set === 'prod') b.tables[+d.t].rows[+d.r][+d.c].product.name = v;
+    if (d.set === 'qccell') b.tables[+d.t].rows[+d.r][+d.c].qc.rows[+d.qr][+d.qc] = v;
     if (d.set === 'card') b.cards[+d.c].rows[+d.r][1] = v;
     if (d.set === 'tl') b.timeline[+d.i][d.k] = v;
     if (d.set === 'opkv') C.ops[+d.i].kv[+d.k][1] = v;
@@ -2759,7 +2835,7 @@
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
     txOrig(a) { const src = a.previousElementSibling; src.hidden = !src.hidden; a.textContent = src.hidden ? 'Show Original' : 'Hide Original'; },
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, toggleQc, hideQc, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delLine, addLine, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
