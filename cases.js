@@ -200,19 +200,18 @@
     };
     const draw = () => {
       const q = filt.q.trim().toLowerCase();
-      const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示匯入提醒與狀態
+      const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示狀態
       const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list cql-tb"><thead><tr>
-          <th>案件</th><th class="t">標題</th><th>分類</th><th>用途</th><th>對象</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
+          <th>案件</th><th class="t">標題</th><th>分類</th><th>用途</th><th>對象</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}${c.copyOf ? `<div class="soft small" style="white-space:nowrap">複製自 ${esc(c.copyOf)}</div>` : ''}</td>
           <td class="t">${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}${(c.sopStale || []).length ? '<div class="cql-sopline">SOP 調整檢查</div>' : ''}</td>
           <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
           <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${langChip(c, true)}</td><td style="white-space:nowrap">${c.questions} 題</td>
           ${d.canEdit ? `<td class="mono small">${esc(c.returnId || '-')}</td>` : ''}
-          ${pend ? `<td>${c.notes ? `<span class="chip warn">${c.notes}</span>` : '-'}</td>` : ''}
           <td class="small"><span style="white-space:nowrap">${esc(fmtTime(c.updatedAt))}</span><div class="soft">${esc(String(c.updatedBy || '').replace(/@.*/, ''))}</div></td>
           ${pend ? `<td><span class="chip ${c.status === 'approved' ? 'ok' : 'warn'}">${STATUS[c.status] || c.status}</span></td>` : ''}</tr>`).join('')}
         </tbody></table></div>`;
