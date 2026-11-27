@@ -620,10 +620,9 @@
     ALERT = { p, done, piiS, leaks, leakS, items, chk };
     const piiLeft = p.old ? 1 : p.spots.length - PII_SEEN.size;
     const chip = (k, cls, txt, title) => `<button class="cqa-c ${cls} ${ALERT_OPEN === k ? 'on' : ''}" onclick="event.stopPropagation();CQ.alertOpen('${k}')" title="${esc(title)}">${txt}</button>`;
-    // SOP 調整檢查：已上架也要看得到（路線相同可以直接改用新版）；每個案件打開時自動跳出一次
+    // SOP 調整檢查：已上架也要看得到（路線相同可以直接改用新版）
     const sops = sopCheck(); ALERT.sops = sops;
     const nSop = new Set(sops.flatMap((g) => g.mods.map((x) => x.md.id))).size;
-    if (nSop && SOP_AUTO !== CUR.caseId) { SOP_AUTO = CUR.caseId; ALERT_OPEN = 'sop'; }
     if (!nSop && ALERT_OPEN === 'sop') ALERT_OPEN = '';
     const sopChip = nSop ? chip('sop', 'sp', `SOP 調整檢查 ${nSop}`, '用到的 SOP 有新版本，請確認題目還正確') : '';
     if (isView()) return sopChip;
@@ -632,10 +631,10 @@
       + chip('imp', chk.errors.length ? 'bd' : 'nt', `匯入提醒 ${items.length}`, '上架前要完成的項目與匯入時的提醒');
   }
   // 點標籤：個資、洩漏逐處跳到畫面上的位置；下方小視窗顯示第幾處與說明
-  let ALERT = {}, ALERT_OPEN = '', SOP_AUTO = '';
+  let ALERT = {}, ALERT_OPEN = '';
+  // 再點一次同一個標籤就收起
   function alertOpen(k) {
-    if (k === 'sop') { ALERT_OPEN = ALERT_OPEN === 'sop' ? '' : 'sop'; return refreshAlerts(); }
-    if (k === 'imp') { ALERT_OPEN = ALERT_OPEN === 'imp' ? '' : 'imp'; return refreshAlerts(); }
+    if (ALERT_OPEN === k || k === 'sop' || k === 'imp') { ALERT_OPEN = ALERT_OPEN === k ? '' : k; return refreshAlerts(); }
     ALERT_OPEN = k;
     if (k === 'pii') piiNext(); else leakNext();
     refreshAlerts();
@@ -2463,7 +2462,7 @@
       <div class="sopc-g"><div><b>${esc(g.tb)} 已調整</b> <span class="soft">${esc(g.from)} → ${esc(g.to)}${g.at ? `（${esc(day(g.at))} 更新）` : ''}</span></div>
       ${g.mods.map((x) => `<div class="sopc-q"><div style="flex:1;min-width:0"><b>第 ${x.no} 題 SOP 路徑</b>：<span class="${x.res === 'same' ? 'sopc-ok' : x.res === 'diff' ? 'sopc-ng' : 'soft'}">${esc(x.msg)}</span>
         ${x.res === 'diff' && ro ? '<div class="soft small">已上架的案件要先按「⋯ → 下架修改」才能重走。</div>' : ''}</div>
-        ${x.res === 'same' ? `<button class="cbtn sopc-up" onclick="CQ.sopUpgrade(${x.i})">改用新版</button>` : x.res === 'diff' ? `<button class="cbtn" onclick="CQ.sopGoMod(${x.i})">前往第 ${x.no} 題</button>` : ''}</div>`).join('')}</div>`).join('');
+        ${x.res === 'same' ? `<button class="cbtn" onclick="CQ.sopUpgrade(${x.i})">改用新版</button>` : x.res === 'diff' ? `<button class="cbtn" onclick="CQ.sopGoMod(${x.i})">前往第 ${x.no} 題</button>` : ''}</div>`).join('')}</div>`).join('');
   }
   async function sopUpgrade(i) {
     const md = C.modules[i], sop = SOPS[md.taskbot];
