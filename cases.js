@@ -178,14 +178,18 @@
         <input type="search" id="cqQ" placeholder="搜尋案件編號、標題、Return ID、講師" value="${esc(filt.q)}">
         <select id="cqU"><option value="">練習＋考試</option><option value="practice" ${filt.usage === 'practice' ? 'selected' : ''}>練習用</option><option value="exam" ${filt.usage === 'exam' ? 'selected' : ''}>考試用</option></select>
         <select id="cqL"><option value="">全部對象</option><option value="tw" ${filt.lang === 'tw' ? 'selected' : ''}>TW</option><option value="bpo" ${filt.lang === 'bpo' ? 'selected' : ''}>TW＋BPO</option></select>
-        <span class="small muted" id="cqC"></span><span id="cqSopF"></span></div><div id="cqRows"></div></div></div>`;
-    const inF = (c) => !filt.kind || (filt.kind === 'none' ? !(c.groups || []).length
+        <span class="small muted" id="cqC"></span></div><div id="cqRows"></div></div></div>`;
+    // 系統提醒（2026-11-27）：不存在案件裡，開清單時即時算；處理完下次打開就不在了
+    const sopN = () => all.filter((c) => (c.sopStale || []).length).length;
+    const inF = (c) => !filt.kind || (filt.kind === 'sys' ? (c.sopStale || []).length : filt.kind === 'none' ? !(c.groups || []).length
       : (filt.kind === 'group' ? c.groups : filt.kind === 'topic' ? c.topics : c.tags || []).includes(filt.id));
     const drawSide = () => {
       const row = (kind, id, label, n, sub) => `<button type="button" class="lib-row ${filt.kind === kind && filt.id === id ? 'on' : ''}" data-k="${kind}" data-id="${esc(id)}" ${sub ? 'style="padding-left:22px"' : ''}><span>${esc(label)}</span><span class="n">${n}</span></button>`;
       const used = (key) => [...new Set(all.flatMap((c) => c[key] || []))];
-      const noGroup = all.filter((c) => !(c.groups || []).length).length;
+      const noGroup = all.filter((c) => !(c.groups || []).length).length, nSop = sopN();
+      if (!nSop && filt.kind === 'sys') filt.kind = '';
       $('#cqSideF').innerHTML = `<div class="lib-side-hd"><b>分類</b></div>${row('', '', '全部', all.length)}
+        ${nSop ? `<div class="lib-grp">系統提醒</div>${row('sys', 'sop', 'SOP 調整檢查', nSop).replace('class="lib-row', 'class="lib-row sys')}` : ''}
         <div class="lib-grp">組別</div>
         ${d.groups.filter((g) => g.active || used('groups').includes(g.id)).map((g) => row('group', g.id, g.name, all.filter((c) => (c.groups || []).includes(g.id)).length)).join('')}
         ${noGroup ? row('none', '', '（還沒分組）', noGroup) : ''}
@@ -197,12 +201,7 @@
     const draw = () => {
       const q = filt.q.trim().toLowerCase();
       const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示匯入提醒與狀態
-      // SOP 調整檢查（2026-11-27）：用到的 SOP 有新版本的案件；有才出現篩選按鈕
-      const nSop = all.filter((c) => (c.sopStale || []).length).length;
-      if (!nSop) filt.sop = false;
-      $('#cqSopF').innerHTML = nSop ? `<button type="button" class="cql-sop ${filt.sop ? 'on' : ''}" id="cqS">SOP 調整檢查<b>${nSop}</b></button>` : '';
-      if ($('#cqS')) $('#cqS').onclick = () => { filt.sop = !filt.sop; draw(); };
-      const list = all.filter((c) => inF(c) && (!filt.sop || (c.sopStale || []).length) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
+      const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list cql-tb"><thead><tr>
