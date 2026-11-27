@@ -113,7 +113,7 @@ function memoryStore() {
 }
 
 // ───────── 共用 ─────────
-const VERSION = 'V2-2026-11-27c';
+const VERSION = 'V2-2026-11-27d';
 let S = null, ME = null, currentEmail = null, blockedEmail = null;
 const now = () => Date.now();
 const fail = (msg) => { throw new Error(msg); };
@@ -2294,8 +2294,23 @@ const CASES = {
   },
   c_list: async () => {
     const m = await needTeacher();
-    const idx = await S.get('meta/v3CaseIndex');
+    const [idx, sopIdx] = await Promise.all([S.get('meta/v3CaseIndex'), S.get('meta/v3SopIndex').catch(() => null)]);
     const items = (idx && idx.items) || {};
+    // SOP 調整檢查（2026-11-27）：舊案件的清單還沒有 sops（用到的 SOP 版本），TW 講師打開清單時補一次
+    const noSops = Object.keys(items).filter((id) => !items[id].sops);
+    if (noSops.length && m.role === 'tw') {
+      const up = {};
+      await Promise.all(noSops.map(async (id) => {
+        const d = await S.get('v3cases/' + id).catch(() => null);
+        if (!d) return;
+        let body = {};
+        try { body = JSON.parse(d.body || '{}'); } catch (_) { /* 壞掉的內容當作沒有 SOP */ }
+        items[id].sops = up['items.' + id + '.sops'] = caseSopFlows(body);
+      }));
+      if (Object.keys(up).length) await S.update('meta/v3CaseIndex', up).catch(() => {});
+    }
+    const live = (sopIdx && sopIdx.items) || {};
+    const sopStale = (sops) => Object.keys(sops || {}).filter((tb) => live[tb] && live[tb].live !== false && live[tb].flowId && live[tb].flowId !== sops[tb]);
     const rid = {};
     if (m.role === 'tw') (await S.list('v3caseRequests').catch(() => [])).forEach((r) => { if (r.caseId) rid[r.caseId] = r.returnId; });
     // 複製出來的案件沒有申請紀錄：Return ID 從原案件找；原案件已刪除就讀複本自己的原始資訊
@@ -2303,7 +2318,7 @@ const CASES = {
       rid[id] = rid[items[id].copyOf] || ((await S.get('v3cases/' + id + '/private/raw').catch(() => null)) || {}).rid || '';
     }));
     const cases = Object.keys(items).map((id) => Object.assign({ caseId: id, title: '', status: 'pending', usage: 'practice', twOnly: true, tx: '', txMissed: 0, txUn: 0, questions: 0, points: 0, notes: 0, groups: [], topics: [], tags: [] },
-      items[id], { returnId: rid[id] || '' })).sort((a, b) => b.caseId.localeCompare(a.caseId));
+      items[id], { returnId: rid[id] || '', sopStale: sopStale(items[id].sops) })).sort((a, b) => b.caseId.localeCompare(a.caseId));
     const [topics, tags, groups] = await Promise.all([S.list('topics'), S.list('tags'), loadGroups()]);
     return { cases, canEdit: m.role === 'tw', canDelete: !!m.can.case, groups,
       topics: topics.map(topicOut).filter((x) => x.usage.includes('case')), tags: tags.map(tagOut) };
@@ -2398,6 +2413,7 @@ const CASES = {
         ['items.' + b.caseId + '.usage']: meta.usage || 'practice', ['items.' + b.caseId + '.twOnly']: meta.twOnly !== false,
         ['items.' + b.caseId + '.questions']: st.questions, ['items.' + b.caseId + '.points']: st.points,
         ['items.' + b.caseId + '.groups']: meta.groups || [], ['items.' + b.caseId + '.topics']: meta.topics || [], ['items.' + b.caseId + '.tags']: meta.tags || [],
+        ['items.' + b.caseId + '.sops']: caseSopFlows(c),
         ['items.' + b.caseId + '.updatedAt']: t, ['items.' + b.caseId + '.updatedBy']: m.email } },
     ]);
     return { rev, status, txState, check: chk, demoted: status !== (cur.status || 'pending') };
@@ -2417,6 +2433,28 @@ const CASES = {
         ['items.' + b.caseId + '.tx']: txState, ['items.' + b.caseId + '.txUn']: txUn, ['items.' + b.caseId + '.updatedAt']: t } },
     ]);
     return { status: 'approved', txState, txUn };
+  },
+  /**
+   * SOP 調整檢查：「改用新版」（2026-11-27）。講師端用新版重走過標準路線、確認路線相同才會呼叫；
+   * 只換這一題的 SOP 版本與節點快照，題目和答案不變，所以已上架的案件也能直接改（不用下架）。
+   */
+  c_sopUpgrade: async (b) => {
+    const m = await needTW();
+    const path = 'v3cases/' + b.caseId;
+    const cur = await S.get(path) || fail('找不到案件 / Case not found');
+    if ((cur.rev || 0) !== (b.rev || 0)) fail(`${cur.updatedBy || '別的講師'} 剛修改過這個案件，請重新整理 / Someone else just saved this case. Reload first.`);
+    const body = JSON.parse(cur.body || '{}');
+    const md = (body.modules || []).find((x) => x.id === b.modId && x.type === 'sop') || fail('找不到這一題 / Question not found');
+    const x = b.mod || {};
+    if (!x.flows || typeof x.flows !== 'object' || !x.snap || typeof x.snap !== 'object') fail('資料不完整 / Missing data');
+    Object.assign(md, { flows: x.flows, snap: x.snap, flowId: String(x.flowId || md.flowId || ''), version: String(x.version || ''), sopName: String(x.sopName || md.sopName || '') });
+    const t = now(), rev = (cur.rev || 0) + 1, out = JSON.stringify(body);
+    if (out.length > 950000) fail('案件內容太大，無法儲存 / Case is too large');
+    await S.batch([
+      { op: 'update', path, data: { body: out, rev, updatedAt: t, updatedBy: m.email } },
+      { op: 'update', path: 'meta/v3CaseIndex', data: { ['items.' + b.caseId + '.sops']: caseSopFlows(body), ['items.' + b.caseId + '.updatedAt']: t, ['items.' + b.caseId + '.updatedBy']: m.email } },
+    ]);
+    return { rev };
   },
   c_unapprove: async (b) => {          // 下架修改：從可用題庫拿掉；已發佈的測驗用的是發佈當下的考卷，不受影響
     await needTW();
@@ -2693,6 +2731,15 @@ function caseTeacherTexts(c) {
     else if (md.type === 'short') out.push(md.qEn ? '' : md.q, md.standard);
   });
   return [...new Set(out.filter(hasZh))];
+}
+// 案件用到的 SOP 與版本：SOP 路徑題的 flows（路線可能跨 SOP）合起來，例如 { SOP60: 'SOP60_F76', SOP1: 'SOP1_F140' }（SOP 調整檢查用）
+function caseSopFlows(body) {
+  const out = {};
+  ((body && body.modules) || []).forEach((md) => {
+    if (md.type !== 'sop' || !md.start) return;
+    Object.entries(md.flows || (md.taskbot && md.flowId ? { [md.taskbot]: md.flowId } : {})).forEach(([tb, f]) => { if (tb && f) out[tb] = f; });
+  });
+  return out;
 }
 function txUnOf(body, d) {
   if ((body.meta || {}).twOnly !== false) return 0;

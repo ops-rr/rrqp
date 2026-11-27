@@ -45,17 +45,18 @@
     $$('#xList [data-x]').forEach((tr) => tr.addEventListener('click', () => { location.hash = '#/xsession/' + tr.dataset.x; }));
   }
 
-  async function createForm(box) {
+  // copyId：複製測驗（2026-11-27）——沿用名稱、類型、作答時間、案件順序與分數；開放時間、專員由講師重填。案件用題庫現在的版本，下架或不能用的不放進來
+  async function createForm(box, copyId) {
     box.innerHTML = '<div class="card pad"><span class="spin"></span></div>';
-    let d;
-    try { d = await X.api('c_list'); } catch (e) { X.showError(e, box); return; }
+    let d, src = null;
+    try { [d, src] = await Promise.all([X.api('c_list'), copyId ? X.api('x_get', { sessionId: copyId }) : null]); } catch (e) { X.showError(e, box); return; }
     const all = d.cases.filter((c) => c.status === 'approved');
     const gName = (id) => (d.groups.find((x) => x.id === id) || {}).name || id;
     const tpName = (id) => L((d.topics.find((x) => x.topicId === id) || {}).name) || id;
     const st = { picked: [], seen: {}, f: { g: '', tp: '', q: '' }, w: {}, manual: false };   // w：案件分數；manual＝講師改過（之後增減案件不再自動均分）
     const start = Date.now(), end = start + 2 * 3600e3;
     box.innerHTML = `<form class="card pad" id="xf" style="display:flex;flex-direction:column;gap:14px;margin-bottom:14px" autocomplete="off">
-      <h2>新增 DMS 考題測驗</h2>
+      <h2>${src ? '複製 DMS 考題測驗' : '新增 DMS 考題測驗'}</h2><div id="x_copy" style="display:contents"></div>
       <div class="form">
         <label class="k" for="x_title">測驗名稱</label><input type="text" id="x_title" maxlength="80" placeholder="例如：11 月新人訓練・DMS 實戰練習" required>
         <span class="k">類型</span><div class="tags">
@@ -89,7 +90,7 @@
         const no = exam && c.usage !== 'exam', on = st.picked.includes(c.caseId);
         return `<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px;${no ? 'opacity:.5' : ''}">
           <input type="checkbox" data-c="${esc(c.caseId)}" ${on ? 'checked' : ''} ${no ? 'disabled' : ''}>
-          <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
+          <span style="flex:1"><b class="mono">${esc(c.caseId)}</b> ${esc(c.title)}${(c.sopStale || []).length ? '<div class="cql-sopline">SOP 調整檢查</div>' : ''}<div class="small soft">${(c.groups || []).map(gName).concat((c.topics || []).map(tpName)).map(esc).join('、')}・${c.questions} 題・${c.usage === 'exam' ? '考試用' : '練習用'}</div></span>
           ${window.RRQP_CASES.langChip(c)}${st.seen[c.caseId] ? `<span class="chip warn">${st.seen[c.caseId]} 人做過</span>` : ''}${no ? '<span class="small soft">練習用，不能放進考試</span>' : ''}</label>`;
       }).join('') : '<div class="empty-state">沒有符合的已上架案件</div>';
       $$('#x_pool [data-c]').forEach((cb) => cb.addEventListener('change', () => {
@@ -143,6 +144,21 @@
     $('#x_tp').onchange = (e) => { st.f.tp = e.target.value; drawPool(); };
     $('#x_q').oninput = (e) => { st.f.q = e.target.value; drawPool(); };
     $('#x_cancel').onclick = () => { box.innerHTML = ''; };
+    if (src) {
+      const s = src.session, m = s.mode === 'exam' ? 'exam' : s.review === 'unified' ? 'unified' : 'instant', out = [];
+      $('#x_title').value = (s.title + '（複製）').slice(0, 80);
+      $$('input[name=x_mode]').forEach((x) => { x.checked = x.value === m; x.parentElement.classList.toggle('on', x.checked); });
+      $('#x_min').value = s.minutes;
+      (src.key.cases || []).forEach((k) => {
+        const c = all.find((x) => x.caseId === k.caseId), any = d.cases.find((x) => x.caseId === k.caseId);
+        if (!c) { out.push(`${k.caseId} ${k.title || ''}（${any ? '已下架' : '已刪除'}）`); return; }
+        if (m === 'exam' && c.usage !== 'exam') { out.push(`${k.caseId} ${c.title}（改成練習用，不能放進考試）`); return; }
+        st.picked.push(c.caseId); st.w[c.caseId] = k.weight;
+      });
+      st.manual = !out.length;   // 案件都在：沿用原本的分數；有少案件：重新平均分配，講師再調整
+      $('#x_copy').innerHTML = `<div class="banner info">從 <b>${esc(s.sessionId)}</b> 複製：已帶入名稱、類型、作答時間、案件與分數，請改名稱、填開放時間和指派專員。案件用題庫現在的內容；發佈前都可以增減案件。</div>
+        ${out.length ? `<div class="banner warn">這些案件不能用，沒有放進來，請從左邊另外挑選：<br>${out.map(esc).join('<br>')}${m === 'exam' ? '<br>案件分數已重新平均分配。' : ''}</div>` : ''}`;
+    }
     drawPool(); drawSel();
     $('#xf').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -193,6 +209,7 @@
         ${s.state === 'open' || s.state === 'scheduled' ? '<button class="btn danger" id="xEnd">提前結束</button>' : ''}
         ${!exam && s.review === 'unified' ? `<button class="btn ${s.answersOpen ? '' : 'brand'}" id="xOpen">${s.answersOpen ? '收回解答' : '公布解答'}</button>` : ''}
         ${exam && s.state === 'closed' ? '<button class="btn brand" id="xRel">公布成績</button>' : ''}
+        <a class="btn" href="#/sessions?copy=${esc(s.sessionId)}" title="用同樣的案件與設定建立新的測驗" style="display:inline-grid;place-items:center;text-decoration:none">複製</a>
         ${X.me.can && X.me.can.session ? '<button class="btn ghost danger" id="xDel">刪除</button>' : ''}`}</div>
       <div id="xPanel"></div>
       <div class="cmd" ${ro ? 'hidden' : ''}><code style="font-size:15px;word-break:break-all">${esc(xLink(s.sessionId))}</code><span class="spacer"></span><button class="btn sm" id="xCopy">複製專員連結</button></div>
@@ -667,5 +684,5 @@
   }
 
   window.RRQP_EXAM = { sessions, session, cards, entry, gradingList, resultsSessions, results, CSV_HEAD, csvRow,
-    modeTxt: MODE, pctTxt, rateTxt, newForm: (box, ctx) => { X = ctx; return createForm(box); } };
+    modeTxt: MODE, pctTxt, rateTxt, newForm: (box, ctx, copyId) => { X = ctx; return createForm(box, copyId); } };
 })();

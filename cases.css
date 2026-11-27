@@ -530,6 +530,18 @@ main.cq-full{max-width:none;padding:0;gap:0}
 .cq .cqa-c.wn{background:#fff7ed;color:#b45309}
 .cq .cqa-c.bd{background:#fef2f2;color:#b91c1c}
 .cq .cqa-c.nt{background:#f1f1f4;color:#555}
+/* SOP 調整檢查（2026-11-27）：需要講師處理，用實心橘色 */
+.cq .cqa-c.sp{background:#ea580c;color:#fff}
+.cq .sopc-g{border-top:1px solid #f3d48a;padding:8px 0 2px;margin-top:6px}
+.cq .sopc-q{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;background:#fffbeb;border:1px solid #f3d48a;border-radius:6px;padding:8px 10px;margin-top:6px}
+.cq .sopc-ok{color:#15803d;font-weight:500}
+.cq .sopc-ng{color:#b91c1c}
+.cq .sopc-q .cbtn{flex:none;white-space:nowrap}
+.cq .sopc-up{background:#ea580c;color:#fff;border-color:#ea580c}
+.cql-sop{height:34px;padding:0 12px;border-radius:8px;border:1px solid #f2b79b;background:#fff;color:#c2410c;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.cql-sop.on{background:#fdeee8;border-color:#ea580c}
+.cql-sop b{display:inline-block;min-width:18px;height:18px;line-height:18px;margin-left:6px;border-radius:9px;background:#ea580c;color:#fff;font-size:11px;font-weight:500;text-align:center}
+.cql-sopline{font-size:12px;color:#c2410c;margin-top:3px}
 .cq .cqa-c.on{border-color:currentColor}
 .cq #cqSettings.ed2{position:sticky}
 .cq .cqa-pop{position:absolute;right:16px;top:calc(100% - 4px);z-index:30;width:420px;max-width:calc(100vw - 32px);box-sizing:border-box;background:#fff;border:1px solid #e5e5ea;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.10);padding:10px 12px;font-size:13px;line-height:1.6}

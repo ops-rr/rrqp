@@ -178,7 +178,7 @@
         <input type="search" id="cqQ" placeholder="搜尋案件編號、標題、Return ID、講師" value="${esc(filt.q)}">
         <select id="cqU"><option value="">練習＋考試</option><option value="practice" ${filt.usage === 'practice' ? 'selected' : ''}>練習用</option><option value="exam" ${filt.usage === 'exam' ? 'selected' : ''}>考試用</option></select>
         <select id="cqL"><option value="">全部對象</option><option value="tw" ${filt.lang === 'tw' ? 'selected' : ''}>TW</option><option value="bpo" ${filt.lang === 'bpo' ? 'selected' : ''}>TW＋BPO</option></select>
-        <span class="small muted" id="cqC"></span></div><div id="cqRows"></div></div></div>`;
+        <span class="small muted" id="cqC"></span><span id="cqSopF"></span></div><div id="cqRows"></div></div></div>`;
     const inF = (c) => !filt.kind || (filt.kind === 'none' ? !(c.groups || []).length
       : (filt.kind === 'group' ? c.groups : filt.kind === 'topic' ? c.topics : c.tags || []).includes(filt.id));
     const drawSide = () => {
@@ -197,13 +197,18 @@
     const draw = () => {
       const q = filt.q.trim().toLowerCase();
       const pend = filt.tab !== 'approved';      // 可用題庫只列已核准的：不顯示匯入提醒與狀態
-      const list = all.filter((c) => inF(c) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
+      // SOP 調整檢查（2026-11-27）：用到的 SOP 有新版本的案件；有才出現篩選按鈕
+      const nSop = all.filter((c) => (c.sopStale || []).length).length;
+      if (!nSop) filt.sop = false;
+      $('#cqSopF').innerHTML = nSop ? `<button type="button" class="cql-sop ${filt.sop ? 'on' : ''}" id="cqS">SOP 調整檢查<b>${nSop}</b></button>` : '';
+      if ($('#cqS')) $('#cqS').onclick = () => { filt.sop = !filt.sop; draw(); };
+      const list = all.filter((c) => inF(c) && (!filt.sop || (c.sopStale || []).length) && (!filt.usage || c.usage === filt.usage) && (!filt.lang || (filt.lang === 'bpo') === (c.twOnly === false))
         && (!q || [c.caseId, c.title, c.returnId, c.updatedBy, c.approvedBy, c.requestedBy].join(' ').toLowerCase().includes(q)));
       $('#cqC').textContent = `${list.length} / ${all.length} 筆`;
       $('#cqRows').innerHTML = !list.length ? '<div class="card empty-state">沒有符合的案件</div>' : `<div class="card scroll-x"><table class="list cql-tb"><thead><tr>
           <th>案件</th><th class="t">標題</th><th>分類</th><th>用途</th><th>對象</th><th>作答題</th>${d.canEdit ? '<th>Return ID</th>' : ''}${pend ? '<th>匯入提醒</th>' : ''}<th>最後修改</th>${pend ? '<th>狀態</th>' : ''}</tr></thead><tbody>
         ${list.map((c) => `<tr class="click" data-id="${esc(c.caseId)}"><td class="mono">${esc(c.caseId)}${c.copyOf ? `<div class="soft small" style="white-space:nowrap">複製自 ${esc(c.copyOf)}</div>` : ''}</td>
-          <td class="t">${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}</td>
+          <td class="t">${c.title ? esc(c.title) : '<span class="soft">（未命名）</span>'}${(c.sopStale || []).length ? '<div class="cql-sopline">SOP 調整檢查</div>' : ''}</td>
           <td class="small">${(c.groups || []).map((x) => `<span class="chip">${esc(gName(x))}</span>`).join(' ')}
             <div class="soft">${(c.topics || []).map(tpName).concat((c.tags || []).map(tgName)).map(esc).join('、')}</div></td>
           <td style="white-space:nowrap">${c.usage === 'exam' ? '考試' : '練習'}</td><td style="white-space:nowrap">${langChip(c, true)}</td><td style="white-space:nowrap">${c.questions} 題</td>
@@ -542,7 +547,7 @@
     const sum = `<div class="cqs-sum"><span class="k">設定</span><span>${m.usage === 'exam' ? '考試用' : '練習用'}・${m.twOnly === false ? 'TW＋BPO' : 'TW'}・${mask.length ? '遮蔽' + mask.join('、') : '不遮蔽'}</span>
         <span class="k">｜分類</span><span>${cls.length ? esc(cls.join(' › ')) : '<span class="bad">還沒選組別、主題</span>'}</span>
         <a class="cqs-link" onclick="CQ.setToggle()">${SET_OPEN ? '收起設定 ▴' : '編輯設定 ▾'}</a>
-        <span style="flex:1"></span>${isView() ? '<span class="small soft">已上架，只能查看；要修改請先「下架修改」</span>' : `<span id="cqAl" class="cqa">${alertBoxes()}</span>`}</div>`;
+        <span style="flex:1"></span>${isView() ? '<span class="small soft">已上架，只能查看；要修改請先「下架修改」</span>' : ''}<span id="cqAl" class="cqa">${alertBoxes()}</span></div>`;
     if (!SET_OPEN) { box.innerHTML = sum + alertPop(); layout(); return; }
     box.innerHTML = sum + alertPop() + `<div class="cond">
         <div class="r1">
@@ -615,13 +620,21 @@
     ALERT = { p, done, piiS, leaks, leakS, items, chk };
     const piiLeft = p.old ? 1 : p.spots.length - PII_SEEN.size;
     const chip = (k, cls, txt, title) => `<button class="cqa-c ${cls} ${ALERT_OPEN === k ? 'on' : ''}" onclick="event.stopPropagation();CQ.alertOpen('${k}')" title="${esc(title)}">${txt}</button>`;
-    return chip('pii', !p.total || done ? 'ok' : 'bd', !p.total ? '個資檢查 0' : done ? '個資檢查 已看完' : `個資檢查 還有 ${piiLeft} 處沒看`, '自動遮蔽的個資；上架前要逐處看過')
+    // SOP 調整檢查：已上架也要看得到（路線相同可以直接改用新版）；每個案件打開時自動跳出一次
+    const sops = sopCheck(); ALERT.sops = sops;
+    const nSop = new Set(sops.flatMap((g) => g.mods.map((x) => x.md.id))).size;
+    if (nSop && SOP_AUTO !== CUR.caseId) { SOP_AUTO = CUR.caseId; ALERT_OPEN = 'sop'; }
+    if (!nSop && ALERT_OPEN === 'sop') ALERT_OPEN = '';
+    const sopChip = nSop ? chip('sop', 'sp', `SOP 調整檢查 ${nSop}`, '用到的 SOP 有新版本，請確認題目還正確') : '';
+    if (isView()) return sopChip;
+    return sopChip + chip('pii', !p.total || done ? 'ok' : 'bd', !p.total ? '個資檢查 0' : done ? '個資檢查 已看完' : `個資檢查 還有 ${piiLeft} 處沒看`, '自動遮蔽的個資；上架前要逐處看過')
       + chip('leak', leaks.length ? 'wn' : 'nt', `可能洩漏 ${leaks.length}`, '專員看得到、可能透露答案的內容')
       + chip('imp', chk.errors.length ? 'bd' : 'nt', `匯入提醒 ${items.length}`, '上架前要完成的項目與匯入時的提醒');
   }
   // 點標籤：個資、洩漏逐處跳到畫面上的位置；下方小視窗顯示第幾處與說明
-  let ALERT = {}, ALERT_OPEN = '';
+  let ALERT = {}, ALERT_OPEN = '', SOP_AUTO = '';
   function alertOpen(k) {
+    if (k === 'sop') { ALERT_OPEN = ALERT_OPEN === 'sop' ? '' : 'sop'; return refreshAlerts(); }
     if (k === 'imp') { ALERT_OPEN = ALERT_OPEN === 'imp' ? '' : 'imp'; return refreshAlerts(); }
     ALERT_OPEN = k;
     if (k === 'pii') piiNext(); else leakNext();
@@ -629,12 +642,13 @@
   }
   function alertPop() {
     const a = ALERT;
-    if (!ALERT_OPEN || !a.p) return '';
+    if (!ALERT_OPEN || (!a.p && ALERT_OPEN !== 'sop')) return '';
     const nav = (k) => `<div class="cqa-nav"><button class="cbtn" onclick="CQ.alertStep('${k}',-1)">上一處</button><button class="cbtn" onclick="CQ.alertStep('${k}',1)">下一處</button><span style="flex:1"></span><a class="cqs-link" onclick="CQ.alertClose()">收起</a></div>`;
     const close = '<div class="cqa-nav"><span style="flex:1"></span><a class="cqs-link" onclick="CQ.alertClose()">收起</a></div>';
     let h = '';
     if (ALERT_OPEN === 'pii') h = `<div class="h">個資檢查</div><div class="q">${a.piiS}</div>${!a.p.total ? close : a.p.old ? '<div class="q">舊版匯入沒有位置資料，重新匯入後可以逐處跳轉</div>' + close : nav('pii')}`;
     if (ALERT_OPEN === 'leak') h = `<div class="h">可能洩漏結果</div><div class="q">${a.leakS}</div>${a.leaks.length ? nav('leak') : close}`;
+    if (ALERT_OPEN === 'sop') h = sopCheckHtml(a.sops || []) + close;
     if (ALERT_OPEN === 'imp') h = `<div class="h">匯入提醒</div>${a.items.length ? `<ul>${a.items.map(([k, x]) => `<li class="${k}">${esc(x)}</li>`).join('')}</ul>` : '<div class="q">沒有提醒</div>'}${close}`;
     return `<div class="cqa-pop" id="cqAlPop" onclick="event.stopPropagation()">${h}</div>`;
   }
@@ -1499,7 +1513,7 @@
           ${pctInput(md, i)}`;
       }
       if (md.type === 'sop') body = sopEditHtml(md, i) + pctInput(md, i);
-      html += `<div class="mod ${md.type === 'note' ? 'note' : isQ(md) ? 'qmod' : ''}">${head}${body}</div>`;
+      html += `<div class="mod ${md.type === 'note' ? 'note' : isQ(md) ? 'qmod' : ''}" id="emod-${esc(md.id)}">${head}${body}</div>`;
     });
     html += `<div class="addbar"><span class="hint" style="width:100%;margin:0">＋ 插入模組</span>
       ${Object.keys(TYPE_NAME).map(t => `<button onclick="CQ.addMod('${t}')">${TYPE_NAME[t]}</button>`).join('')}</div>`;
@@ -1735,7 +1749,7 @@
   function sopLoad(tb) {
     if (!tb || SOPS[tb] || SOP_LOADING[tb]) return;
     SOP_LOADING[tb] = true;
-    X.api('c_sopGet', { taskbot: tb }).then((r) => { SOPS[tb] = r.sop; renderSide(); })
+    X.api('c_sopGet', { taskbot: tb }).then((r) => { SOPS[tb] = r.sop; renderSide(); if ($('#cqAl')) refreshAlerts(); })
       .catch((e) => X.toast(`讀取 ${tb} 失敗：` + e.message, 6000))
       .finally(() => { SOP_LOADING[tb] = false; });
   }
@@ -1804,7 +1818,7 @@
     // 用到的每個 SOP 都比對版本（路線可能跨 SOP）
     const flows = md.flows || (md.flowId ? { [md.taskbot]: md.flowId } : {});
     const diff = Object.entries(flows).filter(([tb, f]) => SOPS[tb] && SOPS[tb].flowId !== f);
-    if (diff.length) h += `<div class="sop-warn">${diff.map(([tb, f]) => `這題用的是 ${esc(f)}，目前上線版是 ${esc(SOPS[tb].flowId)}`).join('；')}。路線若和新版不同會在下面標出；改版自動比對之後會做。</div>`;
+    if (diff.length) h += `<div class="sop-warn">${diff.map(([tb, f]) => `這題用的是 ${esc(f)}，目前上線版是 ${esc(SOPS[tb].flowId)}`).join('；')}。比對結果見上方「SOP 調整檢查」；路線和新版不同的那一步會在下面標出。</div>`;
     const w = sopWalk(md, sop);
     const st = sop.nodes[md.start];
     h += `<div class="sop-start"><span>起點：<b>${esc(st ? (st.name || sopNodeTitle(st)) : md.start)}</b>
@@ -2397,6 +2411,78 @@
     delete SOP_OPEN[md.id]; sopAutoSys(md); sopSnap(md, sop); saveCase(); renderSide(); sopScrollLast();
   }
 
+  // ───────── SOP 調整檢查（2026-11-27）：題目用的 SOP 版本和目前上線版不同 → 用新版重走標準路線，說明哪裡不同 ─────────
+  // 回傳 [{ tb, from, to, at, mods: [{ i, md, no, res:'same'|'diff'|'loading', msg }] }]；SOP 清單或節點還沒載入時先載入，載完會再更新
+  function sopCheck() {
+    const mods = (C.modules || []).map((md, i) => ({ md, i })).filter(({ md }) => md.type === 'sop' && md.start);
+    if (!mods.length || !CUR || !CUR.canEdit) return [];
+    if (!SOP_LIST) { sopListOnly(); return []; }
+    const live = {};
+    SOP_LIST.forEach((x) => { live[x.taskbot] = x; });
+    const qn = qNumbers(), groups = {};
+    mods.forEach(({ md, i }) => {
+      const flows = md.flows || (md.flowId ? { [md.taskbot]: md.flowId } : {});
+      const stale = Object.entries(flows).filter(([tb, f]) => live[tb] && live[tb].flowId && live[tb].flowId !== f);
+      if (!stale.length) return;
+      Object.keys(flows).forEach((tb) => { if (live[tb] && !SOPS[tb]) sopLoad(tb); });
+      const r = sopCompare(md);
+      stale.forEach(([tb, f]) => {
+        const g = groups[tb] || (groups[tb] = { tb, from: f, to: live[tb].flowId, at: live[tb].fetchedAt || '', mods: [] });
+        g.mods.push(Object.assign({ i, md, no: qn[md.id] }, r));
+      });
+    });
+    return Object.values(groups);
+  }
+  function sopListOnly() {
+    if (SOP_LIST || SOP_LOADING.list) return;
+    SOP_LOADING.list = true;
+    X.api('c_sopList').then((r) => { SOP_LIST = r.items || []; refreshAlerts(); }).catch(() => {}).finally(() => { SOP_LOADING.list = false; });
+  }
+  /** 用目前上線版重走：第一個不同的地方（節點刪了、選項不見、選項文字改了、走完後新版還有下一步） */
+  function sopCompare(md) {
+    const tbs = Object.keys(md.flows || { [md.taskbot]: 1 });
+    if (tbs.some((tb) => !SOPS[tb] && (SOP_LIST || []).some((x) => x.taskbot === tb))) return { res: 'loading', msg: '比對中…' };
+    const w = sopWalk(md), ans = md.answer || [], snap = md.snap || {};
+    const oldLabel = (st) => { const o = snap[st.n]; return o ? sopPickLabel(o, st.pick) : ''; };
+    for (let k = 0; k < w.steps.length; k++) {
+      const a = oldLabel(ans[k]), b = sopPickLabel(w.steps[k].node, w.steps[k].pick);
+      if (a && b && a !== b) return { res: 'diff', step: k, msg: `第 ${k + 1} 步選項的文字改了：原本「${a}」，新版是「${b}」，請確認意思沒變；沒問題可以重走這一題存檔。` };
+    }
+    if (w.broken) {
+      const k = w.steps.length, st = ans[k] || {}, nd = sopNode(st.n), a = oldLabel(st);
+      const why = !nd ? '新版已經沒有這個節點' : a ? `原本選「${a}」，新版這一步${sopPickLabel(nd, st.pick) ? `的選項變成「${sopPickLabel(nd, st.pick)}」` : '已經沒有這個選項'}` : '新版這一步的內容不同';
+      return { res: 'diff', step: k, msg: `第 ${k + 1} 步不同：${why}，請重走這一題。` };
+    }
+    if (!w.end) return { res: 'diff', step: w.steps.length, msg: `標準路線走到第 ${w.steps.length} 步後，新版還有下一步，請重走這一題。` };
+    return { res: 'same', msg: '路線相同，新版不影響這題。' };
+  }
+  function sopCheckHtml(groups) {
+    const ro = !canMod();          // 已上架：路線相同可以直接改用新版；路線不同要先下架修改
+    const day = (s) => String(s || '').slice(0, 10);
+    return `<div class="h">SOP 調整檢查</div><div class="q">這個案件用到的 SOP 有新版本，請確認題目還正確。</div>` + groups.map((g) => `
+      <div class="sopc-g"><div><b>${esc(g.tb)} 已調整</b> <span class="soft">${esc(g.from)} → ${esc(g.to)}${g.at ? `（${esc(day(g.at))} 更新）` : ''}</span></div>
+      ${g.mods.map((x) => `<div class="sopc-q"><div style="flex:1;min-width:0"><b>第 ${x.no} 題 SOP 路徑</b>：<span class="${x.res === 'same' ? 'sopc-ok' : x.res === 'diff' ? 'sopc-ng' : 'soft'}">${esc(x.msg)}</span>
+        ${x.res === 'diff' && ro ? '<div class="soft small">已上架的案件要先按「⋯ → 下架修改」才能重走。</div>' : ''}</div>
+        ${x.res === 'same' ? `<button class="cbtn sopc-up" onclick="CQ.sopUpgrade(${x.i})">改用新版</button>` : x.res === 'diff' ? `<button class="cbtn" onclick="CQ.sopGoMod(${x.i})">前往第 ${x.no} 題</button>` : ''}</div>`).join('')}</div>`).join('');
+  }
+  async function sopUpgrade(i) {
+    const md = C.modules[i], sop = SOPS[md.taskbot];
+    if (!sop || sopCompare(md).res !== 'same') return X.toast('路線和新版不同，請重走這一題', 5000);
+    const old = JSON.stringify({ flows: md.flows, snap: md.snap, flowId: md.flowId, version: md.version });
+    sopSnap(md, sop);
+    if (canMod()) { saveCase(); renderAll(); X.toast(`第 ${qNumbers()[md.id]} 題已改用新版`); return; }
+    // 已上架：只換版本與快照（伺服器端也只改這幾個欄位），不用下架
+    try {
+      const r = await X.api('c_sopUpgrade', { caseId: CUR.caseId, rev: CUR.rev, modId: md.id, mod: { flows: md.flows, snap: md.snap, flowId: md.flowId, version: md.version, sopName: md.sopName } });
+      CUR.rev = r.rev; HIST.last = histSnap(); renderAll(); X.toast(`第 ${qNumbers()[md.id]} 題已改用新版`);
+    } catch (e) { Object.assign(md, JSON.parse(old)); X.toast(e.message, 6000); renderAll(); }
+  }
+  function sopGoMod(i) {
+    const md = C.modules[i];
+    ALERT_OPEN = ''; sideTab = 'quiz'; ACTIVE_SOP = md.id; renderAll();
+    setTimeout(() => { const el = document.getElementById('emod-' + md.id); if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.classList.remove('pii-flash'); void el.offsetWidth; el.classList.add('pii-flash'); } }, 60);
+  }
+
   /** 路線上每個節點出題當時的內容（之後 SOP 改版時逐一比對） */
   function sopSnap(md, sop) {
     const w = sopWalk(md, sop), snap = {};
@@ -2835,7 +2921,7 @@
   // ===== 畫面按鈕呼叫的函式 =====
   window.CQ = {
     txOrig(a) { const src = a.previousElementSibling; src.hidden = !src.hidden; a.textContent = src.hidden ? 'Show Original' : 'Hide Original'; },
-    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, toggleQc, hideQc, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
+    dtToggle: (k, v) => { OPEN[k] = v; }, toggleCls, toggleQc, hideQc, sopUpgrade, sopGoMod, msOpen, piiNext, leakNext, impToggle, sopSet, sopReset, sopSearch, sopStart, sopPickStart, sopCancelStart, sopPick, sopBack, sopPickAt, sopToggle, sopCopy, sopBtn, agPick, agBtn, sopStop, actDel, actOpen, actSet, fraudUser, actItem, actItemAdd, actItemDel, actClose, actConfirm, view: setView, setMode, setTitle, setMeta, setMask, saveNow, approve, unapprove, copy, del, evenPct,
     jumpTo, toggleNav: () => { navClosed = !navClosed; renderNav(); layout(); },
     tab: (t) => { sideTab = t; renderSide(); }, room: (r) => { drcRoom = r; renderSide(); }, filter: (f) => { opFilter = f; renderSide(); },
     addField, delLine, addLine, delTl, cutTl, addTl, delMedia, showFieldPop, editTags, toggleHidden, delField, openLightbox, closeLightbox,
@@ -2848,7 +2934,7 @@
   // 已上架的「答案與詳解」：只能看。會改內容的 CQ 動作一律擋下；畫面上這些按鈕藏起來、輸入框鎖住
   const VIEW_OK = new Set(['txOrig', 'dtToggle', 'toggleCls', 'piiNext', 'leakNext', 'impToggle', 'sopToggle', 'sopCopy', 'sopSearch', 'view', 'setMode',
     'unapprove', 'copy', 'del', 'jumpTo', 'toggleNav', 'tab', 'room', 'filter', 'openLightbox', 'closeLightbox', 'showTrack', 'moreToggle', 'copyRid',
-    'setToggle', 'alertOpen', 'alertStep', 'alertClose', 'exCase', 'saveNow', 'retry']);
+    'setToggle', 'alertOpen', 'alertStep', 'alertClose', 'exCase', 'saveNow', 'retry', 'sopUpgrade', 'sopGoMod']);
   Object.keys(window.CQ).forEach((k) => {
     if (VIEW_OK.has(k) || typeof window.CQ[k] !== 'function') return;
     const f = window.CQ[k];
